@@ -1711,7 +1711,7 @@ void showIP () {
     }
 
     pixels.show();
-    delay (300);    // set speed of timeshift
+    delay (150);    // set speed of timeshift
   }
 }
 
