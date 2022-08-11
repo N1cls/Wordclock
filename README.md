@@ -5,3 +5,5 @@ This is the Wordclock software to the thingiverse project https://www.thingivers
 Feel free to add functions, ideas and everything else, which helps this project to grow! 
 
 Further information will follow
+
+Current version: 3.4
