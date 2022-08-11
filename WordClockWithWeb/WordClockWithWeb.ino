@@ -17,7 +17,7 @@ int wchostnamenum = 0;                      // Hostname + Number
 ESP8266WebServer httpServer(2022);          // Update
 ESP8266HTTPUpdateServer httpUpdater;        // Update
 String UpdatePath = "-";                    // Update via Hostname
-String UpdatePathIP = "-";
+String UpdatePathIP = "-";                  // Update via IP-address
 
 
 // I2C adress of the RTC  DS3231 (Chip on ZS-042 Board)
@@ -1725,7 +1725,7 @@ void showIP () {
     }
 
     pixels.show();
-    delay (300);    // set speed of timeshift
+    delay (150);    // set speed of timeshift
   }
 }
 
