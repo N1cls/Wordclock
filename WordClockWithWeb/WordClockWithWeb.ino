@@ -10,7 +10,7 @@
 #include <ESP8266HTTPUpdateServer.h>  // Update 
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 
-const char* WORD_CLOCK_VERSION = "V3.3";
+const char* WORD_CLOCK_VERSION = "V3.4";
 
 String wchostname = "WordClock";            // Hostname
 int wchostnamenum = 0;                      // Hostname + Number
@@ -74,7 +74,9 @@ int greenVal = 255;
 int blueVal  = 0;
 
 // Intensity (0..255)
-int intensity = 128;
+int intensity = 64;
+int intensityNight = 32;
+int useNightLEDs = 0;
 
 // Flag for highlighting DCW every Hour
 int dcwFlag = 0;
@@ -124,6 +126,7 @@ struct parmRec
   int  pGreen;
   int  pBlue;
   int  pIntensity;
+  int  pIntensityNight;
   int  pShowDate;
   char pdisplayonmaxMO;
   char pdisplayonminMO;
@@ -140,6 +143,7 @@ struct parmRec
   char pdisplayonmaxSU;
   char pdisplayonminSU;
   int  pdisplayoff;
+  int  puseNightLEDs;
   int  puseupdate;
   int  puseledtest;
   int  pusesetwlan;
@@ -267,6 +271,13 @@ void readEEPROM() {
     else
       Serial.println("OFF");
 
+    useNightLEDs = parameter.puseNightLEDs;
+    Serial.print("Use LEDs in night mode Off is ");
+    if (useNightLEDs)
+      Serial.println("ON");
+    else
+      Serial.println("OFF");
+
     displayonmaxMO = parameter.pdisplayonmaxMO;
     Serial.print("DisplayOffMaxMO set to ");
     Serial.println(displayonmaxMO);
@@ -378,8 +389,12 @@ void readEEPROM() {
       Serial.println("OFF");
 
     intensity =  parameter.pIntensity;
-    Serial.print("Intensity set to ");
+    Serial.print("Intensity at day time set to ");
     Serial.println(intensity);
+
+    intensityNight =  parameter.pIntensityNight;
+    Serial.print("Intensity at night time set to ");
+    Serial.println(intensityNight);
 
     Serial.print("RGB set to ");
     Serial.print(redVal);
@@ -411,6 +426,7 @@ void writeEEPROM() {
   parameter.pGreen     = greenVal;
   parameter.pBlue      = blueVal;
   parameter.pIntensity = intensity;
+  parameter.pIntensityNight = intensityNight;
   parameter.pDCWFlag   = dcwFlag;
   parameter.pBlinkTime = blinkTime;
 
@@ -419,6 +435,7 @@ void writeEEPROM() {
   parameter.pShowDate  = showDate;
 
   parameter.pdisplayoff  = displayoff;
+  parameter.puseNightLEDs  = useNightLEDs;
 
   parameter.pdisplayonmaxMO = displayonmaxMO;
   parameter.pdisplayonminMO = displayonminMO;
@@ -727,9 +744,16 @@ void checkClient() {
             client.print("<input type=\"color\" id=\"favcolor\" name=\"favcolor\" value=\"");
             client.print(hex);
             client.print("\"><br><br>");
-            client.print("<label for=\"intensity\">Helligkeit: </label>");
+
+            client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
             client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"255\" value=\"");
             client.print(intensity);
+            client.print("\">");
+            client.println("<br><br>");
+
+            client.print("<label for=\"intensityNight\">Helligkeit bei Nacht: </label>");
+            client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"255\" value=\"");
+            client.print(intensityNight);
             client.print("\">");
             client.println("<br><hr>");
 
@@ -750,10 +774,18 @@ void checkClient() {
             }
             client.print("><br><hr>");
 
-            client.println("<h2>Display abschalten</h2><br>");
-            client.println("<label for=\"displayoff\">Display abschalten?</label>");
+            client.println("<h2>Display abschalten oder dunkler schalten?</h2><br>");
+            client.println("<label for=\"displayoff\">Display abschalten oder dunkler schalten?</label>");
             client.print("<input type=\"checkbox\" id=\"displayoff\" name=\"displayoff\"");
             if (displayoff) {
+              client.print(" checked");
+            }
+            client.print("><br><br>");
+
+
+            client.println("<label for=\"useNightLEDs\">Display nur dunkler schalten auf Wert der Helligkeit bei Nacht?</label>");
+            client.print("<input type=\"checkbox\" id=\"useNightLEDs\" name=\"useNightLEDs\"");
+            if (useNightLEDs) {
               client.print(" checked");
             }
             client.print("><br><br>");
@@ -1192,6 +1224,15 @@ void checkClient() {
                 Serial.println("off");
               }
 
+              // Check for useNightLEDs switch
+              Serial.print("useNightLEDs switched  ");
+              if (currentLine.indexOf("&useNightLEDs=on&") >= 0) {
+                useNightLEDs = -1;
+                Serial.println("on");
+              } else {
+                useNightLEDs = 0;
+                Serial.println("off");
+              }
 
               // Pick up Display On Max
               pos = currentLine.indexOf("&displayonmaxMO=");
@@ -1511,17 +1552,30 @@ void checkClient() {
                 Serial.println("DCW Flag switched OFF");
               }
 
-              // get intensity
+              // get intensity DAY
               pos = currentLine.indexOf("&intensity=");
               if (pos >= 0) {
                 String intStr = currentLine.substring(pos + 11, pos + 14);
                 pos = intStr.indexOf("&");
                 if (pos > 0)
                   intStr = intStr.substring(0, pos);
-                Serial.print("Intensity set to ");
+                Serial.print("Intensity at day time set to ");
                 Serial.print(intStr);
                 //Serial.println("%"); // % ist Fehler oder?
                 intensity = intStr.toInt();
+              }
+
+              // get intensity NIGHT
+              pos = currentLine.indexOf("&intensityNight=");
+              if (pos >= 0) {
+                String intStr = currentLine.substring(pos + 16, pos + 19);
+                pos = intStr.indexOf("&");
+                if (pos > 0)
+                  intStr = intStr.substring(0, pos);
+                Serial.print("Intensity at night time set to ");
+                Serial.print(intStr);
+                //Serial.println("%"); // % ist Fehler oder?
+                intensityNight = intStr.toInt();
               }
 
               // get NTP Server
@@ -1833,14 +1887,14 @@ void showMinutes(int minutes) {
 
     int ledNr = 0;
     if (switchLEDOrder) {               // clockwise
-      switch (i) {  
+      switch (i) {
         case 1: ledNr = 110; break;
         case 2: ledNr = 111; break;
         case 3: ledNr = 112; break;
         case 4: ledNr = 113; break;
       }
     } else {                            // anti clockwise
-      switch (i) { 
+      switch (i) {
         case 1: ledNr = 113; break;
         case 2: ledNr = 112; break;
         case 3: ledNr = 111; break;
@@ -2099,8 +2153,7 @@ void loop() {
   // handle NTP / RTC time
   handleTime();
 
-  // Adjust brightness
-  pixels.setBrightness(intensity);
+  pixels.setBrightness(intensity); // DAY brightness
 
   delay(750);
   if (switchRainBow) { // RainBow effect active - color change every new minute
@@ -2118,18 +2171,24 @@ void loop() {
   // Show the display only during the set Min/Max time if option is set
   if (displayoff) {
 
+    // #########################################################################
+
     // Test week day values:
     int Test_iWeekDay = 0;
     if (Test_iWeekDay == 1) {
-      iWeekDay = 6;
+      //iWeekDay = 6;
       Serial.print(iHour);
       Serial.print(":");
       Serial.print(iMinute);
       Serial.print(":");
       Serial.print(iSecond);
       Serial.print(" - ");
-      Serial.print(iWeekDay);
+      Serial.println(iWeekDay);
+      Serial.print("useNightLEDs: ");
+      Serial.println(useNightLEDs);
     }
+
+    // #########################################################################
 
     switch (iWeekDay) {
       case 0:     // Sunday
@@ -2145,10 +2204,24 @@ void loop() {
         }
         else
         {
-          if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
-          dunkel();
+          if (useNightLEDs == -1) {
+            pixels.setBrightness(intensityNight); // Night brightness
+            if (iSecond == 30) {
+              if (showDate)
+                showCurrentDate();
+            }
+            showCurrentTime();
+            showDCW();
+          }
+          else
+          {
+            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
+            dunkel();
+          }
         }
         break;
+
+      // #########################################################################
 
       case 1:     // Monday
         if (Test_iWeekDay == 1) Serial.print(" - Monday - ");
@@ -2163,10 +2236,24 @@ void loop() {
         }
         else
         {
-          if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
-          dunkel();
+          if (useNightLEDs == -1) {
+            pixels.setBrightness(intensityNight); // Night brightness
+            if (iSecond == 30) {
+              if (showDate)
+                showCurrentDate();
+            }
+            showCurrentTime();
+            showDCW();
+          }
+          else
+          {
+            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
+            dunkel();
+          }
         }
         break;
+
+      // #########################################################################
 
       case 2:     // Tuesday
         if (Test_iWeekDay == 1) Serial.print(" - Tuesday - ");
@@ -2181,10 +2268,24 @@ void loop() {
         }
         else
         {
-          if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
-          dunkel();
+          if (useNightLEDs == -1) {
+            pixels.setBrightness(intensityNight); // Night brightness
+            if (iSecond == 30) {
+              if (showDate)
+                showCurrentDate();
+            }
+            showCurrentTime();
+            showDCW();
+          }
+          else
+          {
+            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
+            dunkel();
+          }
         }
         break;
+
+      // #########################################################################
 
       case 3:     // Wednesday
         if (Test_iWeekDay == 1) Serial.print(" - Wednesday - ");
@@ -2199,10 +2300,24 @@ void loop() {
         }
         else
         {
-          if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
-          dunkel();
+          if (useNightLEDs == -1) {
+            pixels.setBrightness(intensityNight); // Night brightness
+            if (iSecond == 30) {
+              if (showDate)
+                showCurrentDate();
+            }
+            showCurrentTime();
+            showDCW();
+          }
+          else
+          {
+            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
+            dunkel();
+          }
         }
         break;
+
+      // #########################################################################
 
       case 4:     // Thursday
         if (Test_iWeekDay == 1) Serial.print(" - Thursday - ");
@@ -2217,10 +2332,24 @@ void loop() {
         }
         else
         {
-          if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
-          dunkel();
+          if (useNightLEDs == -1) {
+            pixels.setBrightness(intensityNight); // Night brightness
+            if (iSecond == 30) {
+              if (showDate)
+                showCurrentDate();
+            }
+            showCurrentTime();
+            showDCW();
+          }
+          else
+          {
+            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
+            dunkel();
+          }
         }
         break;
+
+      // #########################################################################
 
       case 5:     // Friday
         if (Test_iWeekDay == 1) Serial.print(" - Friday - ");
@@ -2235,10 +2364,24 @@ void loop() {
         }
         else
         {
-          if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
-          dunkel();
+          if (useNightLEDs == -1) {
+            pixels.setBrightness(intensityNight); // Night brightness
+            if (iSecond == 30) {
+              if (showDate)
+                showCurrentDate();
+            }
+            showCurrentTime();
+            showDCW();
+          }
+          else
+          {
+            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
+            dunkel();
+          }
         }
         break;
+
+      // #########################################################################
 
       case 6:     // Saturday
         if (Test_iWeekDay == 1) Serial.print(" - Saturday - ");
@@ -2253,10 +2396,24 @@ void loop() {
         }
         else
         {
-          if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
-          dunkel();
+          if (useNightLEDs == -1) {
+            pixels.setBrightness(intensityNight); // Night brightness
+            if (iSecond == 30) {
+              if (showDate)
+                showCurrentDate();
+            }
+            showCurrentTime();
+            showDCW();
+          }
+          else
+          {
+            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
+            dunkel();
+          }
         }
         break;
+
+        // #########################################################################
     }
   }
   else
