@@ -10,13 +10,15 @@
 #include <ESP8266HTTPUpdateServer.h>  // Update 
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 
-const char* WORD_CLOCK_VERSION = "V3.4";
+const char* WORD_CLOCK_VERSION = "V3.5";
 
 String wchostname = "WordClock";            // Hostname
 int wchostnamenum = 0;                      // Hostname + Number
 ESP8266WebServer httpServer(2022);          // Update
 ESP8266HTTPUpdateServer httpUpdater;        // Update
-String UpdatePath = "-";                    // Update
+String UpdatePath = "-";                    // Update via Hostname
+String UpdatePathIP = "-";
+
 
 // I2C adress of the RTC  DS3231 (Chip on ZS-042 Board)
 int RTC_I2C_ADDRESS = 0x68;
@@ -609,6 +611,7 @@ void setup() {
     Serial.println("Connected to WiFi.");
   }
 
+
   // Web Update
   if (useupdate)
   {
@@ -620,6 +623,9 @@ void setup() {
     UpdatePath = "http://" + String(wchostname + wchostnamenum) + ".local:2022/update";
     Serial.print("Web Update Link: ");
     Serial.println(UpdatePath);
+    UpdatePathIP = "http://" + WiFi.localIP().toString() + ":2022/update";
+    Serial.print("Web Update Link via IP-address: ");
+    Serial.println(UpdatePathIP);
   }
   server.begin();
 }
@@ -1007,12 +1013,17 @@ void checkClient() {
             if (useupdate) {
               client.print(" checked");
               client.print("><br><br>");
-              client.println("<label>Ueber den folgenden Link kann die WordClock ueber den Browser ohne Arduino aktualisiert werden:</label><br>");
+              client.println("<label>Ueber einen der folgenden Links kann die WordClock ueber den Browser ohne Arduino aktualisiert werden:</label><br>");
               client.println("<br>");
               client.print("<a href=");
               client.print(UpdatePath);
               client.print(" target='_blank'>");
               client.print(UpdatePath);
+              client.println("</a><br>");
+              client.print("<a href=");
+              client.print(UpdatePathIP);
+              client.print(" target='_blank'>");
+              client.print(UpdatePathIP);
               client.println("</a><br><br>");
               client.println("<label>Hinweis: Es wird eine in Arduino mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benoetigt,<br>die ueber die Option 'Update Firmware' hochgeladen werden kann.</label>");
             }
@@ -1427,6 +1438,9 @@ void checkClient() {
                 UpdatePath = "http://" + String(wchostname + wchostnamenum) + ".local:2022/update";
                 Serial.print("Web Update Link: ");
                 Serial.println(UpdatePath);
+                UpdatePathIP = "http://" + WiFi.localIP().toString() + ":2022/update";
+                Serial.print("Web Update Link via IP-address: ");
+                Serial.println(UpdatePathIP);
               } else {
                 useupdate = 0;
                 Serial.println("off");
@@ -1711,7 +1725,7 @@ void showIP () {
     }
 
     pixels.show();
-    delay (150);    // set speed of timeshift
+    delay (300);    // set speed of timeshift
   }
 }
 
