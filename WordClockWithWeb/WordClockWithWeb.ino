@@ -5,20 +5,20 @@
 // # Code by https://github.com/N1cls and https://github.com/AWSW-de
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
-// # 
+// #
 // ###########################################################################################################################################
 
 
 // ###########################################################################################################################################
 // # Includes:
-// # 
+// #
 // # You will need to add the following libraries to your Arduino IDE to use the project:
 // # - Adafruit BusIO                 // by Adafruit: https://github.com/adafruit/Adafruit_BusIO
 // # - Adafruit NeoPixel              // by Adafruit: https://github.com/adafruit/Adafruit_NeoPixel
 // # - DS3231                         // by Andrew Wickert: https://github.com/NorthernWidget/DS3231
 // # - RTClib                         // by Adafruit: https://github.com/adafruit/RTClib
 // # - WiFiManager                    // by tablatronix / tzapu : https://github.com/tzapu/WiFiManager
-// # 
+// #
 // ###########################################################################################################################################
 #include <ESP8266WiFi.h>              // Used to connect the ESP8266 NODE MCU to your WiFi
 #include <DNSServer.h>                // Used for name resolution for the internal webserver
@@ -32,8 +32,14 @@
 #include <ESP8266HTTPUpdateServer.h>  // Used for the internal update function
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 #include "settings.h"                 // Settings are stored in a seperate file to make to code better readable 
-                                      // and to be able to switch to other settings faster
+// and to be able to switch to other settings faster
 // ###########################################################################################################################################
+
+
+// ###########################################################################################################################################
+// # Version number of the code:
+// ###########################################################################################################################################
+const char* WORD_CLOCK_VERSION = "V3.7";
 
 
 // ###########################################################################################################################################
@@ -46,6 +52,11 @@ int lastRequest = 0; // Variable to control RTC requests
 int rtcStarted = 0; // Variable to control whether RTC has been initialized
 int delayval = 250; // delay in milliseconds
 int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay; // variables for RTC-module read time:
+String timeZone = DEFAULT_TIMEZONE; // Time server settings
+String ntpServer = DEFAULT_NTP_SERVER; // Time server settings
+String UpdatePath = "-"; // Update via Hostname
+String UpdatePathIP = "-"; // Update via IP-address
+ESP8266HTTPUpdateServer httpUpdater; // Update server
 
 
 // ###########################################################################################################################################
@@ -88,7 +99,6 @@ struct parmRec
   char pNTPServer[50];
   int  pCheckSum;      // This CheckSum is used to find out whether we have valid parameters
 } parameter;
-
 
 
 // ###########################################################################################################################################
@@ -490,16 +500,16 @@ void setup() {
     setLED(93, 93, 1);    // N
     pixels.show();
     delay(500);
-    setLED(110, 110, 1);  // Ecke 1
+    setLED(110, 110, 1);  // Corner 1
     pixels.show();
     delay(500);
-    setLED(111, 111, 1);  // Ecke 2
+    setLED(111, 111, 1);  // Corner 2
     pixels.show();
     delay(500);
-    setLED(112, 112, 1);  // Ecke 3
+    setLED(112, 112, 1);  // Corner 3
     pixels.show();
     delay(500);
-    setLED(113, 113, 1);  // Ecke 4
+    setLED(113, 113, 1);  // Corner 4
     pixels.show();
     delay(1000);
   }
@@ -2120,49 +2130,19 @@ void loop() {
 
     // #########################################################################
 
-    // Test week day values:
-    int Test_iWeekDay = 0;
-    if (Test_iWeekDay == 1) {
-      //iWeekDay = 6;
-      Serial.print(iHour);
-      Serial.print(":");
-      Serial.print(iMinute);
-      Serial.print(":");
-      Serial.print(iSecond);
-      Serial.print(" - ");
-      Serial.println(iWeekDay);
-      Serial.print("useNightLEDs: ");
-      Serial.println(useNightLEDs);
-    }
-
-    // #########################################################################
-
     switch (iWeekDay) {
       case 0:     // Sunday
-        if (Test_iWeekDay == 1) Serial.print(" - Sunday - ");
         if (iHour > displayonminSU && iHour < displayonmaxSU) {
-          if (Test_iWeekDay == 1)  Serial.println("LEDs ON");
-          if (iSecond == 30) {
-            if (showDate)
-              showCurrentDate();
-          }
-          showCurrentTime();
-          showDCW();
+          ShowTheTime();
         }
         else
         {
           if (useNightLEDs == -1) {
             pixels.setBrightness(intensityNight); // Night brightness
-            if (iSecond == 30) {
-              if (showDate)
-                showCurrentDate();
-            }
-            showCurrentTime();
-            showDCW();
+            ShowTheTime();
           }
           else
           {
-            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
             dunkel();
           }
         }
@@ -2171,30 +2151,17 @@ void loop() {
       // #########################################################################
 
       case 1:     // Monday
-        if (Test_iWeekDay == 1) Serial.print(" - Monday - ");
         if (iHour > displayonminMO && iHour < displayonmaxMO) {
-          if (Test_iWeekDay == 1) Serial.println("LEDs ON");
-          if (iSecond == 30) {
-            if (showDate)
-              showCurrentDate();
-          }
-          showCurrentTime();
-          showDCW();
+          ShowTheTime();
         }
         else
         {
           if (useNightLEDs == -1) {
             pixels.setBrightness(intensityNight); // Night brightness
-            if (iSecond == 30) {
-              if (showDate)
-                showCurrentDate();
-            }
-            showCurrentTime();
-            showDCW();
+            ShowTheTime();
           }
           else
           {
-            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
             dunkel();
           }
         }
@@ -2203,30 +2170,17 @@ void loop() {
       // #########################################################################
 
       case 2:     // Tuesday
-        if (Test_iWeekDay == 1) Serial.print(" - Tuesday - ");
         if (iHour > displayonminTU && iHour < displayonmaxTU) {
-          if (Test_iWeekDay == 1) Serial.println("LEDs ON");
-          if (iSecond == 30) {
-            if (showDate)
-              showCurrentDate();
-          }
-          showCurrentTime();
-          showDCW();
+          ShowTheTime();
         }
         else
         {
           if (useNightLEDs == -1) {
             pixels.setBrightness(intensityNight); // Night brightness
-            if (iSecond == 30) {
-              if (showDate)
-                showCurrentDate();
-            }
-            showCurrentTime();
-            showDCW();
+            ShowTheTime();
           }
           else
           {
-            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
             dunkel();
           }
         }
@@ -2235,30 +2189,17 @@ void loop() {
       // #########################################################################
 
       case 3:     // Wednesday
-        if (Test_iWeekDay == 1) Serial.print(" - Wednesday - ");
         if (iHour > displayonminWE && iHour < displayonmaxWE) {
-          if (Test_iWeekDay == 1) Serial.println("LEDs ON");
-          if (iSecond == 30) {
-            if (showDate)
-              showCurrentDate();
-          }
-          showCurrentTime();
-          showDCW();
+          ShowTheTime();
         }
         else
         {
           if (useNightLEDs == -1) {
             pixels.setBrightness(intensityNight); // Night brightness
-            if (iSecond == 30) {
-              if (showDate)
-                showCurrentDate();
-            }
-            showCurrentTime();
-            showDCW();
+            ShowTheTime();;
           }
           else
           {
-            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
             dunkel();
           }
         }
@@ -2267,30 +2208,17 @@ void loop() {
       // #########################################################################
 
       case 4:     // Thursday
-        if (Test_iWeekDay == 1) Serial.print(" - Thursday - ");
         if (iHour > displayonminTH && iHour < displayonmaxTH) {
-          if (Test_iWeekDay == 1) Serial.println("LEDs ON");
-          if (iSecond == 30) {
-            if (showDate)
-              showCurrentDate();
-          }
-          showCurrentTime();
-          showDCW();
+          ShowTheTime();
         }
         else
         {
           if (useNightLEDs == -1) {
             pixels.setBrightness(intensityNight); // Night brightness
-            if (iSecond == 30) {
-              if (showDate)
-                showCurrentDate();
-            }
-            showCurrentTime();
-            showDCW();
+            ShowTheTime();
           }
           else
           {
-            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
             dunkel();
           }
         }
@@ -2299,30 +2227,17 @@ void loop() {
       // #########################################################################
 
       case 5:     // Friday
-        if (Test_iWeekDay == 1) Serial.print(" - Friday - ");
         if (iHour > displayonminFR && iHour < displayonmaxFR) {
-          if (Test_iWeekDay == 1) Serial.println("LEDs ON");
-          if (iSecond == 30) {
-            if (showDate)
-              showCurrentDate();
-          }
-          showCurrentTime();
-          showDCW();
+          ShowTheTime();
         }
         else
         {
           if (useNightLEDs == -1) {
             pixels.setBrightness(intensityNight); // Night brightness
-            if (iSecond == 30) {
-              if (showDate)
-                showCurrentDate();
-            }
-            showCurrentTime();
-            showDCW();
+            ShowTheTime();
           }
           else
           {
-            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
             dunkel();
           }
         }
@@ -2331,30 +2246,17 @@ void loop() {
       // #########################################################################
 
       case 6:     // Saturday
-        if (Test_iWeekDay == 1) Serial.print(" - Saturday - ");
         if (iHour > displayonminSA && iHour < displayonmaxSA) {
-          if (Test_iWeekDay == 1) Serial.println("LEDs ON");
-          if (iSecond == 30) {
-            if (showDate)
-              showCurrentDate();
-          }
-          showCurrentTime();
-          showDCW();
+          ShowTheTime();
         }
         else
         {
           if (useNightLEDs == -1) {
             pixels.setBrightness(intensityNight); // Night brightness
-            if (iSecond == 30) {
-              if (showDate)
-                showCurrentDate();
-            }
-            showCurrentTime();
-            showDCW();
+            ShowTheTime();
           }
           else
           {
-            if (Test_iWeekDay == 1) Serial.println("LEDs OFF");
             dunkel();
           }
         }
@@ -2365,13 +2267,7 @@ void loop() {
   }
   else
   {
-    // Show date if required
-    if (iSecond == 30) {
-      if (showDate)
-        showCurrentDate();
-    }
-    showCurrentTime();
-    showDCW();
+    ShowTheTime();
   }
 
   pixels.show(); // This sends the updated pixel color to the hardware.
@@ -2383,6 +2279,19 @@ void loop() {
   // Update Start
   httpServer.handleClient();
   MDNS.update();
+}
+
+
+// ###########################################################################################################################################
+// # Display the time:
+// ###########################################################################################################################################
+void ShowTheTime() {
+  if (iSecond == 30) {
+    if (showDate)
+      showCurrentDate();
+  }
+  showCurrentTime();
+  showDCW();
 }
 
 

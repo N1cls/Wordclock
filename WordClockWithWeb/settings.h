@@ -11,12 +11,6 @@
 
 
 // ###########################################################################################################################################
-// # Version number of the code:
-// ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V3.6";
-
-
-// ###########################################################################################################################################
 // # Hardware settings:
 // ###########################################################################################################################################
 int RTC_I2C_ADDRESS = 0x68;                 // I2C adress of the RTC  DS3231 (Chip on ZS-042 Board)
@@ -79,9 +73,6 @@ int displayonminSU = 6;                     // Display on after 06:59 o'clock Su
 String wchostname = "WordClock";            // Hostname to be set in your router
 int wchostnamenum = 0;                      // Hostname + Number used as suffix to the host name
 ESP8266WebServer httpServer(2022);          // Update server port
-ESP8266HTTPUpdateServer httpUpdater;        // Update server
-String UpdatePath = "-";                    // Update via Hostname
-String UpdatePathIP = "-";                  // Update via IP-address
 
 
 // ###########################################################################################################################################
@@ -90,8 +81,6 @@ String UpdatePathIP = "-";                  // Update via IP-address
 #define DEFAULT_NTP_SERVER "de.pool.ntp.org"
 #define DEFAULT_TIMEZONE   "CET-1CEST,M3.5.0/02,M10.5.0/03"
 #define TZ_WEB_SITE        "http://www.hs-help.net/hshelp/gira/v4_7/de/proj_tz.html"
-String timeZone = DEFAULT_TIMEZONE;
-String ntpServer = DEFAULT_NTP_SERVER;
 
 
 // ###########################################################################################################################################
