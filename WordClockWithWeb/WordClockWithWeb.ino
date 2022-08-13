@@ -39,7 +39,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V3.7";
+const char* WORD_CLOCK_VERSION = "V3.8";
 
 
 // ###########################################################################################################################################
@@ -363,7 +363,6 @@ void readEEPROM() {
 // ###########################################################################################################################################
 void writeEEPROM() {
   Serial.println("Write parameter into EEPRom");
-
   parameter.pRed       = redVal;
   parameter.pGreen     = greenVal;
   parameter.pBlue      = blueVal;
@@ -371,11 +370,9 @@ void writeEEPROM() {
   parameter.pIntensityNight = intensityNight;
   parameter.pDCWFlag   = dcwFlag;
   parameter.pBlinkTime = blinkTime;
-
   ntpServer.toCharArray(parameter.pNTPServer, sizeof(parameter.pNTPServer));
   timeZone.toCharArray(parameter.pTimeZone, sizeof(parameter.pTimeZone));
   parameter.pShowDate  = showDate;
-
   parameter.pdisplayoff  = displayoff;
   parameter.puseNightLEDs  = useNightLEDs;
   parameter.pdisplayonmaxMO = displayonmaxMO;
@@ -402,28 +399,21 @@ void writeEEPROM() {
 
   // calculate checksum
   byte* p = (byte*)(void*)&parameter;
-
   parameter.pCheckSum = 0;
-
   for (int L = 0; L < sizeof(parameter) - sizeof(parameter.pCheckSum); ++L) {
-
     byte b = *p++;
     parameter.pCheckSum = parameter.pCheckSum + b;
   }
-
   // Write data to EEPROM
   p = (byte*)(void*)&parameter;
   for (int L = 0; L < sizeof(parameter); ++L) {
-
     byte b = *p++;
     EEPROM.write(L, b);
-
     // Serial.print("Write FLASH Byte ");
     // Serial.print(L);
     // Serial.print(" = ");
     // Serial.println(b);
   }
-
   EEPROM.commit();
 }
 
@@ -444,21 +434,17 @@ void configNTPTime() {
 // # Setup function that runs once at startup of the ESP8266:
 // ###########################################################################################################################################
 void setup() {
-  // Initialize serial monitor
   Serial.begin(115200);
   delay(1000);
   Serial.println("Start Monitor...");
   Serial.print("WordClock Version: ");
   Serial.println(WORD_CLOCK_VERSION);
 
-  // This initializes the NeoPixel library.
-  Serial.println("Start NeoPixel library");
-  pixels.begin();
+  pixels.begin();  // Init the NeoPixel library
 
-  // get persistent data from EEPROM
-  readEEPROM();
+  readEEPROM(); // get persistent data from EEPROM
 
-  // LED test --> no blank display if WiFi was not set yet
+  // LED test --> no blank display if WiFi was not set yet:
   if (useledtest) {
     Serial.println("Display Test...");
     for (int i = 0; i < NUMPIXELS; i++) {
@@ -476,8 +462,8 @@ void setup() {
     delay(1500);
   }
 
+  // Show "SET WLAN" --> no blank display if WiFi was not set yet:
   if (usesetwlan) {
-    // Show "SET WLAN" --> no blank display if WiFi was not set yet
     Serial.println("Show SET WLAN...");
     setLED(6, 6, 1);      // S
     pixels.show();
@@ -514,43 +500,27 @@ void setup() {
     delay(1000);
   }
 
-  // WiFiManager
-  // Local intialization. Once its business is done, there is no need to keep it around
+  // WiFiManager:
   bool res;
   WiFiManager wifiManager;
-
-  dunkel();
-
-  // Set timezone
-  configNTPTime();
-
-  // Max wait for 3 minutes
-  wifiManager.setConfigPortalTimeout(AP_TIMEOUT);
-
-  // fetches ssid and pass from eeprom and tries to connect
-  // if it does not connect it starts an access point with the specified name
-  // here  "AutoConnectAP"
-  // and goes into a blocking loop awaiting configuration
+  dunkel(); // Switch display black
+  configNTPTime(); // Set timezone
+  wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
   Serial.println("Before autoConnect...");
   res = wifiManager.autoConnect(DEFAULT_AP_NAME);
-
   if (!res) {
     Serial.println("Failed to connect to WiFi");
-    //ESP.restart();
   }
   else {
-    // if you get here you have connected to the WiFi
+    Serial.println("Connected to WiFi.");
     if (useshowip)
     {
       showIP();
     }
-    Serial.println("Connected to WiFi.");
   }
 
-
-  // Web Update
-  if (useupdate)
-  {
+  // Web update function setup:
+  if (useupdate) {
     MDNS.begin(wchostname + wchostnamenum);
     httpUpdater.setup(&httpServer);
     httpServer.begin();
@@ -597,7 +567,7 @@ int checkRTC() {
       Serial.println("Start RTC communication");
       Wire.begin();
     } else {
-      //Serial.println("Couldn't find RTC");
+      Serial.println("Couldn't find RTC");
     }
   }
   return rtcStarted;
@@ -733,7 +703,6 @@ void checkClient() {
             }
             client.print("><br><br>");
 
-
             client.println("<label for=\"displayonmaxMO\">Montag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxMO\" name=\"displayonmaxMO\" >");
             client.println("<option selected=\"selected\">");
@@ -762,7 +731,6 @@ void checkClient() {
             client.println("<option>9</option>");
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
-
 
             client.println("<label for=\"displayonmaxTU\">Dienstag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxTU\" name=\"displayonmaxTU\" >");
@@ -793,7 +761,6 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
-
             client.println("<label for=\"displayonmaxWE\">Mittwoch - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxWE\" name=\"displayonmaxWE\" >");
             client.println("<option selected=\"selected\">");
@@ -822,7 +789,6 @@ void checkClient() {
             client.println("<option>9</option>");
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
-
 
             client.println("<label for=\"displayonmaxTH\">Donnerstag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxTH\" name=\"displayonmaxTH\" >");
@@ -853,7 +819,6 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
-
             client.println("<label for=\"displayonmaxFR\">Freitag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxFR\" name=\"displayonmaxFR\" >");
             client.println("<option selected=\"selected\">");
@@ -882,7 +847,6 @@ void checkClient() {
             client.println("<option>9</option>");
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
-
 
             client.println("<label for=\"displayonmaxSA\">Samstag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxSA\" name=\"displayonmaxSA\" >");
@@ -913,7 +877,6 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
-
             client.println("<label for=\"displayonmaxSU\">Sonntag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxSU\" name=\"displayonmaxSU\" >");
             client.println("<option selected=\"selected\">");
@@ -943,7 +906,6 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br><hr>");
 
-
             client.println("<h2>WordClock Update</h2>");
             client.println("<label for=\"useupdate\">Update Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"useupdate\" name=\"useupdate\"");
@@ -969,7 +931,6 @@ void checkClient() {
               client.println("><br><br><label>Die Update Option ist aktuell deaktiviert.</label>");
             }
             client.print("<br><hr>");
-
 
             client.println("<h2>LED Anzeigen und Startverhalten</h2>");
             client.println("<label for=\"useledtest\">LED Start Test anzeigen?</label>");
@@ -1042,7 +1003,6 @@ void checkClient() {
             client.println("<br>! Wenn diese Option gesetzt wird, werden die WLAN Einstellungen einmalig geloescht !<br>");
             client.print("<br><hr>");
 
-
             client.println("<h2>WordClock Hostname anpassen</h2><br>");
             client.println("<label for=\"wchostnamenum\">Hostname: " + wchostname + "</label>");
             client.println("<select id=\"wchostnamenum\" name=\"wchostnamenum\" >");
@@ -1062,8 +1022,6 @@ void checkClient() {
             client.println("</select><br>");
             client.print("<br><hr>");
 
-
-
             client.println("<h2>WordClock neustarten</h2> <br>");
             client.println("<label for = \"clockreset\">WordClock neu starten?</label>");
             client.print("<input type=\"checkbox\" id=\"clockreset\" name=\"clockreset\"");
@@ -1073,8 +1031,6 @@ void checkClient() {
             client.print("><br>");
             client.println("<br>! Wenn diese Option gesetzt wird, wird die Uhr einmalig neu gestartet !<br>");
             client.print("<br><hr>");
-
-
 
             client.println("<h2>Zeitzone &amp; NTP-Server</h2><br>");
             client.println("<label for=\"ntpserver\"></label>");
@@ -1094,7 +1050,6 @@ void checkClient() {
             client.println(TZ_WEB_SITE);
             client.println("\" target=\"_blank\">Erkl&auml;rung zur Einstellung der Zeitzone</a><br>");
             client.print("<br><hr><br>");
-
 
             client.println("<br><br><input type=\"submit\" value=\"Einstellungen speichern\">");
             client.print("<br><br><br><hr><br>");
@@ -1205,7 +1160,6 @@ void checkClient() {
                 displayonminMO = minStr.toInt();
               }
 
-
               // Pick up Display On Max
               pos = currentLine.indexOf("&displayonmaxTU=");
               if (pos >= 0) {
@@ -1228,7 +1182,6 @@ void checkClient() {
                 Serial.println(minStr);
                 displayonminTU = minStr.toInt();
               }
-
 
               // Pick up Display On Max
               pos = currentLine.indexOf("&displayonmaxWE=");
@@ -1253,7 +1206,6 @@ void checkClient() {
                 displayonminWE = minStr.toInt();
               }
 
-
               // Pick up Display On Max
               pos = currentLine.indexOf("&displayonmaxTH=");
               if (pos >= 0) {
@@ -1276,7 +1228,6 @@ void checkClient() {
                 Serial.println(minStr);
                 displayonminTH = minStr.toInt();
               }
-
 
               // Pick up Display On Max
               pos = currentLine.indexOf("&displayonmaxFR=");
@@ -1301,7 +1252,6 @@ void checkClient() {
                 displayonminFR = minStr.toInt();
               }
 
-
               // Pick up Display On Max
               pos = currentLine.indexOf("&displayonmaxSA=");
               if (pos >= 0) {
@@ -1325,7 +1275,6 @@ void checkClient() {
                 displayonminSA = minStr.toInt();
               }
 
-
               // Pick up Display On Max
               pos = currentLine.indexOf("&displayonmaxSU=");
               if (pos >= 0) {
@@ -1348,7 +1297,6 @@ void checkClient() {
                 Serial.println(minStr);
                 displayonminSU = minStr.toInt();
               }
-
 
               // Pick up WordClock HostName
               pos = currentLine.indexOf("&wchostnamenum=");
@@ -1586,18 +1534,13 @@ void rtcReadTime() {
     DateTime now = rtc.now();
 
     int oldHour = iHour;
-
     iYear  = (int)(now.year());
     iMonth = (int)(now.month());
     iDay   = (int)(now.day());
-
     iHour   = (int)(now.hour());
     iMinute = (int)(now.minute());
     iSecond = (int)(now.second());
-
-
     iWeekDay = (int)(now.dayOfTheWeek());
-
 
     // Print out time if minute has changed
     if (iHour != oldHour) {
@@ -1606,13 +1549,11 @@ void rtcReadTime() {
       Serial.print("/");
       Serial.print(iHour);
       Serial.println(") ");
-
       Serial.print(iYear);
       Serial.print("-");
       Serial.print(iMonth);
       Serial.print("-");
       Serial.print(iDay);
-
       Serial.print(" ");
       Serial.print(iHour);
       Serial.print(":");
@@ -1634,14 +1575,10 @@ void showIP () {
 
   for (int x = 11; x > -75; x--) {
     dunkel();
-
     int offSet = x;
-
     // Loop over 4 bytes of IP Address
     for (int idx = 0; idx < 4; idx++) {
-
       uint8_t octet = ip[idx];
-
       printAt (octet / 100, offSet, 2);
       octet = octet % 100;
       offSet = offSet + 6;
@@ -1649,14 +1586,12 @@ void showIP () {
       offSet = offSet + 6;
       printAt (octet % 10, offSet, 2);
       offSet = offSet + 6;
-
       // add delimiter between octets
       if (idx < 3) {
         setLED(ledXY(offSet, 2), ledXY(offSet, 2), -1);  //sets point
         offSet++;
       }
     }
-
     pixels.show();
     delay (150);    // set speed of timeshift
   }
@@ -1689,7 +1624,6 @@ void defaultText() {
 // # Convert x/y coordinates into LED number return -1 for invalid coordinate:
 // ###########################################################################################################################################
 int ledXY (int x, int y) {
-
   // Test for valid coordinates
   // If outside panel return -1
   if ((x < 0)  ||
@@ -1697,14 +1631,11 @@ int ledXY (int x, int y) {
       (y < 0)  ||
       (y > 9))
     return -1;
-
   int ledNr = (9 - y) * 11;
-
   if ((y % 2) == 0)
     ledNr = ledNr + x;
   else
     ledNr = ledNr + 10 - x;
-
   return ledNr;
 }
 
@@ -1713,9 +1644,7 @@ int ledXY (int x, int y) {
 // # Sets, where the numbers from 1 to 9 are printed:
 // ###########################################################################################################################################
 void printAt (int ziffer, int x, int y) {
-
   switch (ziffer) {
-
     case 0:   //number 0
       setLEDLine(x + 1, x + 3, y + 6, -1); //-1 is true, so switchOn
       for (int yd = 1; yd < 6; yd++) {
@@ -1743,7 +1672,7 @@ void printAt (int ziffer, int x, int y) {
       setLEDLine(x + 1, x + 3, y + 6, -1);
       break;
 
-    case 3:
+    case 3:   //number 3
       for (int yd = 1; yd <= 2; yd++) {
         setLED(ledXY(x + 4, y + yd + 3), ledXY(x + 4, y + yd + 3), -1);
         setLED(ledXY(x + 4, y + yd),   ledXY(x + 4, y + yd), -1);
@@ -1755,7 +1684,7 @@ void printAt (int ziffer, int x, int y) {
       setLED(ledXY(x, y + 5), ledXY(x, y + 5), -1);
       break;
 
-    case 4:
+    case 4:   //number 4
       for (int d = 0; d <= 3; d++) {
         setLED(ledXY(x + d,   y + d + 3), ledXY(x + d,   y + d + 3), -1);
       }
@@ -1765,7 +1694,7 @@ void printAt (int ziffer, int x, int y) {
       setLEDLine(x, x + 4, y + 2, -1);
       break;
 
-    case 5:
+    case 5:   //number 5
       setLEDLine(x, x + 4, y + 6, -1);
       setLED(ledXY(x  , y + 5), ledXY(x  , y + 5), -1);
       setLED(ledXY(x  , y + 4), ledXY(x  , y + 4), -1);
@@ -1774,7 +1703,8 @@ void printAt (int ziffer, int x, int y) {
       setLED(ledXY(x + 4, y + 1), ledXY(x + 4, y + 1), -1);
       setLEDLine(x, x + 3, y, -1);
       break;
-    case 6:
+      
+    case 6:   //number 6
       for (int d = 0; d <= 3; d++) {
         setLED(ledXY(x + d,   y + d + 3), ledXY(x + d,   y + d + 3), -1);
       }
@@ -1787,7 +1717,7 @@ void printAt (int ziffer, int x, int y) {
       setLED(ledXY(x + 4, y + 2), ledXY(x + 4, y + 2), -1);
       break;
 
-    case 7:
+    case 7:   //number 7
       for (int yd = 0; yd <= 6; yd++) {
         setLED(ledXY(x + 3,   y + yd), ledXY(x + 3,   y + yd), -1);
       }
@@ -1795,7 +1725,7 @@ void printAt (int ziffer, int x, int y) {
       setLEDLine(x, x + 3, y + 6, -1);
       break;
 
-    case 8:
+    case 8:   //number 8
       for (int yd = 1; yd <= 2; yd++) {
         setLED(ledXY(x + 4, y + yd + 3), ledXY(x + 4, y + yd + 3), -1);
         setLED(ledXY(x + 4, y + yd),   ledXY(x + 4, y + yd), -1);
@@ -1807,7 +1737,7 @@ void printAt (int ziffer, int x, int y) {
       }
       break;
 
-    case 9:
+    case 9:   //number 9
       for (int d = 0; d <= 3; d++) {
         setLED(ledXY(x + d + 1,   y + d),  ledXY(x + d + 1,   y + d), -1);
       }
@@ -1817,7 +1747,6 @@ void printAt (int ziffer, int x, int y) {
       }
       setLEDLine(x + 1, x + 3, y + 6, -1);
       setLEDLine(x + 1, x + 4, y + 3, -1);
-
       break;
   }
 }
@@ -1829,7 +1758,6 @@ void printAt (int ziffer, int x, int y) {
 void showMinutes(int minutes) {
   int minMod = (minutes % 5);
   for (int i = 1; i < 5; i++) {
-
     int ledNr = 0;
     if (switchLEDOrder) {               // clockwise
       switch (i) {
@@ -1846,7 +1774,6 @@ void showMinutes(int minutes) {
         case 4: ledNr = 110; break;
       }
     }
-
     if (minMod < i)
       pixels.setPixelColor(ledNr, pixels.Color(0, 0, 0));
     else
@@ -1887,10 +1814,9 @@ void showCurrentDate () {
 void showCurrentTime() {
   dunkel();      // switch off all LEDs
   defaultText(); // Switch on ES IST
-
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
-
+  
   // Fuenf (Minuten)
   setLED(  0,   3, ((minDiv ==  1) ||
                     (minDiv ==  5) ||
@@ -2025,55 +1951,42 @@ void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int seku
 void handleTime() {
   // Check, whether we are connected to WLAN
   if ((WiFi.status() == WL_CONNECTED)) {
-
     time_t now;
     time(&now);                       // read the current time
     struct tm  ti;
     localtime_r(&now, &ti);
-
     int i = ti.tm_year + ti.tm_mon + ti.tm_mday + ti.tm_hour;
-
     if (i != lastRequest) {
-
       Serial.print("Set RTC to current time: ");
-
       lastRequest = i;
-
       // check for update
       uint16_t ye = ti.tm_year + 1900;
       uint8_t  mo = ti.tm_mon + 1;
       uint8_t  da = ti.tm_mday;
-
       int ho  = ti.tm_hour;
       int mi  = ti.tm_min;
       int sec = ti.tm_sec;
-
       Serial.print (ho);
       Serial.print(':');
       Serial.print (mi);
       Serial.print(':');
       Serial.print (sec);
-
       Serial.print("   ==  ");
       Serial.print(ye);
       Serial.print('-');
       Serial.print(mo);
       Serial.print('-');
       Serial.println(da);
-
       // set working timestamp
       iYear  = ye;
       iMonth = mo;
       iDay   = da;
-
       iHour   = ho;
       iMinute = mi;
       iSecond = sec;
-
       rtcWriteTime(ye, mo, da, ho, mi, sec);
     }
   }
-
   rtcReadTime();
 }
 
@@ -2085,7 +1998,6 @@ void showDCW() {
   if ((dcwFlag) &&
       (iMinute == 0) &&
       (iSecond < 10)) {
-
     if ((iSecond % 2) == 0) {
       pixels.setPixelColor( 59, pixels.Color(255, 128, 0));
       pixels.setPixelColor( 60, pixels.Color(255, 128, 0));
@@ -2106,13 +2018,10 @@ void loop() {
   // Check, whether something has been entered on Config Page
   checkClient();
   ESP.wdtFeed();  // Reset watchdog timer
-
-  // handle NTP / RTC time
-  handleTime();
-
+  handleTime(); // handle NTP / RTC time
   pixels.setBrightness(intensity); // DAY brightness
-
   delay(750);
+
   if (switchRainBow) { // RainBow effect active - color change every new minute
     if (iSecond == 0) {
       redVal = random(255);
@@ -2127,9 +2036,7 @@ void loop() {
 
   // Show the display only during the set Min/Max time if option is set
   if (displayoff) {
-
     // #########################################################################
-
     switch (iWeekDay) {
       case 0:     // Sunday
         if (iHour > displayonminSU && iHour < displayonmaxSU) {
@@ -2147,9 +2054,7 @@ void loop() {
           }
         }
         break;
-
       // #########################################################################
-
       case 1:     // Monday
         if (iHour > displayonminMO && iHour < displayonmaxMO) {
           ShowTheTime();
@@ -2166,9 +2071,7 @@ void loop() {
           }
         }
         break;
-
       // #########################################################################
-
       case 2:     // Tuesday
         if (iHour > displayonminTU && iHour < displayonmaxTU) {
           ShowTheTime();
@@ -2185,9 +2088,7 @@ void loop() {
           }
         }
         break;
-
       // #########################################################################
-
       case 3:     // Wednesday
         if (iHour > displayonminWE && iHour < displayonmaxWE) {
           ShowTheTime();
@@ -2204,9 +2105,7 @@ void loop() {
           }
         }
         break;
-
       // #########################################################################
-
       case 4:     // Thursday
         if (iHour > displayonminTH && iHour < displayonmaxTH) {
           ShowTheTime();
@@ -2223,9 +2122,7 @@ void loop() {
           }
         }
         break;
-
       // #########################################################################
-
       case 5:     // Friday
         if (iHour > displayonminFR && iHour < displayonmaxFR) {
           ShowTheTime();
@@ -2242,9 +2139,7 @@ void loop() {
           }
         }
         break;
-
       // #########################################################################
-
       case 6:     // Saturday
         if (iHour > displayonminSA && iHour < displayonmaxSA) {
           ShowTheTime();
@@ -2261,7 +2156,6 @@ void loop() {
           }
         }
         break;
-
         // #########################################################################
     }
   }
@@ -2269,14 +2163,13 @@ void loop() {
   {
     ShowTheTime();
   }
-
   pixels.show(); // This sends the updated pixel color to the hardware.
 
   ESP.wdtFeed();  // Reset watchdog timer
   delay(delayval);
   ESP.wdtFeed();  // Reset watchdog timer
 
-  // Update Start
+  // Web update start:
   httpServer.handleClient();
   MDNS.update();
 }
