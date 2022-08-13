@@ -13,11 +13,11 @@
 // # Includes:
 // #
 // # You will need to add the following libraries to your Arduino IDE to use the project:
-// # - Adafruit BusIO                 // by Adafruit: https://github.com/adafruit/Adafruit_BusIO
-// # - Adafruit NeoPixel              // by Adafruit: https://github.com/adafruit/Adafruit_NeoPixel
-// # - DS3231                         // by Andrew Wickert: https://github.com/NorthernWidget/DS3231
-// # - RTClib                         // by Adafruit: https://github.com/adafruit/RTClib
-// # - WiFiManager                    // by tablatronix / tzapu : https://github.com/tzapu/WiFiManager
+// # - Adafruit BusIO                 // by Adafruit:             https://github.com/adafruit/Adafruit_BusIO
+// # - Adafruit NeoPixel              // by Adafruit:             https://github.com/adafruit/Adafruit_NeoPixel
+// # - DS3231                         // by Andrew Wickert:       https://github.com/NorthernWidget/DS3231
+// # - RTClib                         // by Adafruit:             https://github.com/adafruit/RTClib
+// # - WiFiManager                    // by tablatronix / tzapu:  https://github.com/tzapu/WiFiManager
 // #
 // ###########################################################################################################################################
 #include <ESP8266WiFi.h>              // Used to connect the ESP8266 NODE MCU to your WiFi
@@ -39,24 +39,24 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V3.9";
+const char* WORD_CLOCK_VERSION = "V3.9.1";
 
 
 // ###########################################################################################################################################
 // # Declartions and variables used in the functions:
 // ###########################################################################################################################################
 String header; // Variable to store the HTTP request
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800); // LED strip settings
-RTC_DS3231 rtc; // rtc communication object
-int lastRequest = 0; // Variable to control RTC requests
-int rtcStarted = 0; // Variable to control whether RTC has been initialized
-int delayval = 250; // delay in milliseconds
-int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay; // variables for RTC-module read time:
-String timeZone = DEFAULT_TIMEZONE; // Time server settings
-String ntpServer = DEFAULT_NTP_SERVER; // Time server settings
-String UpdatePath = "-"; // Update via Hostname
-String UpdatePathIP = "-"; // Update via IP-address
-ESP8266HTTPUpdateServer httpUpdater; // Update server
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);     // LED strip settings
+RTC_DS3231 rtc;                                                                         // rtc communication object
+int lastRequest = 0;                                                                    // Variable to control RTC requests
+int rtcStarted = 0;                                                                     // Variable to control whether RTC has been initialized
+int delayval = 250;                                                                     // delay in milliseconds
+int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                             // variables for RTC-module read time:
+String timeZone = DEFAULT_TIMEZONE;                                                     // Time server settings
+String ntpServer = DEFAULT_NTP_SERVER;                                                  // Time server settings
+String UpdatePath = "-";                                                                // Update via Hostname
+String UpdatePathIP = "-";                                                              // Update via IP-address
+ESP8266HTTPUpdateServer httpUpdater;                                                    // Update server
 
 
 // ###########################################################################################################################################
@@ -192,168 +192,42 @@ void readEEPROM() {
   Serial.println(parameter.pCheckSum);
 
   if (check == parameter.pCheckSum) {
-
     Serial.println("Checksum match! set parameter from EEPROM");
-    // Copy data from parameter to process variables
     redVal    =  parameter.pRed;
     greenVal  =  parameter.pGreen;
     blueVal   =  parameter.pBlue;
-
     showDate = parameter.pShowDate;
-    Serial.print("ShowDate is ");
-    if (showDate)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     displayoff = parameter.pdisplayoff;
-    Serial.print("Display Off is ");
-    if (displayoff)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     useNightLEDs = parameter.puseNightLEDs;
-    Serial.print("Use LEDs in night mode Off is ");
-    if (useNightLEDs)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     displayonmaxMO = parameter.pdisplayonmaxMO;
-    Serial.print("DisplayOffMaxMO set to ");
-    Serial.println(displayonmaxMO);
     displayonminMO = parameter.pdisplayonminMO;
-    Serial.print("DisplayOffMinMO set to ");
-    Serial.println(displayonminMO);
-
     displayonmaxTU = parameter.pdisplayonmaxTU;
-    Serial.print("DisplayOffMaxTU set to ");
-    Serial.println(displayonmaxTU);
     displayonminTU = parameter.pdisplayonminTU;
-    Serial.print("DisplayOffMinTU set to ");
-    Serial.println(displayonminTU);
-
     displayonmaxWE = parameter.pdisplayonmaxWE;
-    Serial.print("DisplayOffMaxWE set to ");
-    Serial.println(displayonmaxWE);
     displayonminWE = parameter.pdisplayonminWE;
-    Serial.print("DisplayOffMinWE set to ");
-    Serial.println(displayonminWE);
-
     displayonmaxTH = parameter.pdisplayonmaxTH;
-    Serial.print("DisplayOffMaxTH set to ");
-    Serial.println(displayonmaxTH);
     displayonminTH = parameter.pdisplayonminTH;
-    Serial.print("DisplayOffMinTH set to ");
-    Serial.println(displayonminTH);
-
     displayonmaxFR = parameter.pdisplayonmaxFR;
-    Serial.print("DisplayOffMaxFR set to ");
-    Serial.println(displayonmaxFR);
     displayonminFR = parameter.pdisplayonminFR;
-    Serial.print("DisplayOffMinFR set to ");
-    Serial.println(displayonminFR);
-
     displayonmaxSA = parameter.pdisplayonmaxSA;
-    Serial.print("DisplayOffMaxSA set to ");
-    Serial.println(displayonmaxSA);
     displayonminSA = parameter.pdisplayonminSA;
-    Serial.print("DisplayOffMinSA set to ");
-    Serial.println(displayonminSA);
-
     displayonmaxSU = parameter.pdisplayonmaxSU;
-    Serial.print("DisplayOffMaxSU set to ");
-    Serial.println(displayonmaxSU);
     displayonminSU = parameter.pdisplayonminSU;
-    Serial.print("DisplayOffMinSU set to ");
-    Serial.println(displayonminSU);
-
     wchostnamenum = parameter.pwchostnamenum;
-    Serial.print("WordClock HostName set to ");
-    Serial.print(wchostname);
-    Serial.println(wchostnamenum);
-
     useupdate = parameter.puseupdate;
-    Serial.print("Use Web Update is ");
-    if (useupdate)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     useledtest = parameter.puseledtest;
-    Serial.print("Use LED test is ");
-    if (useledtest)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     usesetwlan = parameter.pusesetwlan;
-    Serial.print("Use SET WLAN is ");
-    if (usesetwlan)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     useshowip = parameter.puseshowip;
-    Serial.print("Show IP is ");
-    if (useshowip)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     switchRainBow = parameter.pswitchRainBow;
-    Serial.print("Show RainBow mode is ");
-    if (switchRainBow)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     switchLEDOrder = parameter.pswitchLEDOrder;
-    Serial.print("Show minute LED order mode is ");
-    if (switchLEDOrder)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     blinkTime =  parameter.pBlinkTime;
-    Serial.print("Blink time is ");
-    if (blinkTime)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     dcwFlag =  parameter.pDCWFlag;
-    Serial.print("DCW Flag is ");
-    if (dcwFlag)
-      Serial.println("ON");
-    else
-      Serial.println("OFF");
-
     intensity =  parameter.pIntensity;
-    Serial.print("Intensity at day time set to ");
-    Serial.println(intensity);
-
     intensityNight =  parameter.pIntensityNight;
-    Serial.print("Intensity at night time set to ");
-    Serial.println(intensityNight);
-
-    Serial.print("RGB set to ");
-    Serial.print(redVal);
-    Serial.print("/");
-    Serial.print(greenVal);
-    Serial.print("/");
-    Serial.println(blueVal);
-
     String ntp(parameter.pNTPServer);
     ntpServer = ntp;
-    Serial.print("NTPServer set to ");
-    Serial.println(ntpServer);
-
     String tz(parameter.pTimeZone);
     timeZone = tz;
-    Serial.print("TimeZone set to ");
-    Serial.println(timeZone);
   }
 }
 
