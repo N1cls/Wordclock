@@ -6,4 +6,4 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 Further information will follow
 
-Current version: 3.5
+Current version: 3.6

@@ -1,127 +1,56 @@
-#include <ESP8266WiFi.h>
-#include <DNSServer.h>
-#include <ESP8266WebServer.h>
-#include <WiFiManager.h>
-#include <EEPROM.h>
-#include <Adafruit_NeoPixel.h>
-#include <time.h>
-#include <Wire.h>                     // Wire.h library 
-#include <ESP8266mDNS.h>              // Update 
-#include <ESP8266HTTPUpdateServer.h>  // Update 
+// ###########################################################################################################################################
+// #
+// # WordClock code for the thingiverse WordClock project: https://www.thingiverse.com/thing:4693081
+// #
+// # Code by https://github.com/N1cls and https://github.com/AWSW-de
+// #
+// # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
+// # 
+// ###########################################################################################################################################
+
+
+// ###########################################################################################################################################
+// # Includes:
+// # 
+// # You will need to add the following libraries to your Arduino IDE to use the project:
+// # - Adafruit BusIO                 // by Adafruit: https://github.com/adafruit/Adafruit_BusIO
+// # - Adafruit NeoPixel              // by Adafruit: https://github.com/adafruit/Adafruit_NeoPixel
+// # - DS3231                         // by Andrew Wickert: https://github.com/NorthernWidget/DS3231
+// # - RTClib                         // by Adafruit: https://github.com/adafruit/RTClib
+// # - WiFiManager                    // by tablatronix / tzapu : https://github.com/tzapu/WiFiManager
+// # 
+// ###########################################################################################################################################
+#include <ESP8266WiFi.h>              // Used to connect the ESP8266 NODE MCU to your WiFi
+#include <DNSServer.h>                // Used for name resolution for the internal webserver
+#include <ESP8266WebServer.h>         // Used for the internal webserver
+#include <WiFiManager.h>              // Used for the WiFi Manager option to be able to connect the WordClock to your WiFi without code changes
+#include <EEPROM.h>                   // Used to store the in the internal configuration page set configuration on the ESP8266 internal storage
+#include <Adafruit_NeoPixel.h>        // Used to drive the NeoPixel LEDs
+#include <time.h>                     // Used to get the time from the internet
+#include <Wire.h>                     // Used to connect the RTC board
+#include <ESP8266mDNS.h>              // Used for the internal update function
+#include <ESP8266HTTPUpdateServer.h>  // Used for the internal update function
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
-
-const char* WORD_CLOCK_VERSION = "V3.5";
-
-String wchostname = "WordClock";            // Hostname
-int wchostnamenum = 0;                      // Hostname + Number
-ESP8266WebServer httpServer(2022);          // Update
-ESP8266HTTPUpdateServer httpUpdater;        // Update
-String UpdatePath = "-";                    // Update via Hostname
-String UpdatePathIP = "-";                  // Update via IP-address
+#include "settings.h"                 // Settings are stored in a seperate file to make to code better readable 
+                                      // and to be able to switch to other settings faster
+// ###########################################################################################################################################
 
 
-// I2C adress of the RTC  DS3231 (Chip on ZS-042 Board)
-int RTC_I2C_ADDRESS = 0x68;
+// ###########################################################################################################################################
+// # Declartions and variables used in the functions:
+// ###########################################################################################################################################
+String header; // Variable to store the HTTP request
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800); // LED strip settings
+RTC_DS3231 rtc; // rtc communication object
+int lastRequest = 0; // Variable to control RTC requests
+int rtcStarted = 0; // Variable to control whether RTC has been initialized
+int delayval = 250; // delay in milliseconds
+int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay; // variables for RTC-module read time:
 
-// Timeout in seconds for AP / WLAN config
-#define AP_TIMEOUT 240
 
-// Arduino-Pin connected to the NeoPixels
-#define PIN D6
-
-// How many NeoPixels are attached to the Arduino?
-#define NUMPIXELS  114
-
-#define DEFAULT_NTP_SERVER "de.pool.ntp.org"
-#define DEFAULT_TIMEZONE   "CET-1CEST,M3.5.0/02,M10.5.0/03"
-#define TZ_WEB_SITE        "http://www.hs-help.net/hshelp/gira/v4_7/de/proj_tz.html"
-#define DEFAULT_AP_NAME    "WordClock"
-
-// Set web server port number to 80
-WiFiServer server(80); // @suppress("Abstract class cannot be instantiated")
-
-// Turn LEDs of during MAX and MIN time - default times on 22:00 to 6:59 o'clock the next day
-int displayoff = 0;
-int displayonmaxMO = 22; // Display off from 22:00 o'clock Monday
-int displayonminMO = 6;  // Display on after 06:59 o'clock Monday
-int displayonmaxTU = 22; // Display off from 22:00 o'clock Tuesday
-int displayonminTU = 6;  // Display on after 06:59 o'clock Tuesday
-int displayonmaxWE = 22; // Display off from 22:00 o'clock Wednesday
-int displayonminWE = 6;  // Display on after 06:59 o'clock Wednesday
-int displayonmaxTH = 22; // Display off from 22:00 o'clock Thursday
-int displayonminTH = 6;  // Display on after 06:59 o'clock Thursday
-int displayonmaxFR = 23; // Display off from 22:00 o'clock Friday
-int displayonminFR = 6;  // Display on after 06:59 o'clock Friday
-int displayonmaxSA = 23; // Display off from 22:00 o'clock Saturday
-int displayonminSA = 7;  // Display on after 06:59 o'clock Saturday
-int displayonmaxSU = 22; // Display off from 22:00 o'clock Sunday
-int displayonminSU = 6;  // Display on after 06:59 o'clock Sunday
-
-// Default settings for options
-int wifireset = 0;  // WiFi Reset switch (not stored in EEPROM)
-int clockreset = 0; // WordClock Reset switch (not stored in EEPROM)
-int useupdate = 1;  // Use the internal web update server
-int useledtest = 1; // Show start animation and display test at boot
-int usesetwlan = 1; // Show start animation and display test at boot
-int useshowip = 1;  // Show the current ip at boot
-int switchRainBow = 0; // Show the display in rainbow mode (default color is then ignored)
-int switchLEDOrder = 1; // Show the minute LEDs in the 4 corners in clockwise order if set to 1
-
-// Variable to store the HTTP request
-String header;
-
-// Default values for RGB settings
-int redVal   = 0;
-int greenVal = 255;
-int blueVal  = 0;
-
-// Intensity (0..255)
-int intensity = 64;
-int intensityNight = 32;
-int useNightLEDs = 0;
-
-// Flag for highlighting DCW every Hour
-int dcwFlag = 0;
-
-// Flag for blinking time every Hour
-int blinkTime = -1;
-
-// German default timezone stting
-String timeZone = DEFAULT_TIMEZONE;
-
-// NTPServer
-String ntpServer = DEFAULT_NTP_SERVER;
-
-// Show date when seconds = 30 ?
-int showDate = 0;          // any value <> 0 ==> Show date when second = 30
-
-// rtc communication object
-RTC_DS3231 rtc;
-
-// Variable to control RTC requests
-int lastRequest = 0;
-
-// NeoPixel control object
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800); // @suppress("Invalid arguments")
-
-// Variable to control whether RTC has been initialized
-int rtcStarted = 0;
-
-// delay in milliseconds
-int delayval = 250;
-
-// variables for RTC-module read time
-int iYear,
-    iMonth,
-    iDay,
-    iHour,
-    iMinute,
-    iSecond,
-    iWeekDay;
-
-/**
-   Parameter Record
-*/
+// ###########################################################################################################################################
+// # Parameter record to store to the EEPROM of the ESP8266:
+// ###########################################################################################################################################
 struct parmRec
 {
   int  pRed;
@@ -161,9 +90,10 @@ struct parmRec
 } parameter;
 
 
-/**
-   actual function, which controls 1/0 of the LED
-*/
+
+// ###########################################################################################################################################
+// # Actual function, which controls 1/0 of the LED:
+// ###########################################################################################################################################
 void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
   if (switchOn) {
     if  (ledNrFrom > ledNrTo) {
@@ -179,9 +109,9 @@ void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
 }
 
 
-/**
-   actual function, which controls 1/0 of the LED
-*/
+// ###########################################################################################################################################
+// # Actual function, which controls 1/0 of the LED:
+// ###########################################################################################################################################
 void setLEDHour(int ledNrFrom, int ledNrTo, int switchOn) {
   // Every Hour blink orange
   if ((blinkTime) &&
@@ -201,9 +131,9 @@ void setLEDHour(int ledNrFrom, int ledNrTo, int switchOn) {
 }
 
 
-/**
-   Switch a horizontal sequence of LEDs ON or OFF, depending on boolean value switchOn
-*/
+// ###########################################################################################################################################
+// # Switch a horizontal sequence of LEDs ON or OFF, depending on boolean value switchOn:
+// ###########################################################################################################################################
 void setLEDLine(int xFrom, int xTo, int y, int switchOn) {
   if (xFrom > xTo)
     setLEDLine(xTo, xFrom, y, switchOn);
@@ -215,9 +145,9 @@ void setLEDLine(int xFrom, int xTo, int y, int switchOn) {
 }
 
 
-/**
-   try to read settings from FLASH - initialize if WLAN ID read from flash is invalid
-*/
+// ###########################################################################################################################################
+// # Try to read settings from FLASH - initialize if WLAN ID read from flash is invalid:
+// ###########################################################################################################################################
 void readEEPROM() {
   Serial.print("Copy ");
   Serial.print(sizeof(parameter));
@@ -418,9 +348,9 @@ void readEEPROM() {
 }
 
 
-/**
-   write current parameter settings to flash
-*/
+// ###########################################################################################################################################
+// # Write current parameter settings to flash:
+// ###########################################################################################################################################
 void writeEEPROM() {
   Serial.println("Write parameter into EEPRom");
 
@@ -438,32 +368,22 @@ void writeEEPROM() {
 
   parameter.pdisplayoff  = displayoff;
   parameter.puseNightLEDs  = useNightLEDs;
-
   parameter.pdisplayonmaxMO = displayonmaxMO;
   parameter.pdisplayonminMO = displayonminMO;
-
   parameter.pdisplayonmaxTU = displayonmaxTU;
   parameter.pdisplayonminTU = displayonminTU;
-
   parameter.pdisplayonmaxWE = displayonmaxWE;
   parameter.pdisplayonminWE = displayonminWE;
-
   parameter.pdisplayonmaxTH = displayonmaxTH;
   parameter.pdisplayonminTH = displayonminTH;
-
   parameter.pdisplayonmaxFR = displayonmaxFR;
   parameter.pdisplayonminFR = displayonminFR;
-
   parameter.pdisplayonmaxSA = displayonmaxSA;
   parameter.pdisplayonminSA = displayonminSA;
-
   parameter.pdisplayonmaxSU = displayonmaxSU;
   parameter.pdisplayonminSU = displayonminSU;
-
   parameter.pwchostnamenum = wchostnamenum;
-
   parameter.puseupdate  = useupdate;
-
   parameter.puseledtest  = useledtest;
   parameter.pusesetwlan  = usesetwlan;
   parameter.puseshowip   = useshowip;
@@ -498,6 +418,9 @@ void writeEEPROM() {
 }
 
 
+// ###########################################################################################################################################
+// # NTP time function:
+// ###########################################################################################################################################
 void configNTPTime() {
   Serial.print("Set time zone to ");
   Serial.println(timeZone);
@@ -507,6 +430,9 @@ void configNTPTime() {
 }
 
 
+// ###########################################################################################################################################
+// # Setup function that runs once at startup of the ESP8266:
+// ###########################################################################################################################################
 void setup() {
   // Initialize serial monitor
   Serial.begin(115200);
@@ -631,9 +557,9 @@ void setup() {
 }
 
 
-/**
-   convert hex digit to int value
-*/
+// ###########################################################################################################################################
+// # Convert hex digit to int value:
+// ###########################################################################################################################################
 unsigned char h2int(char c)
 {
   if (c >= '0' && c <= '9') {
@@ -648,9 +574,10 @@ unsigned char h2int(char c)
   return (0);
 }
 
-/**
-   get RTC - if any
-*/
+
+// ###########################################################################################################################################
+// # Get RTC - if any:
+// ###########################################################################################################################################
 int checkRTC() {
   // Initialize & check RTC
   if (!rtcStarted) {
@@ -667,9 +594,9 @@ int checkRTC() {
 }
 
 
-/**
-   Decode %xx values in String - comming from URL / HTTP
-*/
+// ###########################################################################################################################################
+// # Decode %xx values in String - comming from URL / HTTP:
+// ###########################################################################################################################################
 String urldecode(String str)
 {
   String encodedString = "";
@@ -696,9 +623,9 @@ String urldecode(String str)
 }
 
 
-/**
-   Check for HTML respond from Client logged on to Web page
-*/
+// ###########################################################################################################################################
+// # Check for HTML respond from Client logged on to Web page:
+// ###########################################################################################################################################
 void checkClient() {
   //Serial.println("check for client");
   WiFiClient client = server.available();   // Listen for incoming clients // @suppress("Abstract class cannot be instantiated")
@@ -1019,7 +946,7 @@ void checkClient() {
               client.print(UpdatePath);
               client.print(" target='_blank'>");
               client.print(UpdatePath);
-              client.println("</a><br>");
+              client.println("</a><br><br>");
               client.print("<a href=");
               client.print(UpdatePathIP);
               client.print(" target='_blank'>");
@@ -1530,9 +1457,6 @@ void checkClient() {
                 Serial.println("off");
               }
 
-
-
-
               // Check for WordClock RESET switch
               Serial.print("WordClock RESTART switched  ");
               if (currentLine.indexOf("&clockreset=on&") >= 0) {
@@ -1555,7 +1479,6 @@ void checkClient() {
                 clockreset = 0;
                 Serial.println("off");
               }
-
 
               // Check for DCW flag
               if (currentLine.indexOf("DCW=ON") >= 0) {
@@ -1643,9 +1566,9 @@ void checkClient() {
 }
 
 
-/**
-   Read current date & time from RTC
-*/
+// ###########################################################################################################################################
+// # Read current date & time from RTC:
+// ###########################################################################################################################################
 void rtcReadTime() {
   if (checkRTC()) {
 
@@ -1691,9 +1614,9 @@ void rtcReadTime() {
 }
 
 
-/**
-   Implementation of date function
-*/
+// ###########################################################################################################################################
+// # Implementation of date function:
+// ###########################################################################################################################################
 void showIP () {
   IPAddress ip = WiFi.localIP();
   Serial.print("Displaying IP address ");
@@ -1730,9 +1653,9 @@ void showIP () {
 }
 
 
-/**
-   Switch off all LEDs
-*/
+// ###########################################################################################################################################
+// #  Switch off all LEDs:
+// ###########################################################################################################################################
 void dunkel() {
   for (int i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, pixels.Color(0, 0, 0)); // Switch off all LEDs
@@ -1740,9 +1663,9 @@ void dunkel() {
 }
 
 
-/**
-   Switch on default Text "ES IST"
-*/
+// ###########################################################################################################################################
+// # Switch on default Text "ES IST":
+// ###########################################################################################################################################
 void defaultText() {
   pixels.setPixelColor( 5, pixels.Color(redVal, greenVal, blueVal)); // set on default text
   pixels.setPixelColor( 6, pixels.Color(redVal, greenVal, blueVal)); // set on default text
@@ -1752,10 +1675,9 @@ void defaultText() {
 }
 
 
-/**
-   Convert x/y coordinates into LED number
-   return -1 for invalid coordinate
-*/
+// ###########################################################################################################################################
+// # Convert x/y coordinates into LED number return -1 for invalid coordinate:
+// ###########################################################################################################################################
 int ledXY (int x, int y) {
 
   // Test for valid coordinates
@@ -1765,7 +1687,6 @@ int ledXY (int x, int y) {
       (y < 0)  ||
       (y > 9))
     return -1;
-
 
   int ledNr = (9 - y) * 11;
 
@@ -1778,9 +1699,9 @@ int ledXY (int x, int y) {
 }
 
 
-/**
-   sets, where the numbers from 1 to 9 are printed
-*/
+// ###########################################################################################################################################
+// # Sets, where the numbers from 1 to 9 are printed:
+// ###########################################################################################################################################
 void printAt (int ziffer, int x, int y) {
 
   switch (ziffer) {
@@ -1892,9 +1813,9 @@ void printAt (int ziffer, int x, int y) {
 }
 
 
-/**
-   turns on the outer four LEDs (one per minute)
-*/
+// ###########################################################################################################################################
+// # Turns on the outer four LEDs (one per minute):
+// ###########################################################################################################################################
 void showMinutes(int minutes) {
   int minMod = (minutes % 5);
   for (int i = 1; i < 5; i++) {
@@ -1924,9 +1845,9 @@ void showMinutes(int minutes) {
 }
 
 
-/**
-   Show current date on clock with moving digits
-*/
+// ###########################################################################################################################################
+// # Show current date on clock with moving digits:
+// ###########################################################################################################################################
 void showCurrentDate () {
   for (int x = 11; x > -50; x--) {
     dunkel();
@@ -1950,9 +1871,9 @@ void showCurrentDate () {
 }
 
 
-/**
-   Display current time
-*/
+// ###########################################################################################################################################
+// # Display current time:
+// ###########################################################################################################################################
 void showCurrentTime() {
   dunkel();      // switch off all LEDs
   defaultText(); // Switch on ES IST
@@ -2059,13 +1980,17 @@ void showCurrentTime() {
 }
 
 
-//converts decimal to binary signs
+// ###########################################################################################################################################
+// # Converts decimal to binary signs:
+// ###########################################################################################################################################
 byte decToBcd(byte val) {
   return ( (val / 10 * 16) + (val % 10) );
 }
 
 
-//Function to write / set the clock
+// ###########################################################################################################################################
+// # Function to write / set the clock:
+// ###########################################################################################################################################
 void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int sekunde) {
   if (checkRTC()) {
     Serial.println("Wire.write()...");
@@ -2084,6 +2009,9 @@ void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int seku
 }
 
 
+// ###########################################################################################################################################
+// # Handle the time from the NTP server and write it to the RTC:
+// ###########################################################################################################################################
 void handleTime() {
   // Check, whether we are connected to WLAN
   if ((WiFi.status() == WL_CONNECTED)) {
@@ -2140,8 +2068,10 @@ void handleTime() {
 }
 
 
+// ###########################################################################################################################################
+// # Every Hour blink orange DCW - if switched on:
+// ###########################################################################################################################################
 void showDCW() {
-  // Every Hour blink orange DCW - if switched on
   if ((dcwFlag) &&
       (iMinute == 0) &&
       (iSecond < 10)) {
@@ -2159,6 +2089,9 @@ void showDCW() {
 }
 
 
+// ###########################################################################################################################################
+// # ESP8266 loop function which runs all the time after the startup was done:
+// ###########################################################################################################################################
 void loop() {
   // Check, whether something has been entered on Config Page
   checkClient();
@@ -2451,3 +2384,8 @@ void loop() {
   httpServer.handleClient();
   MDNS.update();
 }
+
+
+// ###########################################################################################################################################
+// # EOF - You have successfully reached the end of the code - well done ;-)
+// ###########################################################################################################################################
