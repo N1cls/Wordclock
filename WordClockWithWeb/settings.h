@@ -7,6 +7,7 @@
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // # 
 // # Set the default settings here only: 
+// #
 // ###########################################################################################################################################
 
 

@@ -39,7 +39,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V3.8";
+const char* WORD_CLOCK_VERSION = "V3.9";
 
 
 // ###########################################################################################################################################
@@ -1703,7 +1703,7 @@ void printAt (int ziffer, int x, int y) {
       setLED(ledXY(x + 4, y + 1), ledXY(x + 4, y + 1), -1);
       setLEDLine(x, x + 3, y, -1);
       break;
-      
+
     case 6:   //number 6
       for (int d = 0; d <= 3; d++) {
         setLED(ledXY(x + d,   y + d + 3), ledXY(x + d,   y + d + 3), -1);
@@ -1816,7 +1816,7 @@ void showCurrentTime() {
   defaultText(); // Switch on ES IST
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
-  
+
   // Fuenf (Minuten)
   setLED(  0,   3, ((minDiv ==  1) ||
                     (minDiv ==  5) ||
@@ -2036,127 +2036,28 @@ void loop() {
 
   // Show the display only during the set Min/Max time if option is set
   if (displayoff) {
-    // #########################################################################
     switch (iWeekDay) {
       case 0:     // Sunday
-        if (iHour > displayonminSU && iHour < displayonmaxSU) {
-          ShowTheTime();
-        }
-        else
-        {
-          if (useNightLEDs == -1) {
-            pixels.setBrightness(intensityNight); // Night brightness
-            ShowTheTime();
-          }
-          else
-          {
-            dunkel();
-          }
-        }
+        DayNightMode(displayonminSU, displayonmaxSU);
         break;
-      // #########################################################################
       case 1:     // Monday
-        if (iHour > displayonminMO && iHour < displayonmaxMO) {
-          ShowTheTime();
-        }
-        else
-        {
-          if (useNightLEDs == -1) {
-            pixels.setBrightness(intensityNight); // Night brightness
-            ShowTheTime();
-          }
-          else
-          {
-            dunkel();
-          }
-        }
+        DayNightMode(displayonminMO, displayonmaxMO);
         break;
-      // #########################################################################
       case 2:     // Tuesday
-        if (iHour > displayonminTU && iHour < displayonmaxTU) {
-          ShowTheTime();
-        }
-        else
-        {
-          if (useNightLEDs == -1) {
-            pixels.setBrightness(intensityNight); // Night brightness
-            ShowTheTime();
-          }
-          else
-          {
-            dunkel();
-          }
-        }
+        DayNightMode(displayonminTU, displayonmaxTU);
         break;
-      // #########################################################################
       case 3:     // Wednesday
-        if (iHour > displayonminWE && iHour < displayonmaxWE) {
-          ShowTheTime();
-        }
-        else
-        {
-          if (useNightLEDs == -1) {
-            pixels.setBrightness(intensityNight); // Night brightness
-            ShowTheTime();;
-          }
-          else
-          {
-            dunkel();
-          }
-        }
+        DayNightMode(displayonminWE, displayonmaxWE);
         break;
-      // #########################################################################
       case 4:     // Thursday
-        if (iHour > displayonminTH && iHour < displayonmaxTH) {
-          ShowTheTime();
-        }
-        else
-        {
-          if (useNightLEDs == -1) {
-            pixels.setBrightness(intensityNight); // Night brightness
-            ShowTheTime();
-          }
-          else
-          {
-            dunkel();
-          }
-        }
+        DayNightMode(displayonminTH, displayonmaxTH);
         break;
-      // #########################################################################
       case 5:     // Friday
-        if (iHour > displayonminFR && iHour < displayonmaxFR) {
-          ShowTheTime();
-        }
-        else
-        {
-          if (useNightLEDs == -1) {
-            pixels.setBrightness(intensityNight); // Night brightness
-            ShowTheTime();
-          }
-          else
-          {
-            dunkel();
-          }
-        }
+        DayNightMode(displayonminFR, displayonmaxFR);
         break;
-      // #########################################################################
       case 6:     // Saturday
-        if (iHour > displayonminSA && iHour < displayonmaxSA) {
-          ShowTheTime();
-        }
-        else
-        {
-          if (useNightLEDs == -1) {
-            pixels.setBrightness(intensityNight); // Night brightness
-            ShowTheTime();
-          }
-          else
-          {
-            dunkel();
-          }
-        }
+        DayNightMode(displayonminSA, displayonmaxSA);
         break;
-        // #########################################################################
     }
   }
   else
@@ -2185,6 +2086,27 @@ void ShowTheTime() {
   }
   showCurrentTime();
   showDCW();
+}
+
+
+// ###########################################################################################################################################
+// # Handle day and night time mode:
+// ###########################################################################################################################################
+void DayNightMode(int displayonMin, int displayonMax) {
+  if (iHour > displayonMin && iHour < displayonMax) {
+    ShowTheTime();
+  }
+  else
+  {
+    if (useNightLEDs == -1) {
+      pixels.setBrightness(intensityNight); // Night brightness
+      ShowTheTime();
+    }
+    else
+    {
+      dunkel();
+    }
+  }
 }
 
 
