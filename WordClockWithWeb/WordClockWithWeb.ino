@@ -13,11 +13,11 @@
 // # Includes:
 // #
 // # You will need to add the following libraries to your Arduino IDE to use the project:
-// # - Adafruit BusIO                 // by Adafruit:             https://github.com/adafruit/Adafruit_BusIO
-// # - Adafruit NeoPixel              // by Adafruit:             https://github.com/adafruit/Adafruit_NeoPixel
-// # - DS3231                         // by Andrew Wickert:       https://github.com/NorthernWidget/DS3231
-// # - RTClib                         // by Adafruit:             https://github.com/adafruit/RTClib
-// # - WiFiManager                    // by tablatronix / tzapu:  https://github.com/tzapu/WiFiManager
+// # - Adafruit BusIO                 // by Adafruit:                     https://github.com/adafruit/Adafruit_BusIO
+// # - Adafruit NeoPixel              // by Adafruit:                     https://github.com/adafruit/Adafruit_NeoPixel
+// # - DS3231                         // by Andrew Wickert:               https://github.com/NorthernWidget/DS3231
+// # - RTClib                         // by Adafruit:                     https://github.com/adafruit/RTClib
+// # - WiFiManager                    // by tablatronix / tzapu:          https://github.com/tzapu/WiFiManager
 // #
 // ###########################################################################################################################################
 #include <ESP8266WiFi.h>              // Used to connect the ESP8266 NODE MCU to your WiFi
@@ -31,15 +31,14 @@
 #include <ESP8266mDNS.h>              // Used for the internal update function
 #include <ESP8266HTTPUpdateServer.h>  // Used for the internal update function
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
-#include "settings.h"                 // Settings are stored in a seperate file to make to code better readable 
-// and to be able to switch to other settings faster
+#include "settings.h"                 // Settings are stored in a seperate file to make to code better readable and to be able to switch to other settings faster
 // ###########################################################################################################################################
 
 
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V3.9.1";
+const char* WORD_CLOCK_VERSION = "V3.9.3";
 
 
 // ###########################################################################################################################################
@@ -97,7 +96,7 @@ struct parmRec
   int  pBlinkTime;
   char pTimeZone[50];
   char pNTPServer[50];
-  int  pCheckSum;      // This CheckSum is used to find out whether we have valid parameters
+  int  pCheckSum;             // This checkSum is used to find out whether we have valid parameters
 } parameter;
 
 
@@ -340,38 +339,17 @@ void setup() {
   if (usesetwlan) {
     Serial.println("Show SET WLAN...");
     setLED(6, 6, 1);      // S
-    pixels.show();
-    delay(500);
     setLED(12, 12, 1);    // E
-    pixels.show();
-    delay(500);
     setLED(24, 24, 1);    // T
-    pixels.show();
-    delay(500);
     setLED(63, 63, 1);    // W
-    pixels.show();
-    delay(500);
     setLED(83, 83, 1);    // L
-    pixels.show();
-    delay(500);
     setLED(84, 84, 1);    // A
-    pixels.show();
-    delay(500);
     setLED(93, 93, 1);    // N
-    pixels.show();
-    delay(500);
     setLED(110, 110, 1);  // Corner 1
-    pixels.show();
-    delay(500);
     setLED(111, 111, 1);  // Corner 2
-    pixels.show();
-    delay(500);
     setLED(112, 112, 1);  // Corner 3
-    pixels.show();
-    delay(500);
     setLED(113, 113, 1);  // Corner 4
     pixels.show();
-    delay(1000);
   }
 
   // WiFiManager:
@@ -519,7 +497,6 @@ void checkClient() {
             title = title + WORD_CLOCK_VERSION;
             title = title + "</h1>";
             client.println(title);
-
             client.println("<form action=\"/setWC.php\">");
 
             // Convert color into hex settings
@@ -934,81 +911,75 @@ void checkClient() {
             // Break out of the while loop
             break;
           } else { // if you got a newline, then clear currentLine
-
             if (currentLine.startsWith("GET /setWC.php?")) {
-
-              Serial.print("Current request:  ");
-              Serial.println(currentLine);
+              // Serial.print("Current request:  ");
+              // Serial.println(currentLine);
 
               // Check for color settings
               int pos = currentLine.indexOf("favcolor=%23");
               if (pos >= 0) {
-
                 char * succ;
-
                 String newColStr = currentLine.substring(pos + 12, pos + 18);
-                Serial.print("Change color to ");
-                Serial.print(newColStr);
+                // Serial.print("Change color to ");
+                // Serial.print(newColStr);
                 String newRed   = newColStr.substring(0, 2);
                 redVal = strtol(newRed.begin(), &succ, 16);
-                Serial.print(", Red=");
-                Serial.print(newRed);
-                Serial.print("/");
-                Serial.print(redVal);
-
+                // Serial.print(", Red=");
+                // Serial.print(newRed);
+                // Serial.print("/");
+                // Serial.print(redVal);
                 String newGreen = newColStr.substring(2, 4);
                 greenVal = strtol(newGreen.begin(), &succ, 16);
-                Serial.print(", Green=");
-                Serial.print(newGreen);
-                Serial.print("/");
-                Serial.print(greenVal);
-
+                // Serial.print(", Green=");
+                // Serial.print(newGreen);
+                // Serial.print("/");
+                // Serial.print(greenVal);
                 String newBlue  = newColStr.substring(4, 6);
                 blueVal = strtol(newBlue.begin(), &succ, 16);
-                Serial.print(", Blue=");
-                Serial.print(newBlue);
-                Serial.print("/");
-                Serial.println(blueVal);
+                // Serial.print(", Blue=");
+                // Serial.print(newBlue);
+                // Serial.print("/");
+                // Serial.println(blueVal);
               }
 
               // Check for blink time
-              Serial.print("BlinkTime switched  ");
+              // Serial.print("BlinkTime switched  ");
               if (currentLine.indexOf("&blinktime=on&") >= 0) {
                 blinkTime = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 blinkTime = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for date display
-              Serial.print("ShowDate switched  ");
+              // Serial.print("ShowDate switched  ");
               if (currentLine.indexOf("&showdate=on&") >= 0) {
                 showDate = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 showDate = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for DisplayOff switch
-              Serial.print("DisplayOff switched  ");
+              // Serial.print("DisplayOff switched  ");
               if (currentLine.indexOf("&displayoff=on&") >= 0) {
                 displayoff = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 displayoff = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for useNightLEDs switch
-              Serial.print("useNightLEDs switched  ");
+              // Serial.print("useNightLEDs switched  ");
               if (currentLine.indexOf("&useNightLEDs=on&") >= 0) {
                 useNightLEDs = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 useNightLEDs = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Pick up Display On Max
@@ -1018,8 +989,8 @@ void checkClient() {
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                Serial.print("MO - Display On Max set to ");
-                Serial.println(maxStr);
+                // Serial.print("MO - Display On Max set to ");
+                // Serial.println(maxStr);
                 displayonmaxMO = maxStr.toInt();
               }
               // Pick up Display On Min
@@ -1029,8 +1000,8 @@ void checkClient() {
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                Serial.print("MO - Display On Min set to ");
-                Serial.println(minStr);
+                // Serial.print("MO - Display On Min set to ");
+                // Serial.println(minStr);
                 displayonminMO = minStr.toInt();
               }
 
@@ -1041,8 +1012,8 @@ void checkClient() {
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                Serial.print("TU - Display On Max set to ");
-                Serial.println(maxStr);
+                // Serial.print("TU - Display On Max set to ");
+                // Serial.println(maxStr);
                 displayonmaxTU = maxStr.toInt();
               }
               // Pick up Display On Min
@@ -1052,8 +1023,8 @@ void checkClient() {
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                Serial.print("TU - Display On Min set to ");
-                Serial.println(minStr);
+                // Serial.print("TU - Display On Min set to ");
+                // Serial.println(minStr);
                 displayonminTU = minStr.toInt();
               }
 
@@ -1064,8 +1035,8 @@ void checkClient() {
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                Serial.print("WE - Display On Max set to ");
-                Serial.println(maxStr);
+                // Serial.print("WE - Display On Max set to ");
+                // Serial.println(maxStr);
                 displayonmaxWE = maxStr.toInt();
               }
               // Pick up Display On Min
@@ -1075,8 +1046,8 @@ void checkClient() {
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                Serial.print("WE - Display On Min set to ");
-                Serial.println(minStr);
+                // Serial.print("WE - Display On Min set to ");
+                // Serial.println(minStr);
                 displayonminWE = minStr.toInt();
               }
 
@@ -1087,8 +1058,8 @@ void checkClient() {
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                Serial.print("TH - Display On Max set to ");
-                Serial.println(maxStr);
+                // Serial.print("TH - Display On Max set to ");
+                // Serial.println(maxStr);
                 displayonmaxTH = maxStr.toInt();
               }
               // Pick up Display On Min
@@ -1098,8 +1069,8 @@ void checkClient() {
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                Serial.print("TH - Display On Min set to ");
-                Serial.println(minStr);
+                // Serial.print("TH - Display On Min set to ");
+                // Serial.println(minStr);
                 displayonminTH = minStr.toInt();
               }
 
@@ -1110,8 +1081,8 @@ void checkClient() {
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                Serial.print("FR - Display On Max set to ");
-                Serial.println(maxStr);
+                // Serial.print("FR - Display On Max set to ");
+                // Serial.println(maxStr);
                 displayonmaxFR = maxStr.toInt();
               }
               // Pick up Display On Min
@@ -1121,8 +1092,8 @@ void checkClient() {
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                Serial.print("FR - Display On Min set to ");
-                Serial.println(minStr);
+                // Serial.print("FR - Display On Min set to ");
+                // Serial.println(minStr);
                 displayonminFR = minStr.toInt();
               }
 
@@ -1133,8 +1104,8 @@ void checkClient() {
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                Serial.print("SA - Display On Max set to ");
-                Serial.println(maxStr);
+                // Serial.print("SA - Display On Max set to ");
+                // Serial.println(maxStr);
                 displayonmaxSA = maxStr.toInt();
               }
               // Pick up Display On Min
@@ -1144,8 +1115,8 @@ void checkClient() {
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                Serial.print("SA - Display On Min set to ");
-                Serial.println(minStr);
+                // Serial.print("SA - Display On Min set to ");
+                // Serial.println(minStr);
                 displayonminSA = minStr.toInt();
               }
 
@@ -1156,8 +1127,8 @@ void checkClient() {
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                Serial.print("SU - Display On Max set to ");
-                Serial.println(maxStr);
+                // Serial.print("SU - Display On Max set to ");
+                // Serial.println(maxStr);
                 displayonmaxSU = maxStr.toInt();
               }
               // Pick up Display On Min
@@ -1167,8 +1138,8 @@ void checkClient() {
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                Serial.print("SU - Display On Min set to ");
-                Serial.println(minStr);
+                // Serial.print("SU - Display On Min set to ");
+                // Serial.println(minStr);
                 displayonminSU = minStr.toInt();
               }
 
@@ -1179,16 +1150,16 @@ void checkClient() {
                 pos = hostStr.indexOf("&");
                 if (pos > 0)
                   hostStr = hostStr.substring(0, pos);
-                Serial.print("WordClock HostName set to " + wchostname);
-                Serial.println(hostStr);
+                // Serial.print("WordClock HostName set to " + wchostname);
+                // Serial.println(hostStr);
                 wchostnamenum = hostStr.toInt();
               }
 
               // Check for UseUpdate switch
-              Serial.print("UseUpdate switched  ");
+              // Serial.print("UseUpdate switched  ");
               if (currentLine.indexOf("&useupdate=on&") >= 0) {
                 useupdate = -1;
-                Serial.println("on");
+                // Serial.println("on");
                 MDNS.begin(wchostname + wchostnamenum);
                 httpUpdater.setup(&httpServer);
                 httpServer.begin();
@@ -1202,65 +1173,65 @@ void checkClient() {
                 Serial.println(UpdatePathIP);
               } else {
                 useupdate = 0;
-                Serial.println("off");
+                // Serial.println("off");
                 httpUpdater.setup(&httpServer);
                 httpServer.stop();
               }
 
               // Check for Use LED test switch
-              Serial.print("Use LED test switched  ");
+              // Serial.print("Use LED test switched  ");
               if (currentLine.indexOf("&useledtest=on&") >= 0) {
                 useledtest = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 useledtest = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for Use SET WLAN switch
-              Serial.print("Use SET WLAN switched  ");
+              // Serial.print("Use SET WLAN switched  ");
               if (currentLine.indexOf("&usesetwlan=on&") >= 0) {
                 usesetwlan = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 usesetwlan = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for Use SHOW IP switch
-              Serial.print("Use SHOW IP switched  ");
+              // Serial.print("Use SHOW IP switched  ");
               if (currentLine.indexOf("&useshowip=on&") >= 0) {
                 useshowip = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 useshowip = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for RainBox switch
-              Serial.print("Use RainBow mode switched  ");
+              // Serial.print("Use RainBow mode switched  ");
               if (currentLine.indexOf("&switchRainBow=on&") >= 0) {
                 switchRainBow = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 switchRainBow = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for Minute LEDs order switch
-              Serial.print("Use minutes LED mode switch  ");
+              // Serial.print("Use minutes LED mode switch  ");
               if (currentLine.indexOf("&switchLEDOrder=on&") >= 0) {
                 switchLEDOrder = -1;
-                Serial.println("on");
+                // Serial.println("on");
               } else {
                 switchLEDOrder = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for WiFi settings RESET switch
-              Serial.print("WIFI settings RESET switched  ");
+              // Serial.print("WIFI settings RESET switched  ");
               if (currentLine.indexOf("&wifireset=on&") >= 0) {
-                Serial.println("on");
+                // Serial.println("on");
                 wifireset = -1;
                 dunkel();
                 // Show "SET WLAN" --> no blank display
@@ -1286,13 +1257,13 @@ void checkClient() {
                 ESP.restart();
               } else {
                 wifireset = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for WordClock RESET switch
-              Serial.print("WordClock RESTART switched  ");
+              // Serial.print("WordClock RESTART switched  ");
               if (currentLine.indexOf("&clockreset=on&") >= 0) {
-                Serial.println("on");
+                // Serial.println("on");
                 clockreset = -1;
                 dunkel();
                 // Show "RESET" --> no blank display
@@ -1309,16 +1280,16 @@ void checkClient() {
                 ESP.restart();
               } else {
                 clockreset = 0;
-                Serial.println("off");
+                // Serial.println("off");
               }
 
               // Check for DCW flag
               if (currentLine.indexOf("DCW=ON") >= 0) {
                 dcwFlag = -1;
-                Serial.println("DCW Flag switched ON");
+                // Serial.println("DCW Flag switched ON");
               } else if (currentLine.indexOf("DCW=OFF") >= 0) {
                 dcwFlag = 0;
-                Serial.println("DCW Flag switched OFF");
+                // Serial.println("DCW Flag switched OFF");
               }
 
               // get intensity DAY
@@ -1328,9 +1299,8 @@ void checkClient() {
                 pos = intStr.indexOf("&");
                 if (pos > 0)
                   intStr = intStr.substring(0, pos);
-                Serial.print("Intensity at day time set to ");
-                Serial.print(intStr);
-                //Serial.println("%"); // % ist Fehler oder?
+                // Serial.print("Intensity at day time set to ");
+                // Serial.print(intStr);
                 intensity = intStr.toInt();
               }
 
@@ -1341,9 +1311,8 @@ void checkClient() {
                 pos = intStr.indexOf("&");
                 if (pos > 0)
                   intStr = intStr.substring(0, pos);
-                Serial.print("Intensity at night time set to ");
-                Serial.print(intStr);
-                //Serial.println("%"); // % ist Fehler oder?
+                // Serial.print("Intensity at night time set to ");
+                // Serial.print(intStr);
                 intensityNight = intStr.toInt();
               }
 
@@ -1351,11 +1320,11 @@ void checkClient() {
               pos = currentLine.indexOf("&ntpserver=");
               if (pos >= 0) {
                 String ntpStr = currentLine.substring(pos + 11);
-                pos = ntpStr.indexOf("&");
+                pos = ntpStr.indexOf("&");                            // "&" !!!
                 if (pos > 0)
                   ntpStr = ntpStr.substring(0, pos);
-                Serial.print("NTP Server set to ");
-                Serial.println(ntpStr);
+                // Serial.print("NTP Server set to ");
+                // Serial.println(ntpStr);
                 ntpServer = ntpStr;
               }
 
@@ -1364,36 +1333,29 @@ void checkClient() {
               if (pos >= 0) {
                 String tz = currentLine.substring(pos + 9);
                 // check for unwanted suffix
-                pos = tz.indexOf(" ");
+                pos = tz.indexOf(" ");                                // " " !!!
                 if (pos > 0) {
                   tz = tz.substring(0, pos);
                 }
                 timeZone = urldecode(tz);
-                Serial.print("Timezone set to ");
-                Serial.println(timeZone);
+                // Serial.print("Timezone set to ");
+                // Serial.println(timeZone);
               }
 
-              // save DATA to EEPROM
-              writeEEPROM();
-
-              // Reset NTP
-              configNTPTime();
+              writeEEPROM(); // save DATA to EEPROM
+              configNTPTime(); // Reset NTP
             }
-
-            currentLine = "";
+            currentLine = ""; // Clear the current command line
           }
         } else if (c != '\r') {  // if you got anything else but a carriage return character,
           currentLine += c;      // add it to the end of the currentLine
         }
       }
     }
-    // Clear the header variable
-    header = "";
-
-    // Close the connection
-    client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
+    header = ""; // Clear the header variable
+    client.stop(); // Close the connection
+    Serial.println("Web client disconnected.");
+    Serial.println("######################################################################################################");
   }
 }
 
@@ -1440,7 +1402,7 @@ void rtcReadTime() {
 
 
 // ###########################################################################################################################################
-// # Implementation of date function:
+// # Show the IP-address on the display:
 // ###########################################################################################################################################
 void showIP () {
   IPAddress ip = WiFi.localIP();
