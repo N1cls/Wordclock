@@ -6,11 +6,10 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 Further information will follow
 
-Current version: 3.9.2
+Current version: 3.9.3
 
 
 Version history:
 ################
 - 1.0 to 3.4: 	Initial releasese shareed on thingiverse
 - 3.5 to 3.9.3:	Minor function changes and code cleanup
-
