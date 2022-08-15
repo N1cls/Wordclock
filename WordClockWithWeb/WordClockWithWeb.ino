@@ -18,6 +18,7 @@
 // # - DS3231                         // by Andrew Wickert:               https://github.com/NorthernWidget/DS3231
 // # - RTClib                         // by Adafruit:                     https://github.com/adafruit/RTClib
 // # - WiFiManager                    // by tablatronix / tzapu:          https://github.com/tzapu/WiFiManager
+// # - ESP8266Ping                    // by dancol90                      https://github.com/dancol90/ESP8266Ping
 // #
 // ###########################################################################################################################################
 #include <ESP8266WiFi.h>              // Used to connect the ESP8266 NODE MCU to your WiFi
@@ -31,6 +32,7 @@
 #include <ESP8266mDNS.h>              // Used for the internal update function
 #include <ESP8266HTTPUpdateServer.h>  // Used for the internal update function
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
+#include <ESP8266Ping.h>              // Used to send ping requests to a IP-address (of your smart phone) to detect if you have left your home
 #include "settings.h"                 // Settings are stored in a seperate file to make to code better readable and to be able to switch to other settings faster
 // ###########################################################################################################################################
 
@@ -38,24 +40,27 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V3.9.3";
+const char* WORD_CLOCK_VERSION = "V4.0";
 
 
 // ###########################################################################################################################################
 // # Declartions and variables used in the functions:
 // ###########################################################################################################################################
 String header; // Variable to store the HTTP request
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);     // LED strip settings
-RTC_DS3231 rtc;                                                                         // rtc communication object
-int lastRequest = 0;                                                                    // Variable to control RTC requests
-int rtcStarted = 0;                                                                     // Variable to control whether RTC has been initialized
-int delayval = 250;                                                                     // delay in milliseconds
-int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                             // variables for RTC-module read time:
-String timeZone = DEFAULT_TIMEZONE;                                                     // Time server settings
-String ntpServer = DEFAULT_NTP_SERVER;                                                  // Time server settings
-String UpdatePath = "-";                                                                // Update via Hostname
-String UpdatePathIP = "-";                                                              // Update via IP-address
-ESP8266HTTPUpdateServer httpUpdater;                                                    // Update server
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);       // LED strip settings
+RTC_DS3231 rtc;                                                                           // rtc communication object
+int lastRequest = 0;                                                                      // Variable to control RTC requests
+int rtcStarted = 0;                                                                       // Variable to control whether RTC has been initialized
+int delayval = 250;                                                                       // delay in milliseconds
+int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                               // variables for RTC-module read time:
+String timeZone = DEFAULT_TIMEZONE;                                                       // Time server settings
+String ntpServer = DEFAULT_NTP_SERVER;                                                    // Time server settings
+String UpdatePath = "-";                                                                  // Update via Hostname
+String UpdatePathIP = "-";                                                                // Update via IP-address
+ESP8266HTTPUpdateServer httpUpdater;                                                      // Update server
+IPAddress remote_ip(PING_IP_ADDR_O1, PING_IP_ADDR_O2, PING_IP_ADDR_O3, PING_IP_ADDR_O4);  // IP-addres to monitor 2x per minute to turn LEDs off if IP-addres is offline for a defined time
+int PING_ATTEMPTS = PING_TIMEOUTNUM;                                                      // Attempts of missed PING requests
+bool LEDsON = true;                                                                       // Global flag to turn LEDs on or off - Used for the ping function
 
 
 // ###########################################################################################################################################
@@ -94,10 +99,200 @@ struct parmRec
   int  pwchostnamenum;
   int  pDCWFlag;
   int  pBlinkTime;
+  int pPING_IP_ADDR_O1;
+  int pPING_IP_ADDR_O2;
+  int pPING_IP_ADDR_O3;
+  int pPING_IP_ADDR_O4;
+  int pPING_TIMEOUTNUM;
+  int pPING_DEBUG_MODE;
+  int pPING_USEMONITOR;
   char pTimeZone[50];
   char pNTPServer[50];
   int  pCheckSum;             // This checkSum is used to find out whether we have valid parameters
 } parameter;
+
+
+// ###########################################################################################################################################
+// # Setup function that runs once at startup of the ESP8266:
+// ###########################################################################################################################################
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("Start Monitor...");
+  Serial.print("WordClock Version: ");
+  Serial.println(WORD_CLOCK_VERSION);
+
+  pixels.begin();  // Init the NeoPixel library
+
+  readEEPROM(); // get persistent data from EEPROM
+
+  // LED test --> no blank display if WiFi was not set yet:
+  if (useledtest) {
+    Serial.println("Display Test...");
+    for (int i = 0; i < NUMPIXELS; i++) {
+      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+      setLED(i, i, 1);
+      pixels.show();
+      delay(25);
+    }
+    for (int i = 0; i < NUMPIXELS; i++) {
+      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+      setLED(i, i, 0);
+      pixels.show();
+      delay(25);
+    }
+    delay(1500);
+  }
+
+  // Show "SET WLAN" --> no blank display if WiFi was not set yet:
+  if (usesetwlan) {
+    Serial.println("Show SET WLAN...");
+    setLED(6, 6, 1);      // S
+    setLED(12, 12, 1);    // E
+    setLED(24, 24, 1);    // T
+    setLED(63, 63, 1);    // W
+    setLED(83, 83, 1);    // L
+    setLED(84, 84, 1);    // A
+    setLED(93, 93, 1);    // N
+    setLED(110, 110, 1);  // Corner 1
+    setLED(111, 111, 1);  // Corner 2
+    setLED(112, 112, 1);  // Corner 3
+    setLED(113, 113, 1);  // Corner 4
+    pixels.show();
+  }
+
+  // WiFiManager:
+  bool res;
+  WiFiManager wifiManager;
+  dunkel(); // Switch display black
+  configNTPTime(); // Set timezone
+  wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
+  Serial.println("Before autoConnect...");
+  res = wifiManager.autoConnect(DEFAULT_AP_NAME);
+  if (!res) {
+    Serial.println("Failed to connect to WiFi");
+  }
+  else {
+    Serial.println("Connected to WiFi.");
+    if (useshowip)
+    {
+      showIP();
+    }
+  }
+
+  // Web update function setup:
+  if (useupdate) {
+    MDNS.begin(wchostname + wchostnamenum);
+    httpUpdater.setup(&httpServer);
+    httpServer.begin();
+    MDNS.addService("http", "tcp", 2022);
+    MDNS.addService("http", "tcp", 80);
+    UpdatePath = "http://" + String(wchostname + wchostnamenum) + ".local:2022/update";
+    Serial.print("Web Update Link: ");
+    Serial.println(UpdatePath);
+    UpdatePathIP = "http://" + WiFi.localIP().toString() + ":2022/update";
+    Serial.print("Web Update Link via IP-address: ");
+    Serial.println(UpdatePathIP);
+  }
+  server.begin();
+}
+
+
+// ###########################################################################################################################################
+// # ESP8266 loop function which runs all the time after the startup was done:
+// ###########################################################################################################################################
+void loop() {
+  // Check, whether something has been entered on Config Page
+  checkClient();
+  ESP.wdtFeed();  // Reset watchdog timer
+  handleTime(); // handle NTP / RTC time
+  delay(750);
+
+  if (switchRainBow) { // RainBow effect active - color change every new minute
+    if (iSecond == 0) {
+      redVal = random(255);
+      greenVal = random(255);
+      blueVal = random(255);
+    }
+  } else {
+    redVal    =  parameter.pRed;
+    greenVal  =  parameter.pGreen;
+    blueVal   =  parameter.pBlue;
+  }
+
+  // Show the display only during the set Min/Max time if option is set
+  if (displayoff) {
+    switch (iWeekDay) {
+      case 0:     // Sunday
+        DayNightMode(displayonminSU, displayonmaxSU);
+        break;
+      case 1:     // Monday
+        DayNightMode(displayonminMO, displayonmaxMO);
+        break;
+      case 2:     // Tuesday
+        DayNightMode(displayonminTU, displayonmaxTU);
+        break;
+      case 3:     // Wednesday
+        DayNightMode(displayonminWE, displayonmaxWE);
+        break;
+      case 4:     // Thursday
+        DayNightMode(displayonminTH, displayonmaxTH);
+        break;
+      case 5:     // Friday
+        DayNightMode(displayonminFR, displayonmaxFR);
+        break;
+      case 6:     // Saturday
+        DayNightMode(displayonminSA, displayonmaxSA);
+        break;
+    }
+  }
+  else
+  {
+    pixels.setBrightness(intensity); // DAY brightness
+    ShowTheTime();
+  }
+
+  ESP.wdtFeed();  // Reset watchdog timer
+  delay(delayval);
+  ESP.wdtFeed();  // Reset watchdog timer
+
+  // Web update start:
+  httpServer.handleClient();
+  MDNS.update();
+
+  // Ping the set IP-address... Turn off the LED by presence status of an IP-address (of your smart phone) monitored by a PING request 2 times perminute:
+  if (PING_USEMONITOR == 1)
+  {
+    if (iSecond == 45 || iSecond == 15) {
+
+      if (PING_DEBUG_MODE == 1) {
+        Serial.print("IP gets pinged now: " + String(iHour) + ":" + String(iMinute) + ":" + String(iSecond) + " - IP: ");
+        Serial.print(remote_ip);
+        Serial.print(" --> ");
+      }
+      if (Ping.ping(remote_ip))
+      {
+        if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
+        PING_ATTEMPTS = PING_TIMEOUTNUM; // Reset to configured value
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
+        pixels.setBrightness(intensity);
+        LEDsON = true;
+      } else {
+        if (PING_ATTEMPTS >= 1) PING_ATTEMPTS = PING_ATTEMPTS - 1;
+        if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
+      }
+      if (PING_ATTEMPTS == 0) {
+        if (PING_DEBUG_MODE == 1) Serial.print(PING_ATTEMPTS);
+        if (PING_DEBUG_MODE == 1) Serial.println(" remaining attempts --> LEDs = OFF until the IP-address can be reached again...");
+        pixels.setBrightness(0);
+        pixels.show();
+        LEDsON = false;
+      }
+    }
+  }
+  if (LEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+}
 
 
 // ###########################################################################################################################################
@@ -223,6 +418,15 @@ void readEEPROM() {
     dcwFlag =  parameter.pDCWFlag;
     intensity =  parameter.pIntensity;
     intensityNight =  parameter.pIntensityNight;
+
+    PING_IP_ADDR_O1 = parameter.pPING_IP_ADDR_O1;
+    PING_IP_ADDR_O2 = parameter.pPING_IP_ADDR_O2;
+    PING_IP_ADDR_O3 = parameter.pPING_IP_ADDR_O3;
+    PING_IP_ADDR_O4 = parameter.pPING_IP_ADDR_O4;
+    PING_TIMEOUTNUM = parameter.pPING_TIMEOUTNUM;
+    PING_DEBUG_MODE = parameter.pPING_DEBUG_MODE;
+    PING_USEMONITOR = parameter.pPING_USEMONITOR;
+
     String ntp(parameter.pNTPServer);
     ntpServer = ntp;
     String tz(parameter.pTimeZone);
@@ -270,6 +474,14 @@ void writeEEPROM() {
   parameter.pswitchRainBow = switchRainBow;
   parameter.pswitchLEDOrder = switchLEDOrder;
 
+  parameter.pPING_IP_ADDR_O1 = PING_IP_ADDR_O1;
+  parameter.pPING_IP_ADDR_O2 = PING_IP_ADDR_O2;
+  parameter.pPING_IP_ADDR_O3 = PING_IP_ADDR_O3;
+  parameter.pPING_IP_ADDR_O4 = PING_IP_ADDR_O4;
+  parameter.pPING_TIMEOUTNUM = PING_TIMEOUTNUM;
+  parameter.pPING_DEBUG_MODE = PING_DEBUG_MODE;
+  parameter.pPING_USEMONITOR = PING_USEMONITOR;
+
   // calculate checksum
   byte* p = (byte*)(void*)&parameter;
   parameter.pCheckSum = 0;
@@ -288,170 +500,6 @@ void writeEEPROM() {
     // Serial.println(b);
   }
   EEPROM.commit();
-}
-
-
-// ###########################################################################################################################################
-// # NTP time function:
-// ###########################################################################################################################################
-void configNTPTime() {
-  Serial.print("Set time zone to ");
-  Serial.println(timeZone);
-  Serial.print("Set time server to ");
-  Serial.println(ntpServer);
-  configTime(timeZone.begin(), ntpServer.begin());
-}
-
-
-// ###########################################################################################################################################
-// # Setup function that runs once at startup of the ESP8266:
-// ###########################################################################################################################################
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println("Start Monitor...");
-  Serial.print("WordClock Version: ");
-  Serial.println(WORD_CLOCK_VERSION);
-
-  pixels.begin();  // Init the NeoPixel library
-
-  readEEPROM(); // get persistent data from EEPROM
-
-  // LED test --> no blank display if WiFi was not set yet:
-  if (useledtest) {
-    Serial.println("Display Test...");
-    for (int i = 0; i < NUMPIXELS; i++) {
-      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-      setLED(i, i, 1);
-      pixels.show();
-      delay(25);
-    }
-    for (int i = 0; i < NUMPIXELS; i++) {
-      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-      setLED(i, i, 0);
-      pixels.show();
-      delay(25);
-    }
-    delay(1500);
-  }
-
-  // Show "SET WLAN" --> no blank display if WiFi was not set yet:
-  if (usesetwlan) {
-    Serial.println("Show SET WLAN...");
-    setLED(6, 6, 1);      // S
-    setLED(12, 12, 1);    // E
-    setLED(24, 24, 1);    // T
-    setLED(63, 63, 1);    // W
-    setLED(83, 83, 1);    // L
-    setLED(84, 84, 1);    // A
-    setLED(93, 93, 1);    // N
-    setLED(110, 110, 1);  // Corner 1
-    setLED(111, 111, 1);  // Corner 2
-    setLED(112, 112, 1);  // Corner 3
-    setLED(113, 113, 1);  // Corner 4
-    pixels.show();
-  }
-
-  // WiFiManager:
-  bool res;
-  WiFiManager wifiManager;
-  dunkel(); // Switch display black
-  configNTPTime(); // Set timezone
-  wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
-  Serial.println("Before autoConnect...");
-  res = wifiManager.autoConnect(DEFAULT_AP_NAME);
-  if (!res) {
-    Serial.println("Failed to connect to WiFi");
-  }
-  else {
-    Serial.println("Connected to WiFi.");
-    if (useshowip)
-    {
-      showIP();
-    }
-  }
-
-  // Web update function setup:
-  if (useupdate) {
-    MDNS.begin(wchostname + wchostnamenum);
-    httpUpdater.setup(&httpServer);
-    httpServer.begin();
-    MDNS.addService("http", "tcp", 2022);
-    MDNS.addService("http", "tcp", 80);
-    UpdatePath = "http://" + String(wchostname + wchostnamenum) + ".local:2022/update";
-    Serial.print("Web Update Link: ");
-    Serial.println(UpdatePath);
-    UpdatePathIP = "http://" + WiFi.localIP().toString() + ":2022/update";
-    Serial.print("Web Update Link via IP-address: ");
-    Serial.println(UpdatePathIP);
-  }
-  server.begin();
-}
-
-
-// ###########################################################################################################################################
-// # Convert hex digit to int value:
-// ###########################################################################################################################################
-unsigned char h2int(char c)
-{
-  if (c >= '0' && c <= '9') {
-    return ((unsigned char)c - '0');
-  }
-  if (c >= 'a' && c <= 'f') {
-    return ((unsigned char)c - 'a' + 10);
-  }
-  if (c >= 'A' && c <= 'F') {
-    return ((unsigned char)c - 'A' + 10);
-  }
-  return (0);
-}
-
-
-// ###########################################################################################################################################
-// # Get RTC - if any:
-// ###########################################################################################################################################
-int checkRTC() {
-  // Initialize & check RTC
-  if (!rtcStarted) {
-    if (rtc.begin()) {
-      rtcStarted = -1;
-      // start RTC Communication via Wire.h library
-      Serial.println("Start RTC communication");
-      Wire.begin();
-    } else {
-      Serial.println("Couldn't find RTC");
-    }
-  }
-  return rtcStarted;
-}
-
-
-// ###########################################################################################################################################
-// # Decode %xx values in String - comming from URL / HTTP:
-// ###########################################################################################################################################
-String urldecode(String str)
-{
-  String encodedString = "";
-  char c;
-  char code0;
-  char code1;
-  for (int i = 0; i < str.length(); i++) {
-    c = str.charAt(i);
-    if (c == '+') {
-      encodedString += ' ';
-    } else if (c == '%') {
-      i++;
-      code0 = str.charAt(i);
-      i++;
-      code1 = str.charAt(i);
-      c = (h2int(code0) << 4) | h2int(code1);
-      encodedString += c;
-    } else {
-      encodedString += c;
-    }
-    yield();
-  }
-  return encodedString;
 }
 
 
@@ -853,6 +901,53 @@ void checkClient() {
             client.print("><br>");
             client.println("<br>! Wenn diese Option gesetzt wird, werden die WLAN Einstellungen einmalig geloescht !<br>");
             client.print("<br><hr>");
+
+
+            // PING IP ADDRESS:
+            client.println("<h2>PING Monitor IP-Adresse -> LEDs abschalten wenn IP laenger offline:</h2>");
+            client.println("<label for=\"PING_USEMONITOR\">PING Monitor Funktion verwenden?</label>");
+            client.print("<input type=\"checkbox\" id=\"PING_USEMONITOR\" name=\"PING_USEMONITOR\"");
+            if (PING_USEMONITOR) {
+              client.print(" checked");
+              client.print("><br><br>");
+            }
+            else
+            {
+              client.print("><br><br>");
+            }
+            client.println("<label>Bitte hier die zu ueberwachende IP-Adresse eintragen:</label><br>");
+            client.println("<label for=\"PING_IP_ADDR_O1\">IP-Adresse:</label>");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O1\" name=\"PING_IP_ADDR_O1\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR_O1);
+            client.println("\">.");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O2\" name=\"PING_IP_ADDR_O2\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR_O2);
+            client.println("\">.");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O3\" name=\"PING_IP_ADDR_O3\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR_O3);
+            client.println("\">.");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O4\" name=\"PING_IP_ADDR_O4\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR_O4);
+            client.println("\"><br><br>");
+
+            client.println("<br><label for=\"PING_TIMEOUTNUM\">Anzahl PING Versuche bis die LEDs abgeschaltet werden:</label>");
+            client.print("<input type=\"text\" id=\"PING_TIMEOUTNUM\" name=\"PING_TIMEOUTNUM\" size=\"3\" value=\"");
+            client.print(PING_TIMEOUTNUM);
+            client.println("\">");
+            client.println("<br><label>Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen...</label><br><br>");
+
+            client.println("<label for=\"PING_DEBUG_MODE\">DEBUG PING Monitor Funktion verwenden?</label>");
+            client.print("<input type=\"checkbox\" id=\"PING_DEBUG_MODE\" name=\"PING_DEBUG_MODE\"");
+            if (PING_DEBUG_MODE) {
+              client.print(" checked");
+              client.print("><br>");
+            }
+            else
+            {
+              client.print("><br>");
+            }
+            client.print("<br><hr>");
+
 
             client.println("<h2>WordClock Hostname anpassen</h2><br>");
             client.println("<label for=\"wchostnamenum\">Hostname: " + wchostname + "</label>");
@@ -1315,6 +1410,71 @@ void checkClient() {
                 // Serial.print(intStr);
                 intensityNight = intStr.toInt();
               }
+
+              // Use PING function:
+              if (currentLine.indexOf("&PING_USEMONITOR=on&") >= 0) {
+                PING_USEMONITOR = 1;
+              } else {
+                PING_USEMONITOR = 0;
+              }
+
+              // Use PING DEBUG function:
+              if (currentLine.indexOf("&PING_DEBUG_MODE=on&") >= 0) {
+                PING_DEBUG_MODE = 1;
+              } else {
+                PING_DEBUG_MODE = 0;
+              }
+
+              // IP-address octet 1:
+              pos = currentLine.indexOf("&PING_IP_ADDR_O1=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 17);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR_O1 = maxStr.toInt();
+              }
+
+              // IP-address octet 2:
+              pos = currentLine.indexOf("&PING_IP_ADDR_O2=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 17);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR_O2 = maxStr.toInt();
+              }
+
+              // IP-address octet 3:
+              pos = currentLine.indexOf("&PING_IP_ADDR_O3=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 17);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR_O3 = maxStr.toInt();
+              }
+
+              // IP-address octet 4:
+              pos = currentLine.indexOf("&PING_IP_ADDR_O4=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 17);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR_O4 = maxStr.toInt();
+              }
+
+              // Max PING attempts:
+              pos = currentLine.indexOf("&PING_TIMEOUTNUM=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 17);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_TIMEOUTNUM = maxStr.toInt();
+              }
+
 
               // get NTP Server
               pos = currentLine.indexOf("&ntpserver=");
@@ -1848,71 +2008,6 @@ void showDCW() {
 
 
 // ###########################################################################################################################################
-// # ESP8266 loop function which runs all the time after the startup was done:
-// ###########################################################################################################################################
-void loop() {
-  // Check, whether something has been entered on Config Page
-  checkClient();
-  ESP.wdtFeed();  // Reset watchdog timer
-  handleTime(); // handle NTP / RTC time
-  pixels.setBrightness(intensity); // DAY brightness
-  delay(750);
-
-  if (switchRainBow) { // RainBow effect active - color change every new minute
-    if (iSecond == 0) {
-      redVal = random(255);
-      greenVal = random(255);
-      blueVal = random(255);
-    }
-  } else {
-    redVal    =  parameter.pRed;
-    greenVal  =  parameter.pGreen;
-    blueVal   =  parameter.pBlue;
-  }
-
-  // Show the display only during the set Min/Max time if option is set
-  if (displayoff) {
-    switch (iWeekDay) {
-      case 0:     // Sunday
-        DayNightMode(displayonminSU, displayonmaxSU);
-        break;
-      case 1:     // Monday
-        DayNightMode(displayonminMO, displayonmaxMO);
-        break;
-      case 2:     // Tuesday
-        DayNightMode(displayonminTU, displayonmaxTU);
-        break;
-      case 3:     // Wednesday
-        DayNightMode(displayonminWE, displayonmaxWE);
-        break;
-      case 4:     // Thursday
-        DayNightMode(displayonminTH, displayonmaxTH);
-        break;
-      case 5:     // Friday
-        DayNightMode(displayonminFR, displayonmaxFR);
-        break;
-      case 6:     // Saturday
-        DayNightMode(displayonminSA, displayonmaxSA);
-        break;
-    }
-  }
-  else
-  {
-    ShowTheTime();
-  }
-  pixels.show(); // This sends the updated pixel color to the hardware.
-
-  ESP.wdtFeed();  // Reset watchdog timer
-  delay(delayval);
-  ESP.wdtFeed();  // Reset watchdog timer
-
-  // Web update start:
-  httpServer.handleClient();
-  MDNS.update();
-}
-
-
-// ###########################################################################################################################################
 // # Display the time:
 // ###########################################################################################################################################
 void ShowTheTime() {
@@ -1943,6 +2038,84 @@ void DayNightMode(int displayonMin, int displayonMax) {
       dunkel();
     }
   }
+}
+
+
+// ###########################################################################################################################################
+// # NTP time function:
+// ###########################################################################################################################################
+void configNTPTime() {
+  Serial.print("Set time zone to ");
+  Serial.println(timeZone);
+  Serial.print("Set time server to ");
+  Serial.println(ntpServer);
+  configTime(timeZone.begin(), ntpServer.begin());
+}
+
+
+// ###########################################################################################################################################
+// # Convert hex digit to int value:
+// ###########################################################################################################################################
+unsigned char h2int(char c)
+{
+  if (c >= '0' && c <= '9') {
+    return ((unsigned char)c - '0');
+  }
+  if (c >= 'a' && c <= 'f') {
+    return ((unsigned char)c - 'a' + 10);
+  }
+  if (c >= 'A' && c <= 'F') {
+    return ((unsigned char)c - 'A' + 10);
+  }
+  return (0);
+}
+
+
+// ###########################################################################################################################################
+// # Get RTC - if any:
+// ###########################################################################################################################################
+int checkRTC() {
+  // Initialize & check RTC
+  if (!rtcStarted) {
+    if (rtc.begin()) {
+      rtcStarted = -1;
+      // start RTC Communication via Wire.h library
+      Serial.println("Start RTC communication");
+      Wire.begin();
+    } else {
+      Serial.println("Couldn't find RTC");
+    }
+  }
+  return rtcStarted;
+}
+
+
+// ###########################################################################################################################################
+// # Decode %xx values in String - comming from URL / HTTP:
+// ###########################################################################################################################################
+String urldecode(String str)
+{
+  String encodedString = "";
+  char c;
+  char code0;
+  char code1;
+  for (int i = 0; i < str.length(); i++) {
+    c = str.charAt(i);
+    if (c == '+') {
+      encodedString += ' ';
+    } else if (c == '%') {
+      i++;
+      code0 = str.charAt(i);
+      i++;
+      code1 = str.charAt(i);
+      c = (h2int(code0) << 4) | h2int(code1);
+      encodedString += c;
+    } else {
+      encodedString += c;
+    }
+    yield();
+  }
+  return encodedString;
 }
 
 

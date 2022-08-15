@@ -77,6 +77,20 @@ ESP8266WebServer httpServer(2022);          // Update server port
 
 
 // ###########################################################################################################################################
+// # Turn off the LED by presence status of an IP-address (of your smart phone) monitored by a PING request 2 times perminute:
+// #
+// # Note: You might need to set the IP-address of the to monitor device to static in your router configuration
+// ###########################################################################################################################################
+int PING_IP_ADDR_O1 = 192;                // IP-address of the to monitor device - ip octet 1
+int PING_IP_ADDR_O2 = 168;                // IP-address of the to monitor device - ip octet 2
+int PING_IP_ADDR_O3 = 178;                // IP-address of the to monitor device - ip octet 3
+int PING_IP_ADDR_O4 = 56;                 // IP-address of the to monitor device - ip octet 4
+int PING_TIMEOUTNUM = 10;                 // After which amount of timed out PING request should the LED be turned off? Value 10 = 5 minutes
+int PING_DEBUG_MODE = 1;                  // Use the serial output monitor of Arduino IDE to see the current online status
+int PING_USEMONITOR = 1;                  // Switch flag to turn the PING function on (1) or off (0)
+
+
+// ###########################################################################################################################################
 // # NTP time server settings:
 // ###########################################################################################################################################
 #define DEFAULT_NTP_SERVER "de.pool.ntp.org"
