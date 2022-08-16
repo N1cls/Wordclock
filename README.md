@@ -14,7 +14,7 @@ Time here is 07:43 or 19:43 o'clock
 <hr>
 
 Version history:
-- 1.0 to 3.4: 	Initial releasese shared on thingiverse
+- 1.0 to 3.4: 	Initial releases shared on thingiverse
 - 3.5 to 3.9.3:	Minor function changes and code cleanup
 - 4.0: 		Added an option to periodically ping a IP-address of f.e. your smart phone. 
 		If the IP-address does not answer for a period of time the LEDs turn off. 
