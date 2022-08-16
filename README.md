@@ -39,8 +39,9 @@ Time here is 07:43 or 19:43 o'clock
 - The in the interal WifiManager settings stored WiFi settings can be set to default on request
 - In case the WiFi is no longer available the device will reset the WiFi settings automatically after 240s to avoid flashing with Arduino IDE again
 - Optional you can set a IP-address (of f.e. your smart phone) connected on your network to be monitored via PING request 2x per minute. After a set amount of failed PING attempts the LEDs will turn off to reduce power consumption when you are not at home
-- 
-
+- You can configure the hostname of the device that will be tried to tranfer to your router configuration to reach the web portal via DNS name too
+- A restart request can be forced with the web portal as well
+- The timezone and NTP-Server configuration can be configured as well to fit to your demands
 
 <hr>
 
