@@ -7,6 +7,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 Current version: 4.0
 
 <img src="9CA8B21F-5ED3-4F7D-95CA-FCF97703D408.jpeg">
+Time here is 07:43 or 19:43 o'clock
 
 Version history:
 - 1.0 to 3.4: 	Initial releasese shareed on thingiverse
