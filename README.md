@@ -34,7 +34,7 @@ Time here is 07:43 or 19:43 o'clock
 - To every new hour the hour text can flash orange to notify about the new reached hour
 - Optional you can choose to show the date as scrolling text every minute + 30 seconds
 - A time span can be selected to turn off the LEDs fully or reduce their intensity for night time usage for each day seperatelly
-- Updates of the software can be done with the web portal as well to avoid connecting the decice to Arduino IDE again. The needed .bin file is included here
+- Updates of the software can be done with the web portal as well to avoid connecting the device to Arduino IDE again. The needed .bin file is included
 - During startup you can choose if the following functions should be displayed: IP-address as scrolling text, the SET WLAN text and/or the LED test function
 - The LED color can be shown as randomized 'rainbow' color changed every new minute 
 - You can choose if the minute LEDs in the corners should be rotated in clockwise or anti clockwise direction
