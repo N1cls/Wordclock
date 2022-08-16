@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 Further information will follow
 
-Current version: 3.9.3
+Current version: 4.0
 
 
 Version history:
