@@ -1,6 +1,6 @@
 # WordClock
 
-This is the WordClock software to the thingiverse project: <a href="https://www.thingiverse.com/thing:4693081">Wordclock Wortuhr</a>
+This is the WordClock software to the thingiverse project: <a href="https://www.thingiverse.com/thing:4693081" target="_blank">Wordclock Wortuhr</a>
 
 Feel free to add functions, ideas and everything else, which helps this project to grow! 
 
