@@ -26,19 +26,19 @@ Time here is 07:43 or 19:43 o'clock
 - Note: Check the settings.h file for the latest functions
 - WiFi Manager integration to avoid setting your WiFi credentials manually in the code
 - The from your WiFi router received IP-address can be shown as a scrolling text to inform you about the current value
-- During startup in default a LED test function is shown to check your wiring. All LEDs shoule light up in green color and turn off again
+- During startup in default a LED test function is shown to check your wiring. All LEDs should light up in green color and turn off again
 - During startup a text "SET WLAN" is shown until the WiFi settings were done with for the first time or afterwards until the device received a new IP-address
 - The configuraton can be set with an integrated web portal by http://<your-WordClock-IP-address>
 - The LED color can be configured to a static value
 - The LED intensity can be set for a day time and optional for a night mode usage
-- To every new hour the hour text can flash to notify about the new reached hour
-- Optional you can chose to show the date as scrolling text every minute + 30 seconds
-- A time span can be selected to turn off the LEDs fully or reduce their intensity for night time usage
+- To every new hour the hour text can flash orange to notify about the new reached hour
+- Optional you can choose to show the date as scrolling text every minute + 30 seconds
+- A time span can be selected to turn off the LEDs fully or reduce their intensity for night time usage for each day seperatelly
 - Updates of the software can be done with the web portal as well to avoid connecting the decice to Arduino IDE again. The needed .bin file is included here
 - During startup you can choose if the following functions should be displayed: IP-address as scrolling text, the SET WLAN text and/or the LED test function
 - The LED color can be shown as randomized 'rainbow' color changed every new minute 
 - You can choose if the minute LEDs in the corners should be rotated in clockwise or anti clockwise direction
-- The in the interal WifiManager stored WiFi settings can be set to default on request to switch to a new WiFi router afterwards
+- The in the internal WifiManager stored WiFi settings can be set to default on request to switch to a new WiFi router afterwards
 - In case the WiFi is no longer available the device will reset the WiFi settings automatically after 240s to avoid flashing with Arduino IDE again
 - You can configure the hostname of the device that will be tried to tranfer to your routers DNS configuration to reach the web portal via DNS name too
 - A restart request can be forced with the web portal as well
