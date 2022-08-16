@@ -4,8 +4,6 @@ This is the Wordclock software to the thingiverse project https://www.thingivers
 
 Feel free to add functions, ideas and everything else, which helps this project to grow! 
 
-Further information will follow
-
 Current version: 4.0
 
 <img src="9CA8B21F-5ED3-4F7D-95CA-FCF97703D408.jpeg">
@@ -18,5 +16,3 @@ Version history:
 		This will allow to reduce power consumption of the WordClock when you are away.
 		The ping request is done 2x every minute. So if the IP-address can be reached
 		again, the LEDs will turn on again.
-
-
