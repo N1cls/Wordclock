@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.0";
+const char* WORD_CLOCK_VERSION = "V4.1";
 
 
 // ###########################################################################################################################################
@@ -199,7 +199,7 @@ void setup() {
 
 
 // ###########################################################################################################################################
-// # ESP8266 loop function which runs all the time after the startup was done:
+// # Loop function which runs all the time after the startup was done:
 // ###########################################################################################################################################
 void loop() {
   // Check, whether something has been entered on Config Page
@@ -587,7 +587,7 @@ void checkClient() {
             client.print("><br><hr>");
 
             client.println("<h2>Display abschalten oder dunkler schalten?</h2><br>");
-            client.println("<label for=\"displayoff\">Display abschalten oder dunkler schalten?</label>");
+            client.println("<label for=\"displayoff\">Display komplett abschalten ...</label>");
             client.print("<input type=\"checkbox\" id=\"displayoff\" name=\"displayoff\"");
             if (displayoff) {
               client.print(" checked");
@@ -595,7 +595,7 @@ void checkClient() {
             client.print("><br><br>");
 
 
-            client.println("<label for=\"useNightLEDs\">Display nur dunkler schalten auf Wert der Helligkeit bei Nacht?</label>");
+            client.println("<label for=\"useNightLEDs\">... oder nur dunkler schalten auf Wert der Helligkeit bei Nacht?</label>");
             client.print("<input type=\"checkbox\" id=\"useNightLEDs\" name=\"useNightLEDs\"");
             if (useNightLEDs) {
               client.print(" checked");
@@ -904,7 +904,7 @@ void checkClient() {
 
 
             // PING IP ADDRESS:
-            client.println("<h2>PING Monitor IP-Adresse -> LEDs abschalten wenn IP laenger offline:</h2>");
+            client.println("<h2>PING Monitor IP-Adresse -> LEDs abschalten wenn IP laenger offline</h2>");
             client.println("<label for=\"PING_USEMONITOR\">PING Monitor Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"PING_USEMONITOR\" name=\"PING_USEMONITOR\"");
             if (PING_USEMONITOR) {
@@ -919,13 +919,13 @@ void checkClient() {
             client.println("<label for=\"PING_IP_ADDR_O1\">IP-Adresse:</label>");
             client.print("<input type=\"text\" id=\"PING_IP_ADDR_O1\" name=\"PING_IP_ADDR_O1\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR_O1);
-            client.println("\">.");
+            client.println("\"> .");
             client.print("<input type=\"text\" id=\"PING_IP_ADDR_O2\" name=\"PING_IP_ADDR_O2\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR_O2);
-            client.println("\">.");
+            client.println("\"> .");
             client.print("<input type=\"text\" id=\"PING_IP_ADDR_O3\" name=\"PING_IP_ADDR_O3\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR_O3);
-            client.println("\">.");
+            client.println("\"> .");
             client.print("<input type=\"text\" id=\"PING_IP_ADDR_O4\" name=\"PING_IP_ADDR_O4\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR_O4);
             client.println("\"><br><br>");

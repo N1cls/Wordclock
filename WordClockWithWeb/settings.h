@@ -17,7 +17,7 @@
 int RTC_I2C_ADDRESS = 0x68;                 // I2C adress of the RTC  DS3231 (Chip on ZS-042 Board)
 #define AP_TIMEOUT 240                      // Timeout in seconds for AP / WLAN config
 #define PIN D6                              // Arduino-Pin connected to the NeoPixels
-#define NUMPIXELS  114                      // How many NeoPixels are attached to the Arduino?
+#define NUMPIXELS 114                      // How many NeoPixels are attached to the Arduino?
 
 
 // ###########################################################################################################################################
@@ -42,7 +42,7 @@ int useshowip = 1;                          // Show the current ip at boot
 int switchRainBow = 0;                      // Show the display in rainbow mode (default color is then ignored)
 int switchLEDOrder = 1;                     // Show the minute LEDs in the 4 corners in clockwise order if set to 1
 int showDate = 0;                           // Show date when seconds = 30 ? - Note: Any value <> 0 shows the date when second = 30
-int blinkTime = -1;                         // Flag for blinking hour time name every hour
+int blinkTime = 0;                          // Flag for blinking hour time name every hour
 int dcwFlag = 0;                            // Flag for highlighting DCW every Hour
 
 
