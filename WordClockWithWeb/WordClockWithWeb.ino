@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.1";
+const char* WORD_CLOCK_VERSION = "V4.2";
 
 
 // ###########################################################################################################################################
@@ -61,6 +61,8 @@ ESP8266HTTPUpdateServer httpUpdater;                                            
 IPAddress remote_ip(PING_IP_ADDR_O1, PING_IP_ADDR_O2, PING_IP_ADDR_O3, PING_IP_ADDR_O4);  // IP-addres to monitor 2x per minute to turn LEDs off if IP-addres is offline for a defined time
 int PING_ATTEMPTS = PING_TIMEOUTNUM;                                                      // Attempts of missed PING requests
 bool LEDsON = true;                                                                       // Global flag to turn LEDs on or off - Used for the ping function
+std::unique_ptr<ESP8266WebServer> server1;                                                // REST function web server
+bool RESTmanLEDsON = true;                                                                // Global flag to turn LEDs manually on or off - Used for the REST function
 
 
 // ###########################################################################################################################################
@@ -91,6 +93,7 @@ struct parmRec
   int  pdisplayoff;
   int  puseNightLEDs;
   int  puseupdate;
+  int  puseresturl;
   int  puseledtest;
   int  pusesetwlan;
   int  puseshowip;
@@ -195,6 +198,15 @@ void setup() {
     Serial.println(UpdatePathIP);
   }
   server.begin();
+
+  // REST function web server:
+  if (useresturl) {
+    server1.reset(new ESP8266WebServer(WiFi.localIP(), server1port));
+    server1->on("/", handleRoot);
+    server1->on("/ledson", ledsON);
+    server1->on("/ledsoff", ledsOFF);
+    server1->begin();
+  }
 }
 
 
@@ -276,7 +288,7 @@ void loop() {
         PING_ATTEMPTS = PING_TIMEOUTNUM; // Reset to configured value
         if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
         pixels.setBrightness(intensity);
-        LEDsON = true;
+        if (RESTmanLEDsON == true) LEDsON = true;
       } else {
         if (PING_ATTEMPTS >= 1) PING_ATTEMPTS = PING_ATTEMPTS - 1;
         if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
@@ -287,11 +299,16 @@ void loop() {
         if (PING_DEBUG_MODE == 1) Serial.println(" remaining attempts --> LEDs = OFF until the IP-address can be reached again...");
         pixels.setBrightness(0);
         pixels.show();
-        LEDsON = false;
+        if (RESTmanLEDsON == true) LEDsON = false;
       }
     }
   }
-  if (LEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+  if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+
+  // REST function web server:
+  if (useresturl) {
+    server1->handleClient();
+  }
 }
 
 
@@ -409,6 +426,7 @@ void readEEPROM() {
     displayonminSU = parameter.pdisplayonminSU;
     wchostnamenum = parameter.pwchostnamenum;
     useupdate = parameter.puseupdate;
+    useresturl = parameter.puseresturl;
     useledtest = parameter.puseledtest;
     usesetwlan = parameter.pusesetwlan;
     useshowip = parameter.puseshowip;
@@ -418,7 +436,6 @@ void readEEPROM() {
     dcwFlag =  parameter.pDCWFlag;
     intensity =  parameter.pIntensity;
     intensityNight =  parameter.pIntensityNight;
-
     PING_IP_ADDR_O1 = parameter.pPING_IP_ADDR_O1;
     PING_IP_ADDR_O2 = parameter.pPING_IP_ADDR_O2;
     PING_IP_ADDR_O3 = parameter.pPING_IP_ADDR_O3;
@@ -468,12 +485,12 @@ void writeEEPROM() {
   parameter.pdisplayonminSU = displayonminSU;
   parameter.pwchostnamenum = wchostnamenum;
   parameter.puseupdate  = useupdate;
+  parameter.puseresturl = useresturl;
   parameter.puseledtest  = useledtest;
   parameter.pusesetwlan  = usesetwlan;
   parameter.puseshowip   = useshowip;
   parameter.pswitchRainBow = switchRainBow;
   parameter.pswitchLEDOrder = switchLEDOrder;
-
   parameter.pPING_IP_ADDR_O1 = PING_IP_ADDR_O1;
   parameter.pPING_IP_ADDR_O2 = PING_IP_ADDR_O2;
   parameter.pPING_IP_ADDR_O3 = PING_IP_ADDR_O3;
@@ -830,6 +847,33 @@ void checkClient() {
               client.println("><br><br><label>Die Update Option ist aktuell deaktiviert.</label>");
             }
             client.print("<br><hr>");
+
+
+            client.println("<h2>REST Funktion</h2>");
+            client.println("<label for=\"useresturl\">REST Funktion verwenden?</label>");
+            client.print("<input type=\"checkbox\" id=\"useresturl\" name=\"useresturl\"");
+            if (useresturl) {
+              client.print(" checked");
+              client.print("><br><br>");
+              client.println("<label>Ueber einen der folgenden Links kann die WordClock manuell ueber den Browser ab und an geschaltet werden:</label><br>");
+              client.println("<br>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
+              client.println("</a><br><br>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
+              client.println("</a><br>");
+            }
+            else
+            {
+              client.println("><br><br><label>Die REST Funktion ist aktuell deaktiviert.</label><br>");
+            }
+            client.print("<hr>");
+
 
             client.println("<h2>LED Anzeigen und Startverhalten</h2>");
             client.println("<label for=\"useledtest\">LED Start Test anzeigen?</label>");
@@ -1271,6 +1315,13 @@ void checkClient() {
                 // Serial.println("off");
                 httpUpdater.setup(&httpServer);
                 httpServer.stop();
+              }
+
+              // Check for REST switch
+              if (currentLine.indexOf("&useresturl=on&") >= 0) {
+                useresturl = -1;
+              } else {
+                useresturl = 0;
               }
 
               // Check for Use LED test switch
@@ -2116,6 +2167,47 @@ String urldecode(String str)
     yield();
   }
   return encodedString;
+}
+
+
+// ###########################################################################################################################################
+// # REST command function: ROOT
+// ###########################################################################################################################################
+void handleRoot() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", "WordClock REST web server active");
+  Serial.print("WordClock REST web server active on port: ");
+  Serial.println(server1port);
+  client.stop();
+}
+
+
+// ###########################################################################################################################################
+// # REST command function: LED set to ON
+// ###########################################################################################################################################
+void ledsON() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", "WordClock LEDs set to ON");
+  Serial.println("WordClock LEDs set to ON");
+  pixels.setBrightness(intensity);
+  RESTmanLEDsON = true;
+  pixels.show();
+  client.stop();
+}
+
+
+// ###########################################################################################################################################
+// # REST command function: LED set to OFF
+// ###########################################################################################################################################
+void ledsOFF() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", "WordClock LEDs set to OFF");
+  Serial.println("WordClock LEDs set to OFF");
+  pixels.setBrightness(0);
+  pixels.show();
+  RESTmanLEDsON = false;
+  pixels.show();
+  client.stop();
 }
 
 

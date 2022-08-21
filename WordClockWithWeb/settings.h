@@ -44,6 +44,8 @@ int switchLEDOrder = 1;                     // Show the minute LEDs in the 4 cor
 int showDate = 0;                           // Show date when seconds = 30 ? - Note: Any value <> 0 shows the date when second = 30
 int blinkTime = 0;                          // Flag for blinking hour time name every hour
 int dcwFlag = 0;                            // Flag for highlighting DCW every Hour
+int useresturl = 1;                         // Use the REST function web server
+int server1port = 55555;                    // REST function web server port
 
 
 // ###########################################################################################################################################
@@ -86,7 +88,7 @@ int PING_IP_ADDR_O2 = 168;                // IP-address of the to monitor device
 int PING_IP_ADDR_O3 = 178;                // IP-address of the to monitor device - ip octet 3
 int PING_IP_ADDR_O4 = 56;                 // IP-address of the to monitor device - ip octet 4
 int PING_TIMEOUTNUM = 10;                 // After which amount of timed out PING request should the LED be turned off? Value 10 = 5 minutes
-int PING_DEBUG_MODE = 1;                  // Use the serial output monitor of Arduino IDE to see the current online status
+int PING_DEBUG_MODE = 0;                  // Use the serial output monitor of Arduino IDE to see the current online status
 int PING_USEMONITOR = 1;                  // Switch flag to turn the PING function on (1) or off (0)
 
 

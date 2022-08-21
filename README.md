@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<b>Current version: 4.1         </b>
+<b>Current version: 4.2         </b>
 
 <hr>
 
@@ -56,3 +56,4 @@ Time here is 07:43 or 19:43 o'clock
 		The ping request is done 2x every minute. So if the IP-address can be reached
 		again, the LEDs will turn on after a few seconds
 - 4.1: Minor text changes
+- 4.2: Integrated 2 REST urls to manually turn the LEDs on or off from an external control like f.e. your smart home controller
