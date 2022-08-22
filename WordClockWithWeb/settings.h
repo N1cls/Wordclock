@@ -17,7 +17,7 @@
 int RTC_I2C_ADDRESS = 0x68;                 // I2C adress of the RTC  DS3231 (Chip on ZS-042 Board)
 #define AP_TIMEOUT 240                      // Timeout in seconds for AP / WLAN config
 #define PIN D6                              // Arduino-Pin connected to the NeoPixels
-#define NUMPIXELS 114                      // How many NeoPixels are attached to the Arduino?
+#define NUMPIXELS 114                       // How many NeoPixels are attached to the Arduino?
 
 
 // ###########################################################################################################################################

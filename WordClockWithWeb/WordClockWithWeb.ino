@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.2";
+const char* WORD_CLOCK_VERSION = "V4.3";
 
 
 // ###########################################################################################################################################
@@ -63,6 +63,14 @@ int PING_ATTEMPTS = PING_TIMEOUTNUM;                                            
 bool LEDsON = true;                                                                       // Global flag to turn LEDs on or off - Used for the ping function
 std::unique_ptr<ESP8266WebServer> server1;                                                // REST function web server
 bool RESTmanLEDsON = true;                                                                // Global flag to turn LEDs manually on or off - Used for the REST function
+
+// Twinkle LED test:
+float redStates[NUMPIXELS];
+float blueStates[NUMPIXELS];
+float greenStates[NUMPIXELS];
+float Fade = 0.96;
+unsigned int sample;
+bool TwinkleON = false;
 
 
 // ###########################################################################################################################################
@@ -205,6 +213,8 @@ void setup() {
     server1->on("/", handleRoot);
     server1->on("/ledson", ledsON);
     server1->on("/ledsoff", ledsOFF);
+    server1->on("/twinkleon", TwinkleModeOn);
+    server1->on("/twinkleoff", TwinkleModeOFF);
     server1->begin();
   }
 }
@@ -217,93 +227,98 @@ void loop() {
   // Check, whether something has been entered on Config Page
   checkClient();
   ESP.wdtFeed();  // Reset watchdog timer
-  handleTime(); // handle NTP / RTC time
-  delay(750);
 
-  if (switchRainBow) { // RainBow effect active - color change every new minute
-    if (iSecond == 0) {
-      redVal = random(255);
-      greenVal = random(255);
-      blueVal = random(255);
-    }
+  if (TwinkleON == true) {
+    Twinkle();
   } else {
-    redVal    =  parameter.pRed;
-    greenVal  =  parameter.pGreen;
-    blueVal   =  parameter.pBlue;
-  }
+    handleTime(); // handle NTP / RTC time
+    delay(750);
 
-  // Show the display only during the set Min/Max time if option is set
-  if (displayoff) {
-    switch (iWeekDay) {
-      case 0:     // Sunday
-        DayNightMode(displayonminSU, displayonmaxSU);
-        break;
-      case 1:     // Monday
-        DayNightMode(displayonminMO, displayonmaxMO);
-        break;
-      case 2:     // Tuesday
-        DayNightMode(displayonminTU, displayonmaxTU);
-        break;
-      case 3:     // Wednesday
-        DayNightMode(displayonminWE, displayonmaxWE);
-        break;
-      case 4:     // Thursday
-        DayNightMode(displayonminTH, displayonmaxTH);
-        break;
-      case 5:     // Friday
-        DayNightMode(displayonminFR, displayonmaxFR);
-        break;
-      case 6:     // Saturday
-        DayNightMode(displayonminSA, displayonmaxSA);
-        break;
+    if (switchRainBow) { // RainBow effect active - color change every new minute
+      if (iSecond == 0) {
+        redVal = random(255);
+        greenVal = random(255);
+        blueVal = random(255);
+      }
+    } else {
+      redVal    =  parameter.pRed;
+      greenVal  =  parameter.pGreen;
+      blueVal   =  parameter.pBlue;
     }
-  }
-  else
-  {
-    pixels.setBrightness(intensity); // DAY brightness
-    ShowTheTime();
-  }
 
-  ESP.wdtFeed();  // Reset watchdog timer
-  delay(delayval);
-  ESP.wdtFeed();  // Reset watchdog timer
-
-  // Web update start:
-  httpServer.handleClient();
-  MDNS.update();
-
-  // Ping the set IP-address... Turn off the LED by presence status of an IP-address (of your smart phone) monitored by a PING request 2 times perminute:
-  if (PING_USEMONITOR == 1)
-  {
-    if (iSecond == 45 || iSecond == 15) {
-
-      if (PING_DEBUG_MODE == 1) {
-        Serial.print("IP gets pinged now: " + String(iHour) + ":" + String(iMinute) + ":" + String(iSecond) + " - IP: ");
-        Serial.print(remote_ip);
-        Serial.print(" --> ");
-      }
-      if (Ping.ping(remote_ip))
-      {
-        if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
-        PING_ATTEMPTS = PING_TIMEOUTNUM; // Reset to configured value
-        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
-        pixels.setBrightness(intensity);
-        if (RESTmanLEDsON == true) LEDsON = true;
-      } else {
-        if (PING_ATTEMPTS >= 1) PING_ATTEMPTS = PING_ATTEMPTS - 1;
-        if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
-        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
-      }
-      if (PING_ATTEMPTS == 0) {
-        if (PING_DEBUG_MODE == 1) Serial.print(PING_ATTEMPTS);
-        if (PING_DEBUG_MODE == 1) Serial.println(" remaining attempts --> LEDs = OFF until the IP-address can be reached again...");
-        pixels.setBrightness(0);
-        pixels.show();
-        if (RESTmanLEDsON == true) LEDsON = false;
+    // Show the display only during the set Min/Max time if option is set
+    if (displayoff) {
+      switch (iWeekDay) {
+        case 0:     // Sunday
+          DayNightMode(displayonminSU, displayonmaxSU);
+          break;
+        case 1:     // Monday
+          DayNightMode(displayonminMO, displayonmaxMO);
+          break;
+        case 2:     // Tuesday
+          DayNightMode(displayonminTU, displayonmaxTU);
+          break;
+        case 3:     // Wednesday
+          DayNightMode(displayonminWE, displayonmaxWE);
+          break;
+        case 4:     // Thursday
+          DayNightMode(displayonminTH, displayonmaxTH);
+          break;
+        case 5:     // Friday
+          DayNightMode(displayonminFR, displayonmaxFR);
+          break;
+        case 6:     // Saturday
+          DayNightMode(displayonminSA, displayonmaxSA);
+          break;
       }
     }
+    else
+    {
+      pixels.setBrightness(intensity); // DAY brightness
+      ShowTheTime();
+    }
+
+    ESP.wdtFeed();  // Reset watchdog timer
+    delay(delayval);
+    ESP.wdtFeed();  // Reset watchdog timer
+
+    // Web update start:
+    httpServer.handleClient();
+    MDNS.update();
+
+    // Ping the set IP-address... Turn off the LED by presence status of an IP-address (of your smart phone) monitored by a PING request 2 times perminute:
+    if (PING_USEMONITOR == 1)
+    {
+      if (iSecond == 45 || iSecond == 15) {
+
+        if (PING_DEBUG_MODE == 1) {
+          Serial.print("IP gets pinged now: " + String(iHour) + ":" + String(iMinute) + ":" + String(iSecond) + " - IP: ");
+          Serial.print(remote_ip);
+          Serial.print(" --> ");
+        }
+        if (Ping.ping(remote_ip))
+        {
+          if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
+          PING_ATTEMPTS = PING_TIMEOUTNUM; // Reset to configured value
+          if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
+          pixels.setBrightness(intensity);
+          if (RESTmanLEDsON == true) LEDsON = true;
+        } else {
+          if (PING_ATTEMPTS >= 1) PING_ATTEMPTS = PING_ATTEMPTS - 1;
+          if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
+          if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
+        }
+        if (PING_ATTEMPTS == 0) {
+          if (PING_DEBUG_MODE == 1) Serial.print(PING_ATTEMPTS);
+          if (PING_DEBUG_MODE == 1) Serial.println(" remaining attempts --> LEDs = OFF until the IP-address can be reached again...");
+          pixels.setBrightness(0);
+          pixels.show();
+          if (RESTmanLEDsON == true) LEDsON = false;
+        }
+      }
+    }
+    if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
   }
-  if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
 
   // REST function web server:
   if (useresturl) {
@@ -849,23 +864,40 @@ void checkClient() {
             client.print("<br><hr>");
 
 
-            client.println("<h2>REST Funktion</h2>");
+            client.println("<h2>REST Funktionen</h2>");
+            client.println("<label>Ueber die folgenden Links koennen Funktionen der WordClock von Aussen gesteuert werden.</label><br><br>");
             client.println("<label for=\"useresturl\">REST Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"useresturl\" name=\"useresturl\"");
             if (useresturl) {
               client.print(" checked");
               client.print("><br><br>");
-              client.println("<label>Ueber einen der folgenden Links kann die WordClock manuell ueber den Browser ab und an geschaltet werden:</label><br>");
+              client.println("<label>Ueber einen der folgenden Links kann die WordClock manuell ueber den Browser ab und an geschaltet werden:</label>");
               client.println("<br>");
+              client.println("<label>LEDs ausschalten: </label>");
               client.print("<a href=");
               client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
               client.print(" target='_blank'>");
               client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
-              client.println("</a><br><br>");
+              client.println("</a><br>");
+              client.println("<label>LEDs einschalten: </label>");
               client.print("<a href=");
               client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
               client.print(" target='_blank'>");
               client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
+              client.println("</a><br>");
+
+              client.println("<br><label><b>Weitere Funktionen (experimentell):</b></label><br>");
+              client.println("<label>LED Test einschalten: </label>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
+              client.println("</a><br>");
+              client.println("<label>LED Test ausschalten: </label>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
               client.println("</a><br>");
             }
             else
@@ -2208,6 +2240,61 @@ void ledsOFF() {
   RESTmanLEDsON = false;
   pixels.show();
   client.stop();
+}
+
+
+// ###########################################################################################################################################
+// # Twinkle LED test function:
+// ###########################################################################################################################################
+void TwinkleModeOn() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", "Twinkle LEDs set to ON");
+  TwinkleON = true;
+  client.stop();
+}
+
+void TwinkleModeOFF() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", "Twinkle LEDs set to OFF");
+  pixels.setBrightness(intensity);
+  TwinkleON = false;
+  client.stop();
+}
+
+void Twinkle() {
+  pixels.setBrightness(128);
+  if (random(25) == 1) {
+    uint16_t i = random(NUMPIXELS);
+    if (redStates[i] < 1 && greenStates[i] < 1 && blueStates[i] < 1) {
+      redStates[i] = random(256);
+      greenStates[i] = random(256);
+      blueStates[i] = random(256);
+    }
+  }
+  for (uint16_t l = 0; l < NUMPIXELS; l++) {
+    if (redStates[l] > 1 || greenStates[l] > 1 || blueStates[l] > 1) {
+      pixels.setPixelColor(l, redStates[l], greenStates[l], blueStates[l]);
+      if (redStates[l] > 1) {
+        redStates[l] = redStates[l] * Fade;
+      } else {
+        redStates[l] = 0;
+      }
+      if (greenStates[l] > 1) {
+        greenStates[l] = greenStates[l] * Fade;
+      } else {
+        greenStates[l] = 0;
+      }
+      if (blueStates[l] > 1) {
+        blueStates[l] = blueStates[l] * Fade;
+      } else {
+        blueStates[l] = 0;
+      }
+    } else {
+      pixels.setPixelColor(l, 0, 0, 0);
+    }
+  }
+  pixels.show();
+  delay(5);
 }
 
 
