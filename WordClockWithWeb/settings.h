@@ -26,8 +26,8 @@ int RTC_I2C_ADDRESS = 0x68;                 // I2C adress of the RTC  DS3231 (Ch
 int redVal   = 0;                            // Default color RED
 int greenVal = 255;                          // Default color GREEN
 int blueVal  = 0;                            // Default color BLUE
-int intensity = 64;                          // LED intensity (0..255) in day mode
-int intensityNight = 32;                     // LED intensity (0..255) in night mode
+int intensity = 64;                          // LED intensity (0..255) in day mode   - Important note: Check power consumption and used power supply capabilities!
+int intensityNight = 32;                     // LED intensity (0..255) in night mode - Important note: Check power consumption and used power supply capabilities!
 
 
 // ###########################################################################################################################################

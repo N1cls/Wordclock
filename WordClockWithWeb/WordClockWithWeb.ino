@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.3";
+const char* WORD_CLOCK_VERSION = "V4.4";
 
 
 // ###########################################################################################################################################
@@ -137,40 +137,9 @@ void setup() {
 
   readEEPROM(); // get persistent data from EEPROM
 
-  // LED test --> no blank display if WiFi was not set yet:
-  if (useledtest) {
-    Serial.println("Display Test...");
-    for (int i = 0; i < NUMPIXELS; i++) {
-      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-      setLED(i, i, 1);
-      pixels.show();
-      delay(25);
-    }
-    for (int i = 0; i < NUMPIXELS; i++) {
-      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-      setLED(i, i, 0);
-      pixels.show();
-      delay(25);
-    }
-    delay(1500);
-  }
+  DisplayTest(); // Perform the LED test
 
-  // Show "SET WLAN" --> no blank display if WiFi was not set yet:
-  if (usesetwlan) {
-    Serial.println("Show SET WLAN...");
-    setLED(6, 6, 1);      // S
-    setLED(12, 12, 1);    // E
-    setLED(24, 24, 1);    // T
-    setLED(63, 63, 1);    // W
-    setLED(83, 83, 1);    // L
-    setLED(84, 84, 1);    // A
-    setLED(93, 93, 1);    // N
-    setLED(110, 110, 1);  // Corner 1
-    setLED(111, 111, 1);  // Corner 2
-    setLED(112, 112, 1);  // Corner 3
-    setLED(113, 113, 1);  // Corner 4
-    pixels.show();
-  }
+  SetWLAN(); // Show SET WLAN text
 
   // WiFiManager:
   bool res;
@@ -215,8 +184,12 @@ void setup() {
     server1->on("/ledsoff", ledsOFF);
     server1->on("/twinkleon", TwinkleModeOn);
     server1->on("/twinkleoff", TwinkleModeOFF);
+    server1->on("/clockrestart", ClockRestart);
+    server1->on("/clockwifireset", ClockWifiReset);
     server1->begin();
   }
+
+  pixels.setBrightness(intensity);
 }
 
 
@@ -590,15 +563,19 @@ void checkClient() {
             client.print("\"><br><br>");
 
             client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
-            client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"255\" value=\"");
+            client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"128\" value=\"");
             client.print(intensity);
-            client.print("\">");
-            client.println("<br><br>");
+            client.print("\"> <label>");
+            client.print(intensity);
+            client.println("</label><br><br>");
 
             client.print("<label for=\"intensityNight\">Helligkeit bei Nacht: </label>");
-            client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"255\" value=\"");
+            client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"128\" value=\"");
             client.print(intensityNight);
-            client.print("\">");
+            client.print("\">  <label>");
+            client.print(intensityNight);
+            client.println("</label><br><br>");
+            client.print("<label for=\"intensityNight\"><b>Wichtig:</b> Beide Werte begrenzt auf 128 von maximal 255. Achte darauf ein geeignetes Netzteil zu verwenden!<br>Je nach LED Anzahl, selektierter Farbe und Helligkeit wird mindestens ein 5V/3A Netzteil empfohlen!</label>");
             client.println("<br><hr>");
 
             client.println("<h2>Volle Stunde blinken</h2><br>");
@@ -863,50 +840,6 @@ void checkClient() {
             }
             client.print("<br><hr>");
 
-
-            client.println("<h2>REST Funktionen</h2>");
-            client.println("<label>Ueber die folgenden Links koennen Funktionen der WordClock von Aussen gesteuert werden.</label><br><br>");
-            client.println("<label for=\"useresturl\">REST Funktion verwenden?</label>");
-            client.print("<input type=\"checkbox\" id=\"useresturl\" name=\"useresturl\"");
-            if (useresturl) {
-              client.print(" checked");
-              client.print("><br><br>");
-              client.println("<label>Ueber einen der folgenden Links kann die WordClock manuell ueber den Browser ab und an geschaltet werden:</label>");
-              client.println("<br>");
-              client.println("<label>LEDs ausschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
-              client.println("</a><br>");
-              client.println("<label>LEDs einschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
-              client.println("</a><br>");
-
-              client.println("<br><label><b>Weitere Funktionen (experimentell):</b></label><br>");
-              client.println("<label>LED Test einschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
-              client.println("</a><br>");
-              client.println("<label>LED Test ausschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
-              client.println("</a><br>");
-            }
-            else
-            {
-              client.println("><br><br><label>Die REST Funktion ist aktuell deaktiviert.</label><br>");
-            }
-            client.print("<hr>");
-
-
             client.println("<h2>LED Anzeigen und Startverhalten</h2>");
             client.println("<label for=\"useledtest\">LED Start Test anzeigen?</label>");
             client.print("<input type=\"checkbox\" id=\"useledtest\" name=\"useledtest\"");
@@ -966,17 +899,6 @@ void checkClient() {
             client.println("<br><br>Wenn diese Option gesetzt wird, werden die Minuten-LEDs in den 4 Ecken<br>");
             client.println("im Uhrzeigersinn angezeigt, ansonsten entgegen dem Uhrzeigersinn.<br>");
             client.print("<hr>");
-
-
-            client.println("<h2>WLAN Einstellungen zuruecksetzen</h2> <br>");
-            client.println("<label for = \"wifireset\">WLAN Einstellungen zuruecksetzen und Uhr neu starten?</label>");
-            client.print("<input type=\"checkbox\" id=\"wifireset\" name=\"wifireset\"");
-            if (wifireset) {
-              client.print(" checked");
-            }
-            client.print("><br>");
-            client.println("<br>! Wenn diese Option gesetzt wird, werden die WLAN Einstellungen einmalig geloescht !<br>");
-            client.print("<br><hr>");
 
 
             // PING IP ADDRESS:
@@ -1044,16 +966,77 @@ void checkClient() {
             client.println("</select><br>");
             client.print("<br><hr>");
 
-            client.println("<h2>WordClock neustarten</h2> <br>");
-            client.println("<label for = \"clockreset\">WordClock neu starten?</label>");
-            client.print("<input type=\"checkbox\" id=\"clockreset\" name=\"clockreset\"");
-            if (clockreset) {
-              client.print(" checked");
-            }
-            client.print("><br>");
-            client.println("<br>! Wenn diese Option gesetzt wird, wird die Uhr einmalig neu gestartet !<br>");
-            client.print("<br><hr>");
 
+            client.println("<h2>REST Funktionen</h2>");
+            client.println("<label>Ueber die folgenden Links koennen Funktionen der WordClock von Aussen gesteuert werden.</label><br><br>");
+            client.println("<label for=\"useresturl\">REST Funktion verwenden?</label>");
+            client.print("<input type=\"checkbox\" id=\"useresturl\" name=\"useresturl\"");
+            if (useresturl) {
+              client.print(" checked");
+              client.print("><br><br>");
+              client.println("<label>Ueber einen der folgenden Links kann die WordClock manuell ueber den Browser ab und an geschaltet werden:</label>");
+              client.println("<br>");
+              client.println("<label>LEDs ausschalten: </label>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
+              client.println("</a><br>");
+              client.println("<label>LEDs einschalten: </label>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
+              client.println("</a><br>");
+
+              client.println("<br><label><b>Weitere Funktionen (experimentell):</b></label><br>");
+              client.println("<label>LED Test einschalten: </label>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
+              client.println("</a><br>");
+              client.println("<label>LED Test ausschalten: </label>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
+              client.println("</a><br>");
+            }
+            else
+            {
+              client.println("><br><br><label>Die REST Funktion ist aktuell deaktiviert.</label><br>");
+            }
+            client.print("<hr>");
+
+
+            // WLAN Einstellungen zuruecksetzen:
+            client.println("<h2>WLAN Einstellungen zuruecksetzen</h2><br>");
+            if (useresturl) {
+              client.println("<label>WLAN Einstellungen zuruecksetzen und Uhr neu starten?</label><br>");
+              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockwifireset target='_blank'>WLAN Einstellungen zuruecksetzen</a><br>");
+              client.println("<br>! Wenn diese Option verwendet wird, werden die WLAN Einstellungen einmalig geloescht !<br><br><hr>");
+            }
+            else
+            {
+              client.println("<label>Die REST Funktion ist aktuell deaktiviert.</label><br><hr>");
+            }
+
+
+            // WordClock Neustart:
+            client.println("<h2>WordClock neustarten</h2><br>");
+            if (useresturl) {
+              client.println("<label>WordClock neu starten?</label><br>");
+              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockrestart target='_blank'>WordClock neu starten</a><br>");
+              client.println("<br>! Wenn diese Option verwendet wird, wird die Uhr einmalig neu gestartet !<br><br><hr>");
+            }
+            else
+            {
+              client.println("<label>Die REST Funktion ist aktuell deaktiviert.</label><br><hr>");
+            }
+
+
+            // Zeitzone und NTP:
             client.println("<h2>Zeitzone &amp; NTP-Server</h2><br>");
             client.println("<label for=\"ntpserver\"></label>");
             client.print("<input type=\"text\" id=\"ntpserver\" name=\"ntpserver\" size=\"45\" value=\"");
@@ -1406,61 +1389,6 @@ void checkClient() {
                 // Serial.println("off");
               }
 
-              // Check for WiFi settings RESET switch
-              // Serial.print("WIFI settings RESET switched  ");
-              if (currentLine.indexOf("&wifireset=on&") >= 0) {
-                // Serial.println("on");
-                wifireset = -1;
-                dunkel();
-                // Show "SET WLAN" --> no blank display
-                Serial.println("Show SET WLAN after WiFi reset...");
-                setLED(6, 6, 1);      // S
-                setLED(12, 12, 1);    // E
-                setLED(24, 24, 1);    // T
-                setLED(63, 63, 1);    // W
-                setLED(83, 83, 1);    // L
-                setLED(84, 84, 1);    // A
-                setLED(93, 93, 1);    // N
-                pixels.show();
-                WiFi.disconnect(true);
-                delay(1500);
-                WiFiManager wifiManager;
-                delay(1500);
-                wifiManager.resetSettings();
-                delay(1500);
-                Serial.println("######################################################################################################");
-                Serial.println("# WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE RECONFIGURE WIFI AGAIN... #");
-                Serial.println("######################################################################################################");
-                delay(3000);
-                ESP.restart();
-              } else {
-                wifireset = 0;
-                // Serial.println("off");
-              }
-
-              // Check for WordClock RESET switch
-              // Serial.print("WordClock RESTART switched  ");
-              if (currentLine.indexOf("&clockreset=on&") >= 0) {
-                // Serial.println("on");
-                clockreset = -1;
-                dunkel();
-                // Show "RESET" --> no blank display
-                Serial.println("Show RESET before board reset...");
-                setLED(30, 31, 1);    // RE
-                setLED(58, 58, 1);    // S
-                setLED(64, 64, 1);    // E
-                setLED(87, 87, 1);    // T
-                pixels.show();
-                Serial.println("##########################################");
-                Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
-                Serial.println("##########################################");
-                delay(3000);
-                ESP.restart();
-              } else {
-                clockreset = 0;
-                // Serial.println("off");
-              }
-
               // Check for DCW flag
               if (currentLine.indexOf("DCW=ON") >= 0) {
                 dcwFlag = -1;
@@ -1557,7 +1485,6 @@ void checkClient() {
                   maxStr = maxStr.substring(0, pos);
                 PING_TIMEOUTNUM = maxStr.toInt();
               }
-
 
               // get NTP Server
               pos = currentLine.indexOf("&ntpserver=");
@@ -2258,6 +2185,7 @@ void TwinkleModeOFF() {
   server1->send(200, "text/plain", "Twinkle LEDs set to OFF");
   pixels.setBrightness(intensity);
   TwinkleON = false;
+  RESTmanLEDsON = true;
   client.stop();
 }
 
@@ -2297,6 +2225,112 @@ void Twinkle() {
   delay(5);
 }
 
+
+// ###########################################################################################################################################
+// # Startup LED test function:
+// ###########################################################################################################################################
+// LED test --> no blank display if WiFi was not set yet:
+void DisplayTest() {
+  if (useledtest) {
+    Serial.println("Display Test...");
+    pixels.setBrightness(64);
+
+    for (int i = 0; i < NUMPIXELS; i++) {
+      setLED(i, i, 0);
+      pixels.show();
+    }
+
+    for (int i = 0; i < NUMPIXELS; i++) {
+      redVal = 0;
+      greenVal = 255;
+      blueVal = 0;
+      setLED(i, i, 1);
+      pixels.show();
+      delay(50);
+      pixels.setPixelColor(i, 0, 0, 0);
+    }
+
+    pixels.setPixelColor(NUMPIXELS, 0, 0, 0);
+    pixels.show();
+  }
+}
+
+
+// ###########################################################################################################################################
+// # Startup LED test function:
+// ###########################################################################################################################################
+void SetWLAN() {
+  if (usesetwlan) {
+    Serial.println("Show SET WLAN...");
+    setLED(6, 6, 1);      // S
+    setLED(12, 12, 1);    // E
+    setLED(24, 24, 1);    // T
+    setLED(63, 63, 1);    // W
+    setLED(83, 83, 1);    // L
+    setLED(84, 84, 1);    // A
+    setLED(93, 93, 1);    // N
+    setLED(110, 110, 1);  // Corner 1
+    setLED(111, 111, 1);  // Corner 2
+    setLED(112, 112, 1);  // Corner 3
+    setLED(113, 113, 1);  // Corner 4
+    pixels.show();
+  }
+}
+
+
+// ###########################################################################################################################################
+// # Restart the clock:
+// ###########################################################################################################################################
+void ClockRestart() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", "WORDCLOCK WILL RESTART IN 3 SECONDS...");
+  delay(5000);
+  client.stop();
+  dunkel();
+  Serial.println("Show RESET before board reset...");
+  setLED(30, 31, 1);    // RE
+  setLED(58, 58, 1);    // S
+  setLED(64, 64, 1);    // E
+  setLED(87, 87, 1);    // T
+  pixels.show();
+  Serial.println("##########################################");
+  Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
+  Serial.println("##########################################");
+  delay(3000);
+  ESP.restart();
+}
+
+
+// ###########################################################################################################################################
+// # Reset the WiFi configuration:
+// ###########################################################################################################################################
+void ClockWifiReset() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", "WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE CONFIGURE WIFI AGAIN...");
+  delay(5000);
+  client.stop();
+  dunkel();
+  Serial.println("Show SET WLAN after WiFi reset...");
+  setLED(6, 6, 1);      // S
+  setLED(12, 12, 1);    // E
+  setLED(24, 24, 1);    // T
+  setLED(63, 63, 1);    // W
+  setLED(83, 83, 1);    // L
+  setLED(84, 84, 1);    // A
+  setLED(93, 93, 1);    // N
+  pixels.show();
+  WiFi.disconnect(true);
+  delay(1500);
+  WiFiManager wifiManager;
+  delay(1500);
+  wifiManager.resetSettings();
+  delay(1500);
+  Serial.println("######################################################################################################");
+  Serial.println("# WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE CONFIGURE WIFI AGAIN... #");
+  Serial.println("######################################################################################################");
+  delay(3000);
+  ESP.restart();
+}
 
 // ###########################################################################################################################################
 // # EOF - You have successfully reached the end of the code - well done ;-)

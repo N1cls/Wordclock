@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<b>Current version: 4.3         </b>
+<b>Current version: 4.4         </b>
 
 <hr>
 
@@ -58,3 +58,4 @@ Time here is 07:43 or 19:43 o'clock
 - 4.1: Minor text changes
 - 4.2: Integrated 2 REST urls to manually turn the LEDs on or off from an external control like f.e. your smart home controller
 - 4.3: Minor text changes. Added 2 more REST urls for an experimental twinkle mode LED test
+- 4.4: Changed the startup LED test function to reduce power consumption to fit 5V/3A power supplies, changed the maximum setting for the brightness sliders to 128 from 255. A note for the power supply check was added. The RESET and WiFI RESET function were recreated to remove an error
