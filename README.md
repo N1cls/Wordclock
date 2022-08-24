@@ -6,11 +6,11 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<b>Current version: 4.4         </b>
+<b>Current version: 4.5         </b>
 
 <hr>
 
-<img src="9CA8B21F-5ED3-4F7D-95CA-FCF97703D408.jpeg">
+<img src="WordClock.jpeg">
 Time here is 07:43 or 19:43 o'clock
 
 <hr>
@@ -19,6 +19,7 @@ Time here is 07:43 or 19:43 o'clock
 - Node MCU V3 - ESP8266 board
 - RTC (DS3231) board 
 - 114 LEDs of an WS2812B led stripe 
+- Powersupply 5V / >=3A
 
 <hr>
 
@@ -59,3 +60,4 @@ Time here is 07:43 or 19:43 o'clock
 - 4.2: Integrated 2 REST urls to manually turn the LEDs on or off from an external control like f.e. your smart home controller
 - 4.3: Minor text changes. Added 2 more REST urls for an experimental twinkle mode LED test
 - 4.4: Changed the startup LED test function to reduce power consumption to fit 5V/3A power supplies, changed the maximum setting for the brightness sliders to 128 from 255. A note for the power supply check was added. The RESET and WiFI RESET function were recreated to remove an error
+- 4.5: Added an option to apply the power supply message and to raise the maximum LED intensity again to 255. Code cleanup. Changed the HTML page settings to show german umlauts (äöüß) now correctly.

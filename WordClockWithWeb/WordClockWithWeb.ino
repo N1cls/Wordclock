@@ -25,7 +25,7 @@
 #include <DNSServer.h>                // Used for name resolution for the internal webserver
 #include <ESP8266WebServer.h>         // Used for the internal webserver
 #include <WiFiManager.h>              // Used for the WiFi Manager option to be able to connect the WordClock to your WiFi without code changes
-#include <EEPROM.h>                   // Used to store the in the internal configuration page set configuration on the ESP8266 internal storage
+#include <EEPROM.h>                   // Used to store the in the internal configuration page set configuration on the ESP internal storage
 #include <Adafruit_NeoPixel.h>        // Used to drive the NeoPixel LEDs
 #include <time.h>                     // Used to get the time from the internet
 #include <Wire.h>                     // Used to connect the RTC board
@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.4";
+const char* WORD_CLOCK_VERSION = "V4.5";
 
 
 // ###########################################################################################################################################
@@ -74,7 +74,7 @@ bool TwinkleON = false;
 
 
 // ###########################################################################################################################################
-// # Parameter record to store to the EEPROM of the ESP8266:
+// # Parameter record to store to the EEPROM of the ESP:
 // ###########################################################################################################################################
 struct parmRec
 {
@@ -102,6 +102,7 @@ struct parmRec
   int  puseNightLEDs;
   int  puseupdate;
   int  puseresturl;
+  int  ppowersupply;
   int  puseledtest;
   int  pusesetwlan;
   int  puseshowip;
@@ -124,7 +125,7 @@ struct parmRec
 
 
 // ###########################################################################################################################################
-// # Setup function that runs once at startup of the ESP8266:
+// # Setup function that runs once at startup of the ESP:
 // ###########################################################################################################################################
 void setup() {
   Serial.begin(115200);
@@ -301,60 +302,6 @@ void loop() {
 
 
 // ###########################################################################################################################################
-// # Actual function, which controls 1/0 of the LED:
-// ###########################################################################################################################################
-void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
-  if (switchOn) {
-    if  (ledNrFrom > ledNrTo) {
-      setLED(ledNrTo, ledNrFrom, switchOn); //sets LED numbers in correct order (because of the date programming below)
-    } else {
-      for (int i = ledNrFrom; i <= ledNrTo; i++) {
-        if ((i >= 0) &&
-            (i < NUMPIXELS))
-          pixels.setPixelColor(i, pixels.Color(redVal, greenVal, blueVal));
-      }
-    }
-  }
-}
-
-
-// ###########################################################################################################################################
-// # Actual function, which controls 1/0 of the LED:
-// ###########################################################################################################################################
-void setLEDHour(int ledNrFrom, int ledNrTo, int switchOn) {
-  // Every Hour blink orange
-  if ((blinkTime) &&
-      (switchOn) &&
-      (iMinute == 0) &&
-      (iSecond < 10)) {
-    if ((iSecond % 2) == 1) {
-      for (int i = ledNrFrom; i <= ledNrTo; i++) {
-        if ((i >= 0) &&
-            (i < NUMPIXELS))
-          pixels.setPixelColor(i, pixels.Color(255, 128, 0));
-      }
-    } else
-      setLED(ledNrFrom, ledNrTo, switchOn);
-  } else
-    setLED(ledNrFrom, ledNrTo, switchOn);
-}
-
-
-// ###########################################################################################################################################
-// # Switch a horizontal sequence of LEDs ON or OFF, depending on boolean value switchOn:
-// ###########################################################################################################################################
-void setLEDLine(int xFrom, int xTo, int y, int switchOn) {
-  if (xFrom > xTo)
-    setLEDLine(xTo, xFrom, y, switchOn);
-  else {
-    for (int x = xFrom; x <= xTo; x++) {
-      setLED(ledXY(x, y), ledXY(x, y), switchOn);
-    }
-  }
-}
-
-
-// ###########################################################################################################################################
 // # Try to read settings from FLASH - initialize if WLAN ID read from flash is invalid:
 // ###########################################################################################################################################
 void readEEPROM() {
@@ -415,6 +362,7 @@ void readEEPROM() {
     wchostnamenum = parameter.pwchostnamenum;
     useupdate = parameter.puseupdate;
     useresturl = parameter.puseresturl;
+    powersupply = parameter.ppowersupply;
     useledtest = parameter.puseledtest;
     usesetwlan = parameter.pusesetwlan;
     useshowip = parameter.puseshowip;
@@ -474,6 +422,7 @@ void writeEEPROM() {
   parameter.pwchostnamenum = wchostnamenum;
   parameter.puseupdate  = useupdate;
   parameter.puseresturl = useresturl;
+  parameter.ppowersupply = powersupply;
   parameter.puseledtest  = useledtest;
   parameter.pusesetwlan  = usesetwlan;
   parameter.puseshowip   = useshowip;
@@ -534,9 +483,11 @@ void checkClient() {
             client.println("Connection: close");
             client.println();
 
-            // Display the HTML web page
+
+            // Display the HTML web page:
+            // ##########################
             client.println("<!DOCTYPE html><html>");
-            client.println("<head><title>" + wchostname + wchostnamenum + " - " + WORD_CLOCK_VERSION + "</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            client.println("<head><title>" + wchostname + wchostnamenum + " - " + WORD_CLOCK_VERSION + "</title><meta charset=\"utf-8\" name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
             client.println("<link rel=\"icon\" href=\"data:,\">");
             // CSS to style the on/off buttons
             // Feel free to change the background-color and font-size attributes to fit your preferences
@@ -545,39 +496,68 @@ void checkClient() {
             client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
             client.println(".button2 {background-color: #77878A;}</style></head>");
 
-            // Web Page Heading
+
+            // Web Page Heading:
+            // #################
             String title = "<body><h1>WordClock '" + wchostname + wchostnamenum + "' Einstellungen ";
             title = title + WORD_CLOCK_VERSION;
             title = title + "</h1>";
             client.println(title);
             client.println("<form action=\"/setWC.php\">");
 
-            // Convert color into hex settings
-            char hex[7] = {0};
-            sprintf(hex, "#%02X%02X%02X", redVal, greenVal, blueVal);
 
+            // Convert color into hex settings:
+            // ################################
+            char hex_main[7] = {0};
+            sprintf(hex_main, "#%02X%02X%02X", redVal, greenVal, blueVal);
+            // Main color select:
             client.println("<hr><h2>LED Einstellungen</h2><br>");
             client.println("<label for=\"favcolor\">Farbe: </label>");
             client.print("<input type=\"color\" id=\"favcolor\" name=\"favcolor\" value=\"");
-            client.print(hex);
+            client.print(hex_main);
             client.print("\"><br><br>");
 
+
+            // Intensity Day:
+            // ##############
             client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
-            client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"128\" value=\"");
+            if (powersupply == 0) {
+              client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"128\" value=\"");
+            } else {
+              client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"255\" value=\"");
+            }
             client.print(intensity);
             client.print("\"> <label>");
             client.print(intensity);
             client.println("</label><br><br>");
 
+
+            // Intensity Night:
+            // ################
             client.print("<label for=\"intensityNight\">Helligkeit bei Nacht: </label>");
-            client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"128\" value=\"");
+            if (powersupply == 0) {
+              client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"128\" value=\"");
+            } else {
+              client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"255\" value=\"");
+            }
             client.print(intensityNight);
             client.print("\">  <label>");
             client.print(intensityNight);
             client.println("</label><br><br>");
-            client.print("<label for=\"intensityNight\"><b>Wichtig:</b> Beide Werte begrenzt auf 128 von maximal 255. Achte darauf ein geeignetes Netzteil zu verwenden!<br>Je nach LED Anzahl, selektierter Farbe und Helligkeit wird mindestens ein 5V/3A Netzteil empfohlen!</label>");
-            client.println("<br><hr>");
+            if (powersupply == 0) {
+              client.print("<label><b>Wichtig:</b> Beide Werte begrenzt auf 128 von maximal 255. Achte darauf ein geeignetes Netzteil zu verwenden!<br>Je nach LED Anzahl, selektierter Farbe und Helligkeit wird mindestens ein 5V/3A Netzteil empfohlen!</label><br>");
+              client.print("<br><label>Den Hinweis zum Netzteil akzeptiere und beachte ich. Ich möchte die Werte wieder auf maximal 255 einstellen können: </label>");
+            } else {
+              client.print("<label>Den wichtigen Hinweis zum Netzteil nicht mehr anzeigen? </label>");
+            }
+            client.print("<input type=\"checkbox\" id=\"powersupply\" name=\"powersupply\"");
+            if (powersupply)
+              client.print(" checked");
+            client.print("><br><hr>");
 
+
+            // Flash hour value to every full hour:
+            // ####################################
             client.println("<h2>Volle Stunde blinken</h2><br>");
             client.println("<label for=\"showdate\">Stundenangabe soll zur vollen Stunde blinken?</label>");
             client.print("<input type=\"checkbox\" id=\"blinktime\" name=\"blinktime\"");
@@ -585,6 +565,9 @@ void checkClient() {
               client.print(" checked");
             client.print("><br><hr>");
 
+
+            // Show date value as scrolling text every minute after 30s:
+            // #########################################################
             client.println("<h2>Datumsanzeige</h2><br>");
             client.println("<label for=\"showdate\">Alle 30 Sekunden anzeigen?</label>");
             client.print("<input type=\"checkbox\" id=\"showdate\" name=\"showdate\"");
@@ -595,6 +578,9 @@ void checkClient() {
             }
             client.print("><br><hr>");
 
+
+            // Night mode - display off:
+            // ###########
             client.println("<h2>Display abschalten oder dunkler schalten?</h2><br>");
             client.println("<label for=\"displayoff\">Display komplett abschalten ...</label>");
             client.print("<input type=\"checkbox\" id=\"displayoff\" name=\"displayoff\"");
@@ -604,6 +590,8 @@ void checkClient() {
             client.print("><br><br>");
 
 
+            // Night mode - display darker:
+            // ############################
             client.println("<label for=\"useNightLEDs\">... oder nur dunkler schalten auf Wert der Helligkeit bei Nacht?</label>");
             client.print("<input type=\"checkbox\" id=\"useNightLEDs\" name=\"useNightLEDs\"");
             if (useNightLEDs) {
@@ -611,6 +599,8 @@ void checkClient() {
             }
             client.print("><br><br>");
 
+            // Monday:
+            // #######
             client.println("<label for=\"displayonmaxMO\">Montag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxMO\" name=\"displayonmaxMO\" >");
             client.println("<option selected=\"selected\">");
@@ -626,7 +616,6 @@ void checkClient() {
             client.println("<option>22</option>");
             client.println("<option>23</option>");
             client.println("</select>:00 bis ");
-
             client.println("<label for=\"displayonminMO\"></label>");
             client.println("<select id=\"displayonminMO\" name=\"displayonminMO\" >");
             client.println("<option selected=\"selected\">");
@@ -640,6 +629,8 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
+            // Tuesday:
+            // ########
             client.println("<label for=\"displayonmaxTU\">Dienstag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxTU\" name=\"displayonmaxTU\" >");
             client.println("<option selected=\"selected\">");
@@ -655,7 +646,6 @@ void checkClient() {
             client.println("<option>22</option>");
             client.println("<option>23</option>");
             client.println("</select>:00 bis ");
-
             client.println("<label for=\"displayonminTU\"></label>");
             client.println("<select id=\"displayonminTU\" name=\"displayonminTU\" >");
             client.println("<option selected=\"selected\">");
@@ -669,6 +659,8 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
+            // Wednesday:
+            // ##########
             client.println("<label for=\"displayonmaxWE\">Mittwoch - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxWE\" name=\"displayonmaxWE\" >");
             client.println("<option selected=\"selected\">");
@@ -684,7 +676,6 @@ void checkClient() {
             client.println("<option>22</option>");
             client.println("<option>23</option>");
             client.println("</select>:00 bis ");
-
             client.println("<label for=\"displayonminWE\"></label>");
             client.println("<select id=\"displayonminWE\" name=\"displayonminWE\" >");
             client.println("<option selected=\"selected\">");
@@ -698,6 +689,8 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
+            // Thursday:
+            // #########
             client.println("<label for=\"displayonmaxTH\">Donnerstag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxTH\" name=\"displayonmaxTH\" >");
             client.println("<option selected=\"selected\">");
@@ -713,7 +706,6 @@ void checkClient() {
             client.println("<option>22</option>");
             client.println("<option>23</option>");
             client.println("</select>:00 bis ");
-
             client.println("<label for=\"displayonminTH\"></label>");
             client.println("<select id=\"displayonminTH\" name=\"displayonminTH\" >");
             client.println("<option selected=\"selected\">");
@@ -727,6 +719,8 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
+            // Friday:
+            // #######
             client.println("<label for=\"displayonmaxFR\">Freitag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxFR\" name=\"displayonmaxFR\" >");
             client.println("<option selected=\"selected\">");
@@ -742,7 +736,6 @@ void checkClient() {
             client.println("<option>22</option>");
             client.println("<option>23</option>");
             client.println("</select>:00 bis ");
-
             client.println("<label for=\"displayonminFR\"></label>");
             client.println("<select id=\"displayonminFR\" name=\"displayonminFR\" >");
             client.println("<option selected=\"selected\">");
@@ -756,6 +749,8 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
+            // Saturday:
+            // #########
             client.println("<label for=\"displayonmaxSA\">Samstag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxSA\" name=\"displayonmaxSA\" >");
             client.println("<option selected=\"selected\">");
@@ -771,7 +766,6 @@ void checkClient() {
             client.println("<option>22</option>");
             client.println("<option>23</option>");
             client.println("</select>:00 bis ");
-
             client.println("<label for=\"displayonminSA\"></label>");
             client.println("<select id=\"displayonminSA\" name=\"displayonminSA\" >");
             client.println("<option selected=\"selected\">");
@@ -785,6 +779,8 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br>");
 
+            // Sunday:
+            // #######
             client.println("<label for=\"displayonmaxSU\">Sonntag - Display aus ab: </label>");
             client.println("<select id=\"displayonmaxSU\" name=\"displayonmaxSU\" >");
             client.println("<option selected=\"selected\">");
@@ -800,7 +796,6 @@ void checkClient() {
             client.println("<option>22</option>");
             client.println("<option>23</option>");
             client.println("</select>:00 bis ");
-
             client.println("<label for=\"displayonminSU\"></label>");
             client.println("<select id=\"displayonminSU\" name=\"displayonminSU\" >");
             client.println("<option selected=\"selected\">");
@@ -814,13 +809,16 @@ void checkClient() {
             client.println("</select>:59 Uhr <br>");
             client.print("<br><hr>");
 
+
+            // Update function:
+            // ################
             client.println("<h2>WordClock Update</h2>");
             client.println("<label for=\"useupdate\">Update Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"useupdate\" name=\"useupdate\"");
             if (useupdate) {
               client.print(" checked");
               client.print("><br><br>");
-              client.println("<label>Ueber einen der folgenden Links kann die WordClock ueber den Browser ohne Arduino aktualisiert werden:</label><br>");
+              client.println("<label>Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden:</label><br>");
               client.println("<br>");
               client.print("<a href=");
               client.print(UpdatePath);
@@ -832,7 +830,7 @@ void checkClient() {
               client.print(" target='_blank'>");
               client.print(UpdatePathIP);
               client.println("</a><br><br>");
-              client.println("<label>Hinweis: Es wird eine in Arduino mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benoetigt,<br>die ueber die Option 'Update Firmware' hochgeladen werden kann.</label>");
+              client.println("<label>Hinweis: Es wird eine in der Arduino IDE mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benötigt,<br>die über die Option 'Update Firmware' hochgeladen werden kann.</label>");
             }
             else
             {
@@ -840,6 +838,9 @@ void checkClient() {
             }
             client.print("<br><hr>");
 
+
+            // LED display and startup:
+            // ########################
             client.println("<h2>LED Anzeigen und Startverhalten</h2>");
             client.println("<label for=\"useledtest\">LED Start Test anzeigen?</label>");
             client.print("<input type=\"checkbox\" id=\"useledtest\" name=\"useledtest\"");
@@ -901,8 +902,9 @@ void checkClient() {
             client.print("<hr>");
 
 
-            // PING IP ADDRESS:
-            client.println("<h2>PING Monitor IP-Adresse -> LEDs abschalten wenn IP laenger offline</h2>");
+            // PING IP-address:
+            // ################
+            client.println("<h2>PING Monitor IP-Adresse -> LEDs abschalten wenn IP länger offline</h2>");
             client.println("<label for=\"PING_USEMONITOR\">PING Monitor Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"PING_USEMONITOR\" name=\"PING_USEMONITOR\"");
             if (PING_USEMONITOR) {
@@ -913,7 +915,7 @@ void checkClient() {
             {
               client.print("><br><br>");
             }
-            client.println("<label>Bitte hier die zu ueberwachende IP-Adresse eintragen:</label><br>");
+            client.println("<label>Bitte hier die zu überwachende IP-Adresse eintragen:</label><br>");
             client.println("<label for=\"PING_IP_ADDR_O1\">IP-Adresse:</label>");
             client.print("<input type=\"text\" id=\"PING_IP_ADDR_O1\" name=\"PING_IP_ADDR_O1\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR_O1);
@@ -947,6 +949,8 @@ void checkClient() {
             client.print("<br><hr>");
 
 
+            // Hostname:
+            // #########
             client.println("<h2>WordClock Hostname anpassen</h2><br>");
             client.println("<label for=\"wchostnamenum\">Hostname: " + wchostname + "</label>");
             client.println("<select id=\"wchostnamenum\" name=\"wchostnamenum\" >");
@@ -967,14 +971,16 @@ void checkClient() {
             client.print("<br><hr>");
 
 
+            // REST functions:
+            // ###############
             client.println("<h2>REST Funktionen</h2>");
-            client.println("<label>Ueber die folgenden Links koennen Funktionen der WordClock von Aussen gesteuert werden.</label><br><br>");
+            client.println("<label>Über die folgenden Links können Funktionen der WordClock von Außen gesteuert werden.</label><br><br>");
             client.println("<label for=\"useresturl\">REST Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"useresturl\" name=\"useresturl\"");
             if (useresturl) {
               client.print(" checked");
               client.print("><br><br>");
-              client.println("<label>Ueber einen der folgenden Links kann die WordClock manuell ueber den Browser ab und an geschaltet werden:</label>");
+              client.println("<label>Über einen der folgenden Links kann die WordClock manuell über den Browser ab und an geschaltet werden:</label>");
               client.println("<br>");
               client.println("<label>LEDs ausschalten: </label>");
               client.print("<a href=");
@@ -1010,12 +1016,13 @@ void checkClient() {
             client.print("<hr>");
 
 
-            // WLAN Einstellungen zuruecksetzen:
-            client.println("<h2>WLAN Einstellungen zuruecksetzen</h2><br>");
+            // Reset WiFi configuration:
+            // #########################
+            client.println("<h2>WLAN Einstellungen zurücksetzen</h2><br>");
             if (useresturl) {
-              client.println("<label>WLAN Einstellungen zuruecksetzen und Uhr neu starten?</label><br>");
-              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockwifireset target='_blank'>WLAN Einstellungen zuruecksetzen</a><br>");
-              client.println("<br>! Wenn diese Option verwendet wird, werden die WLAN Einstellungen einmalig geloescht !<br><br><hr>");
+              client.println("<label>WLAN Einstellungen zurücksetzen und Uhr neu starten?</label><br>");
+              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockwifireset target='_blank'>WLAN Einstellungen zurücksetzen</a><br>");
+              client.println("<br>! Wenn diese Option verwendet wird, werden die WLAN Einstellungen einmalig gelöscht !<br><br><hr>");
             }
             else
             {
@@ -1023,7 +1030,8 @@ void checkClient() {
             }
 
 
-            // WordClock Neustart:
+            // WordClock restart:
+            // ##################
             client.println("<h2>WordClock neustarten</h2><br>");
             if (useresturl) {
               client.println("<label>WordClock neu starten?</label><br>");
@@ -1036,7 +1044,8 @@ void checkClient() {
             }
 
 
-            // Zeitzone und NTP:
+            // Timezone and NTP:
+            // #################
             client.println("<h2>Zeitzone &amp; NTP-Server</h2><br>");
             client.println("<label for=\"ntpserver\"></label>");
             client.print("<input type=\"text\" id=\"ntpserver\" name=\"ntpserver\" size=\"45\" value=\"");
@@ -1056,6 +1065,9 @@ void checkClient() {
             client.println("\" target=\"_blank\">Erkl&auml;rung zur Einstellung der Zeitzone</a><br>");
             client.print("<br><hr><br>");
 
+
+            // Save settings button:
+            // #####################
             client.println("<br><br><input type=\"submit\" value=\"Einstellungen speichern\">");
             client.print("<br><br><br><hr><br>");
             client.println("</form>");
@@ -1069,235 +1081,209 @@ void checkClient() {
               // Serial.print("Current request:  ");
               // Serial.println(currentLine);
 
-              // Check for color settings
+
+              // Check for color settings:
+              // #########################
               int pos = currentLine.indexOf("favcolor=%23");
               if (pos >= 0) {
                 char * succ;
                 String newColStr = currentLine.substring(pos + 12, pos + 18);
-                // Serial.print("Change color to ");
-                // Serial.print(newColStr);
                 String newRed   = newColStr.substring(0, 2);
                 redVal = strtol(newRed.begin(), &succ, 16);
-                // Serial.print(", Red=");
-                // Serial.print(newRed);
-                // Serial.print("/");
-                // Serial.print(redVal);
                 String newGreen = newColStr.substring(2, 4);
                 greenVal = strtol(newGreen.begin(), &succ, 16);
-                // Serial.print(", Green=");
-                // Serial.print(newGreen);
-                // Serial.print("/");
-                // Serial.print(greenVal);
                 String newBlue  = newColStr.substring(4, 6);
                 blueVal = strtol(newBlue.begin(), &succ, 16);
-                // Serial.print(", Blue=");
-                // Serial.print(newBlue);
-                // Serial.print("/");
-                // Serial.println(blueVal);
               }
 
-              // Check for blink time
-              // Serial.print("BlinkTime switched  ");
+
+              // Check for blink time:
+              // #####################
               if (currentLine.indexOf("&blinktime=on&") >= 0) {
                 blinkTime = -1;
-                // Serial.println("on");
               } else {
                 blinkTime = 0;
-                // Serial.println("off");
               }
 
-              // Check for date display
-              // Serial.print("ShowDate switched  ");
+
+              // Check for date display:
+              // #######################
               if (currentLine.indexOf("&showdate=on&") >= 0) {
                 showDate = -1;
-                // Serial.println("on");
               } else {
                 showDate = 0;
-                // Serial.println("off");
               }
 
-              // Check for DisplayOff switch
-              // Serial.print("DisplayOff switched  ");
+
+              // Check for power supply note:
+              // ############################
+              if (currentLine.indexOf("&powersupply=on&") >= 0) {
+                powersupply = 1;
+              } else {
+                powersupply = 0;
+              }
+
+
+              // Check for DisplayOff switch:
+              // ############################
               if (currentLine.indexOf("&displayoff=on&") >= 0) {
                 displayoff = -1;
-                // Serial.println("on");
               } else {
                 displayoff = 0;
-                // Serial.println("off");
               }
 
-              // Check for useNightLEDs switch
-              // Serial.print("useNightLEDs switched  ");
+
+              // Check for useNightLEDs switch:
+              // ##############################
               if (currentLine.indexOf("&useNightLEDs=on&") >= 0) {
                 useNightLEDs = -1;
-                // Serial.println("on");
               } else {
                 useNightLEDs = 0;
-                // Serial.println("off");
               }
 
-              // Pick up Display On Max
+
+              // Pick up Display OFF - Monday:
+              // ############################
               pos = currentLine.indexOf("&displayonmaxMO=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                // Serial.print("MO - Display On Max set to ");
-                // Serial.println(maxStr);
                 displayonmaxMO = maxStr.toInt();
               }
-              // Pick up Display On Min
               pos = currentLine.indexOf("&displayonminMO=");
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                // Serial.print("MO - Display On Min set to ");
-                // Serial.println(minStr);
                 displayonminMO = minStr.toInt();
               }
 
-              // Pick up Display On Max
+
+              // Pick up Display OFF Max - Tuesday:
+              // #################################
               pos = currentLine.indexOf("&displayonmaxTU=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                // Serial.print("TU - Display On Max set to ");
-                // Serial.println(maxStr);
                 displayonmaxTU = maxStr.toInt();
               }
-              // Pick up Display On Min
               pos = currentLine.indexOf("&displayonminTU=");
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                // Serial.print("TU - Display On Min set to ");
-                // Serial.println(minStr);
                 displayonminTU = minStr.toInt();
               }
 
-              // Pick up Display On Max
+
+              // Pick up Display OFF - Wednesday:
+              // ################################
               pos = currentLine.indexOf("&displayonmaxWE=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                // Serial.print("WE - Display On Max set to ");
-                // Serial.println(maxStr);
                 displayonmaxWE = maxStr.toInt();
               }
-              // Pick up Display On Min
               pos = currentLine.indexOf("&displayonminWE=");
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                // Serial.print("WE - Display On Min set to ");
-                // Serial.println(minStr);
                 displayonminWE = minStr.toInt();
               }
 
-              // Pick up Display On Max
+
+              // Pick up Display OFF - Thursday:
+              // ###############################
               pos = currentLine.indexOf("&displayonmaxTH=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                // Serial.print("TH - Display On Max set to ");
-                // Serial.println(maxStr);
                 displayonmaxTH = maxStr.toInt();
               }
-              // Pick up Display On Min
               pos = currentLine.indexOf("&displayonminTH=");
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                // Serial.print("TH - Display On Min set to ");
-                // Serial.println(minStr);
                 displayonminTH = minStr.toInt();
               }
 
-              // Pick up Display On Max
+
+              // Pick up Display OFF - Friday:
+              // #############################
               pos = currentLine.indexOf("&displayonmaxFR=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                // Serial.print("FR - Display On Max set to ");
-                // Serial.println(maxStr);
                 displayonmaxFR = maxStr.toInt();
               }
-              // Pick up Display On Min
               pos = currentLine.indexOf("&displayonminFR=");
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                // Serial.print("FR - Display On Min set to ");
-                // Serial.println(minStr);
                 displayonminFR = minStr.toInt();
               }
 
-              // Pick up Display On Max
+
+              // Pick up Display OFF - Saturday:
+              // ###############################
               pos = currentLine.indexOf("&displayonmaxSA=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                // Serial.print("SA - Display On Max set to ");
-                // Serial.println(maxStr);
                 displayonmaxSA = maxStr.toInt();
               }
-              // Pick up Display On Min
               pos = currentLine.indexOf("&displayonminSA=");
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                // Serial.print("SA - Display On Min set to ");
-                // Serial.println(minStr);
                 displayonminSA = minStr.toInt();
               }
 
-              // Pick up Display On Max
+
+              // Pick up Display OFF - Sunday:
+              // #############################
               pos = currentLine.indexOf("&displayonmaxSU=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                // Serial.print("SU - Display On Max set to ");
-                // Serial.println(maxStr);
                 displayonmaxSU = maxStr.toInt();
               }
-              // Pick up Display On Min
               pos = currentLine.indexOf("&displayonminSU=");
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
                 if (pos > 0)
                   minStr = minStr.substring(0, pos);
-                // Serial.print("SU - Display On Min set to ");
-                // Serial.println(minStr);
                 displayonminSU = minStr.toInt();
               }
 
-              // Pick up WordClock HostName
+
+              // Pick up WordClock HostName:
+              // ###########################
               pos = currentLine.indexOf("&wchostnamenum=");
               if (pos >= 0) {
                 String hostStr = currentLine.substring(pos + 15);
@@ -1309,11 +1295,10 @@ void checkClient() {
                 wchostnamenum = hostStr.toInt();
               }
 
-              // Check for UseUpdate switch
-              // Serial.print("UseUpdate switched  ");
+              // Check for UseUpdate switch:
+              // ###########################
               if (currentLine.indexOf("&useupdate=on&") >= 0) {
                 useupdate = -1;
-                // Serial.println("on");
                 MDNS.begin(wchostname + wchostnamenum);
                 httpUpdater.setup(&httpServer);
                 httpServer.begin();
@@ -1327,116 +1312,117 @@ void checkClient() {
                 Serial.println(UpdatePathIP);
               } else {
                 useupdate = 0;
-                // Serial.println("off");
                 httpUpdater.setup(&httpServer);
                 httpServer.stop();
               }
 
-              // Check for REST switch
+
+              // Check for REST switch:
+              // ######################
               if (currentLine.indexOf("&useresturl=on&") >= 0) {
                 useresturl = -1;
               } else {
                 useresturl = 0;
               }
 
-              // Check for Use LED test switch
-              // Serial.print("Use LED test switched  ");
+
+              // Check for Use LED test switch:
+              // ##############################
               if (currentLine.indexOf("&useledtest=on&") >= 0) {
                 useledtest = -1;
-                // Serial.println("on");
               } else {
                 useledtest = 0;
-                // Serial.println("off");
               }
 
-              // Check for Use SET WLAN switch
-              // Serial.print("Use SET WLAN switched  ");
+
+              // Check for Use SET WLAN switch:
+              // ##############################
               if (currentLine.indexOf("&usesetwlan=on&") >= 0) {
                 usesetwlan = -1;
-                // Serial.println("on");
               } else {
                 usesetwlan = 0;
-                // Serial.println("off");
               }
 
-              // Check for Use SHOW IP switch
-              // Serial.print("Use SHOW IP switched  ");
+
+              // Check for Use SHOW IP switch:
+              // #############################
               if (currentLine.indexOf("&useshowip=on&") >= 0) {
                 useshowip = -1;
-                // Serial.println("on");
               } else {
                 useshowip = 0;
-                // Serial.println("off");
               }
 
-              // Check for RainBox switch
-              // Serial.print("Use RainBow mode switched  ");
+
+              // Check for RainBox switch:
+              // #########################
               if (currentLine.indexOf("&switchRainBow=on&") >= 0) {
                 switchRainBow = -1;
-                // Serial.println("on");
               } else {
                 switchRainBow = 0;
-                // Serial.println("off");
               }
 
-              // Check for Minute LEDs order switch
-              // Serial.print("Use minutes LED mode switch  ");
+
+              // Check for Minute LEDs order switch:
+              // ###################################
               if (currentLine.indexOf("&switchLEDOrder=on&") >= 0) {
                 switchLEDOrder = -1;
-                // Serial.println("on");
               } else {
                 switchLEDOrder = 0;
-                // Serial.println("off");
               }
 
-              // Check for DCW flag
+
+              // Check for DCW flag:
+              // ###################
               if (currentLine.indexOf("DCW=ON") >= 0) {
                 dcwFlag = -1;
-                // Serial.println("DCW Flag switched ON");
               } else if (currentLine.indexOf("DCW=OFF") >= 0) {
                 dcwFlag = 0;
-                // Serial.println("DCW Flag switched OFF");
               }
 
-              // get intensity DAY
+
+              // Get intensity DAY:
+              // ##################
               pos = currentLine.indexOf("&intensity=");
               if (pos >= 0) {
                 String intStr = currentLine.substring(pos + 11, pos + 14);
                 pos = intStr.indexOf("&");
                 if (pos > 0)
                   intStr = intStr.substring(0, pos);
-                // Serial.print("Intensity at day time set to ");
-                // Serial.print(intStr);
                 intensity = intStr.toInt();
               }
 
-              // get intensity NIGHT
+              // Get intensity NIGHT:
+              // ####################
               pos = currentLine.indexOf("&intensityNight=");
               if (pos >= 0) {
                 String intStr = currentLine.substring(pos + 16, pos + 19);
                 pos = intStr.indexOf("&");
                 if (pos > 0)
                   intStr = intStr.substring(0, pos);
-                // Serial.print("Intensity at night time set to ");
-                // Serial.print(intStr);
                 intensityNight = intStr.toInt();
               }
 
+
               // Use PING function:
+              // ##################
               if (currentLine.indexOf("&PING_USEMONITOR=on&") >= 0) {
                 PING_USEMONITOR = 1;
               } else {
                 PING_USEMONITOR = 0;
               }
 
+
               // Use PING DEBUG function:
+              // ########################
               if (currentLine.indexOf("&PING_DEBUG_MODE=on&") >= 0) {
                 PING_DEBUG_MODE = 1;
               } else {
                 PING_DEBUG_MODE = 0;
               }
 
+
               // IP-address octet 1:
+              // ###################
               pos = currentLine.indexOf("&PING_IP_ADDR_O1=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 17);
@@ -1446,7 +1432,9 @@ void checkClient() {
                 PING_IP_ADDR_O1 = maxStr.toInt();
               }
 
+
               // IP-address octet 2:
+              // ###################
               pos = currentLine.indexOf("&PING_IP_ADDR_O2=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 17);
@@ -1456,7 +1444,9 @@ void checkClient() {
                 PING_IP_ADDR_O2 = maxStr.toInt();
               }
 
+
               // IP-address octet 3:
+              // ###################
               pos = currentLine.indexOf("&PING_IP_ADDR_O3=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 17);
@@ -1466,7 +1456,9 @@ void checkClient() {
                 PING_IP_ADDR_O3 = maxStr.toInt();
               }
 
+
               // IP-address octet 4:
+              // ###################
               pos = currentLine.indexOf("&PING_IP_ADDR_O4=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 17);
@@ -1476,7 +1468,9 @@ void checkClient() {
                 PING_IP_ADDR_O4 = maxStr.toInt();
               }
 
+
               // Max PING attempts:
+              // ##################
               pos = currentLine.indexOf("&PING_TIMEOUTNUM=");
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 17);
@@ -1486,7 +1480,9 @@ void checkClient() {
                 PING_TIMEOUTNUM = maxStr.toInt();
               }
 
-              // get NTP Server
+
+              // Get NTP server:
+              // ###############
               pos = currentLine.indexOf("&ntpserver=");
               if (pos >= 0) {
                 String ntpStr = currentLine.substring(pos + 11);
@@ -1498,7 +1494,9 @@ void checkClient() {
                 ntpServer = ntpStr;
               }
 
-              // Pick up TimeZone definition
+
+              // Pick up TimeZone definition:
+              // ############################
               pos = currentLine.indexOf("timezone=");
               if (pos >= 0) {
                 String tz = currentLine.substring(pos + 9);
@@ -1512,6 +1510,9 @@ void checkClient() {
                 // Serial.println(timeZone);
               }
 
+
+              // Save data to EEPROM:
+              // ####################
               writeEEPROM(); // save DATA to EEPROM
               configNTPTime(); // Reset NTP
             }
@@ -1522,8 +1523,8 @@ void checkClient() {
         }
       }
     }
-    header = ""; // Clear the header variable
-    client.stop(); // Close the connection
+    header = "";    // Clear the header variable
+    client.stop();  // Close the connection
     Serial.println("Web client disconnected.");
     Serial.println("######################################################################################################");
   }
@@ -1535,10 +1536,7 @@ void checkClient() {
 // ###########################################################################################################################################
 void rtcReadTime() {
   if (checkRTC()) {
-
-    //Serial.println("rtcReadTime() - calling rtc.now()");
     DateTime now = rtc.now();
-
     int oldHour = iHour;
     iYear  = (int)(now.year());
     iMonth = (int)(now.month());
@@ -2176,6 +2174,7 @@ void ledsOFF() {
 void TwinkleModeOn() {
   WiFiClient client = server.available();
   server1->send(200, "text/plain", "Twinkle LEDs set to ON");
+  pixels.setBrightness(128);
   TwinkleON = true;
   client.stop();
 }
@@ -2190,7 +2189,6 @@ void TwinkleModeOFF() {
 }
 
 void Twinkle() {
-  pixels.setBrightness(128);
   if (random(25) == 1) {
     uint16_t i = random(NUMPIXELS);
     if (redStates[i] < 1 && greenStates[i] < 1 && blueStates[i] < 1) {
@@ -2331,6 +2329,61 @@ void ClockWifiReset() {
   delay(3000);
   ESP.restart();
 }
+
+
+// ###########################################################################################################################################
+// # Actual function, which controls 1/0 of the LED:
+// ###########################################################################################################################################
+void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
+  if (switchOn) {
+    if  (ledNrFrom > ledNrTo) {
+      setLED(ledNrTo, ledNrFrom, switchOn); //sets LED numbers in correct order (because of the date programming below)
+    } else {
+      for (int i = ledNrFrom; i <= ledNrTo; i++) {
+        if ((i >= 0) &&
+            (i < NUMPIXELS))
+          pixels.setPixelColor(i, pixels.Color(redVal, greenVal, blueVal));
+      }
+    }
+  }
+}
+
+
+// ###########################################################################################################################################
+// # Actual function, which controls 1/0 of the LED:
+// ###########################################################################################################################################
+void setLEDHour(int ledNrFrom, int ledNrTo, int switchOn) {
+  // Every Hour blink orange
+  if ((blinkTime) &&
+      (switchOn) &&
+      (iMinute == 0) &&
+      (iSecond < 10)) {
+    if ((iSecond % 2) == 1) {
+      for (int i = ledNrFrom; i <= ledNrTo; i++) {
+        if ((i >= 0) &&
+            (i < NUMPIXELS))
+          pixels.setPixelColor(i, pixels.Color(255, 128, 0));
+      }
+    } else
+      setLED(ledNrFrom, ledNrTo, switchOn);
+  } else
+    setLED(ledNrFrom, ledNrTo, switchOn);
+}
+
+
+// ###########################################################################################################################################
+// # Switch a horizontal sequence of LEDs ON or OFF, depending on boolean value switchOn:
+// ###########################################################################################################################################
+void setLEDLine(int xFrom, int xTo, int y, int switchOn) {
+  if (xFrom > xTo)
+    setLEDLine(xTo, xFrom, y, switchOn);
+  else {
+    for (int x = xFrom; x <= xTo; x++) {
+      setLED(ledXY(x, y), ledXY(x, y), switchOn);
+    }
+  }
+}
+
 
 // ###########################################################################################################################################
 // # EOF - You have successfully reached the end of the code - well done ;-)

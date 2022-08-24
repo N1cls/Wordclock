@@ -26,8 +26,8 @@ int RTC_I2C_ADDRESS = 0x68;                 // I2C adress of the RTC  DS3231 (Ch
 int redVal   = 0;                            // Default color RED
 int greenVal = 255;                          // Default color GREEN
 int blueVal  = 0;                            // Default color BLUE
-int intensity = 64;                          // LED intensity (0..255) in day mode   - Important note: Check power consumption and used power supply capabilities!
-int intensityNight = 32;                     // LED intensity (0..255) in night mode - Important note: Check power consumption and used power supply capabilities!
+int intensity = 42;                          // LED intensity (0..255) in day mode   - Important note: Check power consumption and used power supply capabilities!
+int intensityNight = 21;                     // LED intensity (0..255) in night mode - Important note: Check power consumption and used power supply capabilities!
 
 
 // ###########################################################################################################################################
@@ -46,6 +46,7 @@ int blinkTime = 0;                          // Flag for blinking hour time name 
 int dcwFlag = 0;                            // Flag for highlighting DCW every Hour
 int useresturl = 1;                         // Use the REST function web server
 int server1port = 55555;                    // REST function web server port
+int powersupply = 0;                        // Flag for the power supply note text and to raise the limit for the intensity from 128 to 255
 
 
 // ###########################################################################################################################################
@@ -89,7 +90,7 @@ int PING_IP_ADDR_O3 = 178;                // IP-address of the to monitor device
 int PING_IP_ADDR_O4 = 56;                 // IP-address of the to monitor device - ip octet 4
 int PING_TIMEOUTNUM = 10;                 // After which amount of timed out PING request should the LED be turned off? Value 10 = 5 minutes
 int PING_DEBUG_MODE = 0;                  // Use the serial output monitor of Arduino IDE to see the current online status
-int PING_USEMONITOR = 1;                  // Switch flag to turn the PING function on (1) or off (0)
+int PING_USEMONITOR = 0;                  // Switch flag to turn the PING function on (1) or off (0)
 
 
 // ###########################################################################################################################################
