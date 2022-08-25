@@ -82,15 +82,25 @@ ESP8266WebServer httpServer(2022);          // Update server port
 // ###########################################################################################################################################
 // # Turn off the LED by presence status of an IP-address (of your smart phone) monitored by a PING request 2 times perminute:
 // #
-// # Note: You might need to set the IP-address of the to monitor device to static in your router configuration
+// # Notes: 
+// # - You might need to set the IP-address of the to monitor device to static in your router configuration
+// # - If the IP-address is set to 0.0.0.0 it will be ignored and skipped during the PING requests
 // ###########################################################################################################################################
-int PING_IP_ADDR_O1 = 192;                // IP-address of the to monitor device - ip octet 1
-int PING_IP_ADDR_O2 = 168;                // IP-address of the to monitor device - ip octet 2
-int PING_IP_ADDR_O3 = 178;                // IP-address of the to monitor device - ip octet 3
-int PING_IP_ADDR_O4 = 56;                 // IP-address of the to monitor device - ip octet 4
-int PING_TIMEOUTNUM = 10;                 // After which amount of timed out PING request should the LED be turned off? Value 10 = 5 minutes
-int PING_DEBUG_MODE = 0;                  // Use the serial output monitor of Arduino IDE to see the current online status
-int PING_USEMONITOR = 0;                  // Switch flag to turn the PING function on (1) or off (0)
+int PING_IP_ADDR1_O1 = 192;                // 1st IP-address of the to monitor device - ip octet 1
+int PING_IP_ADDR1_O2 = 168;                // 1st IP-address of the to monitor device - ip octet 2
+int PING_IP_ADDR1_O3 = 178;                // 1st IP-address of the to monitor device - ip octet 3
+int PING_IP_ADDR1_O4 = 56;                 // 1st IP-address of the to monitor device - ip octet 4
+int PING_IP_ADDR2_O1 = 0;                  // 2nd IP-address of the to monitor device - ip octet 1
+int PING_IP_ADDR2_O2 = 0;                  // 2nd IP-address of the to monitor device - ip octet 2
+int PING_IP_ADDR2_O3 = 0;                  // 2nd IP-address of the to monitor device - ip octet 3
+int PING_IP_ADDR2_O4 = 0;                  // 2nd IP-address of the to monitor device - ip octet 4
+int PING_IP_ADDR3_O1 = 0;                  // 3rd IP-address of the to monitor device - ip octet 1
+int PING_IP_ADDR3_O2 = 0;                  // 3rd IP-address of the to monitor device - ip octet 2
+int PING_IP_ADDR3_O3 = 0;                  // 3rd IP-address of the to monitor device - ip octet 3
+int PING_IP_ADDR3_O4 = 0;                  // 3rd IP-address of the to monitor device - ip octet 4
+int PING_TIMEOUTNUM = 10;                  // After which amount of timed out PING request should the LED be turned off? Value 10 = 5 minutes
+int PING_DEBUG_MODE = 0;                   // Use the serial output monitor of Arduino IDE to see the current online status
+int PING_USEMONITOR = 0;                   // Switch flag to turn the PING function on (1) or off (0)
 
 
 // ###########################################################################################################################################

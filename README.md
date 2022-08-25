@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<b>Current version: 4.5         </b>
+<b>Current version: 4.6         </b>
 
 <hr>
 
@@ -61,3 +61,4 @@ Time here is 07:43 or 19:43 o'clock
 - 4.3: Minor text changes. Added 2 more REST urls for an experimental twinkle mode LED test
 - 4.4: Changed the startup LED test function to reduce power consumption to fit 5V/3A power supplies, changed the maximum setting for the brightness sliders to 128 from 255. A note for the power supply check was added. The RESET and WiFI RESET function were recreated to remove an error
 - 4.5: Added an option to apply the power supply message and to raise the maximum LED intensity again to 255. Code cleanup. Changed the HTML page settings to show german umlauts (äöüß) now correctly.
+- 4.6: Enhanced the PING option for now up to 3 IP-addresses that can be monitored. Code cleanup. Added another url to be able to querry the status of the LEDs.

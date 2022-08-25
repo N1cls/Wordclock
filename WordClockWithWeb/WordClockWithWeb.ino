@@ -40,29 +40,34 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.5";
+const char* WORD_CLOCK_VERSION = "V4.6";
 
 
 // ###########################################################################################################################################
 // # Declartions and variables used in the functions:
 // ###########################################################################################################################################
 String header; // Variable to store the HTTP request
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);       // LED strip settings
-RTC_DS3231 rtc;                                                                           // rtc communication object
-int lastRequest = 0;                                                                      // Variable to control RTC requests
-int rtcStarted = 0;                                                                       // Variable to control whether RTC has been initialized
-int delayval = 250;                                                                       // delay in milliseconds
-int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                               // variables for RTC-module read time:
-String timeZone = DEFAULT_TIMEZONE;                                                       // Time server settings
-String ntpServer = DEFAULT_NTP_SERVER;                                                    // Time server settings
-String UpdatePath = "-";                                                                  // Update via Hostname
-String UpdatePathIP = "-";                                                                // Update via IP-address
-ESP8266HTTPUpdateServer httpUpdater;                                                      // Update server
-IPAddress remote_ip(PING_IP_ADDR_O1, PING_IP_ADDR_O2, PING_IP_ADDR_O3, PING_IP_ADDR_O4);  // IP-addres to monitor 2x per minute to turn LEDs off if IP-addres is offline for a defined time
-int PING_ATTEMPTS = PING_TIMEOUTNUM;                                                      // Attempts of missed PING requests
-bool LEDsON = true;                                                                       // Global flag to turn LEDs on or off - Used for the ping function
-std::unique_ptr<ESP8266WebServer> server1;                                                // REST function web server
-bool RESTmanLEDsON = true;                                                                // Global flag to turn LEDs manually on or off - Used for the REST function
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);           // LED strip settings
+RTC_DS3231 rtc;                                                                               // rtc communication object
+int lastRequest = 0;                                                                          // Variable to control RTC requests
+int rtcStarted = 0;                                                                           // Variable to control whether RTC has been initialized
+int delayval = 250;                                                                           // delay in milliseconds
+int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                                   // variables for RTC-module read time:
+String timeZone = DEFAULT_TIMEZONE;                                                           // Time server settings
+String ntpServer = DEFAULT_NTP_SERVER;                                                        // Time server settings
+String UpdatePath = "-";                                                                      // Update via Hostname
+String UpdatePathIP = "-";                                                                    // Update via IP-address
+ESP8266HTTPUpdateServer httpUpdater;                                                          // Update server
+int PING_ATTEMPTSIP1 = PING_TIMEOUTNUM;                                                       // 1st IP-addres attempts of missed PING requests
+int PING_ATTEMPTSIP2 = PING_TIMEOUTNUM;                                                       // 2nd IP-addres attempts of missed PING requests
+int PING_ATTEMPTSIP3 = PING_TIMEOUTNUM;                                                       // 3rd IP-addres attempts of missed PING requests
+bool PingStatusIP1 = true;                                                                    // Status flag 1st IP-address - PING function
+bool PingStatusIP2 = true;                                                                    // Status flag 2nd IP-address - PING function
+bool PingStatusIP3 = true;                                                                    // Status flag 3rd IP-address - PING function
+bool LEDsON = true;                                                                           // Global flag to turn LEDs on or off - Used for the PING function
+std::unique_ptr<ESP8266WebServer> server1;                                                    // REST function web server
+bool RESTmanLEDsON = true;                                                                    // Global flag to turn LEDs manually on or off - Used for the REST function
+
 
 // Twinkle LED test:
 float redStates[NUMPIXELS];
@@ -111,10 +116,18 @@ struct parmRec
   int  pwchostnamenum;
   int  pDCWFlag;
   int  pBlinkTime;
-  int pPING_IP_ADDR_O1;
-  int pPING_IP_ADDR_O2;
-  int pPING_IP_ADDR_O3;
-  int pPING_IP_ADDR_O4;
+  int pPING_IP_ADDR1_O1;
+  int pPING_IP_ADDR1_O2;
+  int pPING_IP_ADDR1_O3;
+  int pPING_IP_ADDR1_O4;
+  int pPING_IP_ADDR2_O1;
+  int pPING_IP_ADDR2_O2;
+  int pPING_IP_ADDR2_O3;
+  int pPING_IP_ADDR2_O4;
+  int pPING_IP_ADDR3_O1;
+  int pPING_IP_ADDR3_O2;
+  int pPING_IP_ADDR3_O3;
+  int pPING_IP_ADDR3_O4;
   int pPING_TIMEOUTNUM;
   int pPING_DEBUG_MODE;
   int pPING_USEMONITOR;
@@ -187,6 +200,7 @@ void setup() {
     server1->on("/twinkleoff", TwinkleModeOFF);
     server1->on("/clockrestart", ClockRestart);
     server1->on("/clockwifireset", ClockWifiReset);
+    server1->on("/ledstatus", LedStatus);
     server1->begin();
   }
 
@@ -260,44 +274,14 @@ void loop() {
     httpServer.handleClient();
     MDNS.update();
 
-    // Ping the set IP-address... Turn off the LED by presence status of an IP-address (of your smart phone) monitored by a PING request 2 times perminute:
-    if (PING_USEMONITOR == 1)
-    {
-      if (iSecond == 45 || iSecond == 15) {
+    // PING function:
+    if (PING_USEMONITOR == 1) PingIP();
 
-        if (PING_DEBUG_MODE == 1) {
-          Serial.print("IP gets pinged now: " + String(iHour) + ":" + String(iMinute) + ":" + String(iSecond) + " - IP: ");
-          Serial.print(remote_ip);
-          Serial.print(" --> ");
-        }
-        if (Ping.ping(remote_ip))
-        {
-          if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
-          PING_ATTEMPTS = PING_TIMEOUTNUM; // Reset to configured value
-          if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
-          pixels.setBrightness(intensity);
-          if (RESTmanLEDsON == true) LEDsON = true;
-        } else {
-          if (PING_ATTEMPTS >= 1) PING_ATTEMPTS = PING_ATTEMPTS - 1;
-          if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
-          if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTS);
-        }
-        if (PING_ATTEMPTS == 0) {
-          if (PING_DEBUG_MODE == 1) Serial.print(PING_ATTEMPTS);
-          if (PING_DEBUG_MODE == 1) Serial.println(" remaining attempts --> LEDs = OFF until the IP-address can be reached again...");
-          pixels.setBrightness(0);
-          pixels.show();
-          if (RESTmanLEDsON == true) LEDsON = false;
-        }
-      }
-    }
     if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
   }
 
   // REST function web server:
-  if (useresturl) {
-    server1->handleClient();
-  }
+  if (useresturl) server1->handleClient();
 }
 
 
@@ -372,10 +356,18 @@ void readEEPROM() {
     dcwFlag =  parameter.pDCWFlag;
     intensity =  parameter.pIntensity;
     intensityNight =  parameter.pIntensityNight;
-    PING_IP_ADDR_O1 = parameter.pPING_IP_ADDR_O1;
-    PING_IP_ADDR_O2 = parameter.pPING_IP_ADDR_O2;
-    PING_IP_ADDR_O3 = parameter.pPING_IP_ADDR_O3;
-    PING_IP_ADDR_O4 = parameter.pPING_IP_ADDR_O4;
+    PING_IP_ADDR1_O1 = parameter.pPING_IP_ADDR1_O1;
+    PING_IP_ADDR1_O2 = parameter.pPING_IP_ADDR1_O2;
+    PING_IP_ADDR1_O3 = parameter.pPING_IP_ADDR1_O3;
+    PING_IP_ADDR1_O4 = parameter.pPING_IP_ADDR1_O4;
+    PING_IP_ADDR2_O1 = parameter.pPING_IP_ADDR2_O1;
+    PING_IP_ADDR2_O2 = parameter.pPING_IP_ADDR2_O2;
+    PING_IP_ADDR2_O3 = parameter.pPING_IP_ADDR2_O3;
+    PING_IP_ADDR2_O4 = parameter.pPING_IP_ADDR2_O4;
+    PING_IP_ADDR3_O1 = parameter.pPING_IP_ADDR3_O1;
+    PING_IP_ADDR3_O2 = parameter.pPING_IP_ADDR3_O2;
+    PING_IP_ADDR3_O3 = parameter.pPING_IP_ADDR3_O3;
+    PING_IP_ADDR3_O4 = parameter.pPING_IP_ADDR3_O4;
     PING_TIMEOUTNUM = parameter.pPING_TIMEOUTNUM;
     PING_DEBUG_MODE = parameter.pPING_DEBUG_MODE;
     PING_USEMONITOR = parameter.pPING_USEMONITOR;
@@ -428,10 +420,18 @@ void writeEEPROM() {
   parameter.puseshowip   = useshowip;
   parameter.pswitchRainBow = switchRainBow;
   parameter.pswitchLEDOrder = switchLEDOrder;
-  parameter.pPING_IP_ADDR_O1 = PING_IP_ADDR_O1;
-  parameter.pPING_IP_ADDR_O2 = PING_IP_ADDR_O2;
-  parameter.pPING_IP_ADDR_O3 = PING_IP_ADDR_O3;
-  parameter.pPING_IP_ADDR_O4 = PING_IP_ADDR_O4;
+  parameter.pPING_IP_ADDR1_O1 = PING_IP_ADDR1_O1;
+  parameter.pPING_IP_ADDR1_O2 = PING_IP_ADDR1_O2;
+  parameter.pPING_IP_ADDR1_O3 = PING_IP_ADDR1_O3;
+  parameter.pPING_IP_ADDR1_O4 = PING_IP_ADDR1_O4;
+  parameter.pPING_IP_ADDR2_O1 = PING_IP_ADDR2_O1;
+  parameter.pPING_IP_ADDR2_O2 = PING_IP_ADDR2_O2;
+  parameter.pPING_IP_ADDR2_O3 = PING_IP_ADDR2_O3;
+  parameter.pPING_IP_ADDR2_O4 = PING_IP_ADDR2_O4;
+  parameter.pPING_IP_ADDR3_O1 = PING_IP_ADDR3_O1;
+  parameter.pPING_IP_ADDR3_O2 = PING_IP_ADDR3_O2;
+  parameter.pPING_IP_ADDR3_O3 = PING_IP_ADDR3_O3;
+  parameter.pPING_IP_ADDR3_O4 = PING_IP_ADDR3_O4;
   parameter.pPING_TIMEOUTNUM = PING_TIMEOUTNUM;
   parameter.pPING_DEBUG_MODE = PING_DEBUG_MODE;
   parameter.pPING_USEMONITOR = PING_USEMONITOR;
@@ -818,8 +818,7 @@ void checkClient() {
             if (useupdate) {
               client.print(" checked");
               client.print("><br><br>");
-              client.println("<label>Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden:</label><br>");
-              client.println("<br>");
+              client.println("<label>Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden:</label><br><br>");
               client.print("<a href=");
               client.print(UpdatePath);
               client.print(" target='_blank'>");
@@ -834,7 +833,7 @@ void checkClient() {
             }
             else
             {
-              client.println("><br><br><label>Die Update Option ist aktuell deaktiviert.</label>");
+              client.println("><br><br><label>Die Update Funktion ist aktuell deaktiviert.</label>");
             }
             client.print("<br><hr>");
 
@@ -852,6 +851,7 @@ void checkClient() {
             {
               client.print("><br><br>");
             }
+
             client.println("<label for=\"usesetwlan\">SET WLAN beim Start anzeigen?</label>");
             client.print("<input type=\"checkbox\" id=\"usesetwlan\" name=\"usesetwlan\"");
             if (usesetwlan) {
@@ -898,8 +898,7 @@ void checkClient() {
               client.print(">");
             }
             client.println("<br><br>Wenn diese Option gesetzt wird, werden die Minuten-LEDs in den 4 Ecken<br>");
-            client.println("im Uhrzeigersinn angezeigt, ansonsten entgegen dem Uhrzeigersinn.<br>");
-            client.print("<hr>");
+            client.println("im Uhrzeigersinn angezeigt, ansonsten entgegen dem Uhrzeigersinn.<br><hr>");
 
 
             // PING IP-address:
@@ -915,26 +914,56 @@ void checkClient() {
             {
               client.print("><br><br>");
             }
-            client.println("<label>Bitte hier die zu überwachende IP-Adresse eintragen:</label><br>");
-            client.println("<label for=\"PING_IP_ADDR_O1\">IP-Adresse:</label>");
-            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O1\" name=\"PING_IP_ADDR_O1\" size=\"3\" value=\"");
-            client.print(PING_IP_ADDR_O1);
+            client.println("<label>Bitte hier die zu überwachenden IP-Adressen eintragen:</label><br><br>");
+            client.println("<label for=\"PING_IP_ADDR1_O1\">1. IP-Adresse:</label>");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR1_O1\" name=\"PING_IP_ADDR1_O1\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR1_O1);
             client.println("\"> .");
-            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O2\" name=\"PING_IP_ADDR_O2\" size=\"3\" value=\"");
-            client.print(PING_IP_ADDR_O2);
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR1_O2\" name=\"PING_IP_ADDR1_O2\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR1_O2);
             client.println("\"> .");
-            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O3\" name=\"PING_IP_ADDR_O3\" size=\"3\" value=\"");
-            client.print(PING_IP_ADDR_O3);
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR1_O3\" name=\"PING_IP_ADDR1_O3\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR1_O3);
             client.println("\"> .");
-            client.print("<input type=\"text\" id=\"PING_IP_ADDR_O4\" name=\"PING_IP_ADDR_O4\" size=\"3\" value=\"");
-            client.print(PING_IP_ADDR_O4);
-            client.println("\"><br><br>");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR1_O4\" name=\"PING_IP_ADDR1_O4\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR1_O4);
+            client.println("\"><br>");
+
+            client.println("<label for=\"PING_IP_ADDR2_O1\">2. IP-Adresse:</label>");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR2_O1\" name=\"PING_IP_ADDR2_O1\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR2_O1);
+            client.println("\"> .");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR2_O2\" name=\"PING_IP_ADDR2_O2\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR2_O2);
+            client.println("\"> .");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR2_O3\" name=\"PING_IP_ADDR2_O3\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR2_O3);
+            client.println("\"> .");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR2_O4\" name=\"PING_IP_ADDR2_O4\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR2_O4);
+            client.println("\"><br>");
+
+            client.println("<label for=\"PING_IP_ADDR3_O1\">3. IP-Adresse:</label>");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR3_O1\" name=\"PING_IP_ADDR3_O1\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR3_O1);
+            client.println("\"> .");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR3_O2\" name=\"PING_IP_ADDR3_O2\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR3_O2);
+            client.println("\"> .");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR3_O3\" name=\"PING_IP_ADDR3_O3\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR3_O3);
+            client.println("\"> .");
+            client.print("<input type=\"text\" id=\"PING_IP_ADDR3_O4\" name=\"PING_IP_ADDR3_O4\" size=\"3\" value=\"");
+            client.print(PING_IP_ADDR3_O4);
+            client.println("\"><br>");
+
+            client.println("<br><label>Hinweis: Eine IP-Addresse mit dem Wert 0.0.0.0 wird in der Abfrage übersprungen.</label><br>");
 
             client.println("<br><label for=\"PING_TIMEOUTNUM\">Anzahl PING Versuche bis die LEDs abgeschaltet werden:</label>");
             client.print("<input type=\"text\" id=\"PING_TIMEOUTNUM\" name=\"PING_TIMEOUTNUM\" size=\"3\" value=\"");
             client.print(PING_TIMEOUTNUM);
             client.println("\">");
-            client.println("<br><label>Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen...</label><br><br>");
+            client.println("<br><label>Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen.</label><br><br>");
 
             client.println("<label for=\"PING_DEBUG_MODE\">DEBUG PING Monitor Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"PING_DEBUG_MODE\" name=\"PING_DEBUG_MODE\"");
@@ -967,8 +996,7 @@ void checkClient() {
             client.println("<option>7</option>");
             client.println("<option>8</option>");
             client.println("<option>9</option>");
-            client.println("</select><br>");
-            client.print("<br><hr>");
+            client.println("</select><br><br><hr>");
 
 
             // REST functions:
@@ -994,6 +1022,13 @@ void checkClient() {
               client.print(" target='_blank'>");
               client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
               client.println("</a><br>");
+              client.println("<label>LED Status: </label>");
+              client.print("<a href=");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus");
+              client.print(" target='_blank'>");
+              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus");
+              client.println("</a><br>");
+
 
               client.println("<br><label><b>Weitere Funktionen (experimentell):</b></label><br>");
               client.println("<label>LED Test einschalten: </label>");
@@ -1295,6 +1330,7 @@ void checkClient() {
                 wchostnamenum = hostStr.toInt();
               }
 
+
               // Check for UseUpdate switch:
               // ###########################
               if (currentLine.indexOf("&useupdate=on&") >= 0) {
@@ -1391,6 +1427,7 @@ void checkClient() {
                 intensity = intStr.toInt();
               }
 
+
               // Get intensity NIGHT:
               // ####################
               pos = currentLine.indexOf("&intensityNight=");
@@ -1421,51 +1458,147 @@ void checkClient() {
               }
 
 
-              // IP-address octet 1:
+              // 1st IP-address octet 1:
               // ###################
-              pos = currentLine.indexOf("&PING_IP_ADDR_O1=");
+              pos = currentLine.indexOf("&PING_IP_ADDR1_O1=");
               if (pos >= 0) {
-                String maxStr = currentLine.substring(pos + 17);
+                String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                PING_IP_ADDR_O1 = maxStr.toInt();
+                PING_IP_ADDR1_O1 = maxStr.toInt();
               }
 
 
-              // IP-address octet 2:
+              // 1st IP-address octet 2:
               // ###################
-              pos = currentLine.indexOf("&PING_IP_ADDR_O2=");
+              pos = currentLine.indexOf("&PING_IP_ADDR1_O2=");
               if (pos >= 0) {
-                String maxStr = currentLine.substring(pos + 17);
+                String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                PING_IP_ADDR_O2 = maxStr.toInt();
+                PING_IP_ADDR1_O2 = maxStr.toInt();
               }
 
 
-              // IP-address octet 3:
+              // 1st IP-address octet 3:
               // ###################
-              pos = currentLine.indexOf("&PING_IP_ADDR_O3=");
+              pos = currentLine.indexOf("&PING_IP_ADDR1_O3=");
               if (pos >= 0) {
-                String maxStr = currentLine.substring(pos + 17);
+                String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                PING_IP_ADDR_O3 = maxStr.toInt();
+                PING_IP_ADDR1_O3 = maxStr.toInt();
               }
 
 
-              // IP-address octet 4:
+              // 1st IP-address octet 4:
               // ###################
-              pos = currentLine.indexOf("&PING_IP_ADDR_O4=");
+              pos = currentLine.indexOf("&PING_IP_ADDR1_O4=");
               if (pos >= 0) {
-                String maxStr = currentLine.substring(pos + 17);
+                String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
                 if (pos > 0)
                   maxStr = maxStr.substring(0, pos);
-                PING_IP_ADDR_O4 = maxStr.toInt();
+                PING_IP_ADDR1_O4 = maxStr.toInt();
+              }
+
+
+              // 2nd IP-address octet 1:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR2_O1=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR2_O1 = maxStr.toInt();
+              }
+
+
+              // 2nd IP-address octet 2:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR2_O2=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR2_O2 = maxStr.toInt();
+              }
+
+
+              // 2nd IP-address octet 3:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR2_O3=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR2_O3 = maxStr.toInt();
+              }
+
+
+              // 2nd IP-address octet 4:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR2_O4=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR2_O4 = maxStr.toInt();
+              }
+
+
+              // 3rd IP-address octet 1:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR3_O1=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR3_O1 = maxStr.toInt();
+              }
+
+
+              // 3rd IP-address octet 2:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR3_O2=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR3_O2 = maxStr.toInt();
+              }
+
+
+              // 3rd IP-address octet 3:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR3_O3=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR3_O3 = maxStr.toInt();
+              }
+
+
+              // 3rd IP-address octet 4:
+              // ###################
+              pos = currentLine.indexOf("&PING_IP_ADDR3_O4=");
+              if (pos >= 0) {
+                String maxStr = currentLine.substring(pos + 18);
+                pos = maxStr.indexOf("&");
+                if (pos > 0)
+                  maxStr = maxStr.substring(0, pos);
+                PING_IP_ADDR3_O4 = maxStr.toInt();
               }
 
 
@@ -2148,6 +2281,7 @@ void ledsON() {
   Serial.println("WordClock LEDs set to ON");
   pixels.setBrightness(intensity);
   RESTmanLEDsON = true;
+  LEDsON = true;
   pixels.show();
   client.stop();
 }
@@ -2163,7 +2297,20 @@ void ledsOFF() {
   pixels.setBrightness(0);
   pixels.show();
   RESTmanLEDsON = false;
+  LEDsON = false;
   pixels.show();
+  client.stop();
+}
+
+
+// ###########################################################################################################################################
+// # REST command function: LED status
+// ###########################################################################################################################################
+void LedStatus() {
+  WiFiClient client = server.available();
+  server1->send(200, "text/plain", String(LEDsON));
+  Serial.print("LED status: ");
+  Serial.println(LEDsON);
   client.stop();
 }
 
@@ -2324,7 +2471,7 @@ void ClockWifiReset() {
   wifiManager.resetSettings();
   delay(1500);
   Serial.println("######################################################################################################");
-  Serial.println("# WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE CONFIGURE WIFI AGAIN... #");
+  Serial.println("# WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE CONFIGURE WIFI AGAIN...cc #");
   Serial.println("######################################################################################################");
   delay(3000);
   ESP.restart();
@@ -2380,6 +2527,108 @@ void setLEDLine(int xFrom, int xTo, int y, int switchOn) {
   else {
     for (int x = xFrom; x <= xTo; x++) {
       setLED(ledXY(x, y), ledXY(x, y), switchOn);
+    }
+  }
+}
+
+
+// ###########################################################################################################################################
+// # PING function... Turn off the LED by presence status of IP-addresses (of your smart phone) monitored by a PING request 2 times perminute:
+// ###########################################################################################################################################
+void PingIP() {
+  if (iSecond == 45 || iSecond == 15) {
+    IPAddress IP1 (PING_IP_ADDR1_O1, PING_IP_ADDR1_O2, PING_IP_ADDR1_O3, PING_IP_ADDR1_O4);
+    IPAddress IP2 (PING_IP_ADDR2_O1, PING_IP_ADDR2_O2, PING_IP_ADDR2_O3, PING_IP_ADDR2_O4);
+    IPAddress IP3 (PING_IP_ADDR3_O1, PING_IP_ADDR3_O2, PING_IP_ADDR3_O3, PING_IP_ADDR3_O4);
+
+    // IP 1:
+    // #####
+    if (PING_IP_ADDR1_O1 != 0) {
+      if (PING_DEBUG_MODE == 1) {
+        Serial.print("IP gets pinged now: " + String(iHour) + ":" + String(iMinute) + ":" + String(iSecond) + " - IP1 ");
+        Serial.print(String(PING_IP_ADDR1_O1) + "." + String(PING_IP_ADDR1_O2) + "." + String(PING_IP_ADDR1_O3) + "." + String(PING_IP_ADDR1_O4));
+        Serial.print(" --> ");
+      }
+      if (Ping.ping(IP1))
+      {
+        if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
+        PING_ATTEMPTSIP1 = PING_TIMEOUTNUM; // Reset to configured value
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP1);
+        PingStatusIP1 = true;
+      } else {
+        if (PING_ATTEMPTSIP1 >= 1) PING_ATTEMPTSIP1 = PING_ATTEMPTSIP1 - 1;
+        if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP1);
+      }
+      if (PING_ATTEMPTSIP1 == 0) {
+        PingStatusIP1 = false;
+      }
+    } else {
+      PingStatusIP1 = false;
+    }
+
+    // IP 2:
+    // #####
+    if (PING_IP_ADDR2_O1 != 0) {
+      if (PING_DEBUG_MODE == 1) {
+        Serial.print("IP gets pinged now: " + String(iHour) + ":" + String(iMinute) + ":" + String(iSecond) + " - IP2 ");
+        Serial.print(String(PING_IP_ADDR2_O1) + "." + String(PING_IP_ADDR2_O2) + "." + String(PING_IP_ADDR2_O3) + "." + String(PING_IP_ADDR2_O4));
+        Serial.print(" --> ");
+      }
+      if (Ping.ping(IP2))
+      {
+        if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
+        PING_ATTEMPTSIP2 = PING_TIMEOUTNUM; // Reset to configured value
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP2);
+        PingStatusIP2 = true;
+      } else {
+        if (PING_ATTEMPTSIP2 >= 1) PING_ATTEMPTSIP2 = PING_ATTEMPTSIP2 - 1;
+        if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP2);
+      }
+      if (PING_ATTEMPTSIP2 == 0) {
+        PingStatusIP2 = false;
+      }
+    } else {
+      PingStatusIP2 = false;
+    }
+
+    // IP 3:
+    // #####
+    if (PING_IP_ADDR3_O1 != 0) {
+      if (PING_DEBUG_MODE == 1) {
+        Serial.print("IP gets pinged now: " + String(iHour) + ":" + String(iMinute) + ":" + String(iSecond) + " - IP3 ");
+        Serial.print(String(PING_IP_ADDR3_O1) + "." + String(PING_IP_ADDR3_O2) + "." + String(PING_IP_ADDR3_O3) + "." + String(PING_IP_ADDR3_O4));
+        Serial.print(" --> ");
+      }
+      if (Ping.ping(IP3))
+      {
+        if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
+        PING_ATTEMPTSIP3 = PING_TIMEOUTNUM; // Reset to configured value
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP3);
+        PingStatusIP3 = true;
+      } else {
+        if (PING_ATTEMPTSIP3 >= 1) PING_ATTEMPTSIP3 = PING_ATTEMPTSIP3 - 1;
+        if (PING_DEBUG_MODE == 1) Serial.print("OFFLINE - remaining attempts = ");
+        if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP3);
+      }
+      if (PING_ATTEMPTSIP3 == 0) {
+        PingStatusIP3 = false;
+      }
+    } else {
+      PingStatusIP3 = false;
+    }
+
+    // PING status check:
+    if (PingStatusIP1 == true || PingStatusIP2 == true || PingStatusIP3 == true) {
+      pixels.setBrightness(intensity);
+      if (RESTmanLEDsON == true) LEDsON = true;
+    }
+    if (PingStatusIP1 == false && PingStatusIP2 == false && PingStatusIP3 == false) {
+      if (PING_DEBUG_MODE == 1) Serial.println("All clients offline --> LEDs = OFF until one of the IP-addresses can be reached again...");
+      pixels.setBrightness(0);
+      pixels.show();
+      if (RESTmanLEDsON == true) LEDsON = false;
     }
   }
 }
