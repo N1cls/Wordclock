@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<h3><b>Current version: 4.7         </b></h3>
+<h3><b>Current version: 4.7          </b></h3>
 
 <hr>
 
