@@ -88,7 +88,9 @@ Time here is 07:43 or 19:43 o'clock
 <img src="./Images/IMG_1648.PNG">
 
 - Add the following code to the accessory after changing the value "WordClockIP" to your WordClock IP-address as well as the "name" value:
-########################################################
+
+<pre><code>
+
 {
     "accessory": "HTTP-SWITCH",
     "name": "WordClock 2",
@@ -106,7 +108,8 @@ Time here is 07:43 or 19:43 o'clock
         "method": "GET"
     }
 }
-########################################################
+
+</code></pre>
 
 - Save the changes and use the HomeBridge UI control to restart HomeBridge.
 
