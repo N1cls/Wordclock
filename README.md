@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<b>Current version: 4.7         </b>
+<h3><b>Current version: 4.7         </b></h3>
 
 <hr>
 
@@ -15,7 +15,7 @@ Time here is 07:43 or 19:43 o'clock
 
 <hr>
 
-<b>Required Hardware:</b>
+<h3><b>Required Hardware:</b></h3>
 - Node MCU V3 - ESP8266 board
 - RTC (DS3231) board 
 - 114 LEDs of an WS2812B led stripe 
@@ -23,7 +23,7 @@ Time here is 07:43 or 19:43 o'clock
 
 <hr>
 
-<b>Available functions:</b>
+<h3><b>Available functions:</b></h3>
 - Note: Check the settings.h file for the latest functions
 - WiFi Manager integration to avoid setting your WiFi credentials manually in the code
 - The from your WiFi router received IP-address can be shown as a scrolling text to inform you about the current value
@@ -48,7 +48,7 @@ Time here is 07:43 or 19:43 o'clock
 
 <hr>
 
-<b>Version history:</b>
+<h3><b>Version history:</b></h3>
 - 1.0 to 3.4: 	Initial releases shared on thingiverse
 - 3.5 to 3.9.3:	Minor function changes and code cleanup
 - 4.0: 		Added an option to periodically ping a IP-address of f.e. your smart phone. 
@@ -56,17 +56,17 @@ Time here is 07:43 or 19:43 o'clock
 		This will allow to reduce power consumption of the WordClock when you are away.
 		The ping request is done 2x every minute. So if the IP-address can be reached
 		again, the LEDs will turn on after a few seconds
-- 4.1: Minor text changes
-- 4.2: Integrated 2 REST urls to manually turn the LEDs on or off from an external control like f.e. your smart home controller
-- 4.3: Minor text changes. Added 2 more REST urls for an experimental twinkle mode LED test
-- 4.4: Changed the startup LED test function to reduce power consumption to fit 5V/3A power supplies, changed the maximum setting for the brightness sliders to 128 from 255. A note for the power supply check was added. The RESET and WiFI RESET function were recreated to remove an error
-- 4.5: Added an option to apply the power supply message and to raise the maximum LED intensity again to 255. Code cleanup. Changed the HTML page settings to show german umlauts (äöüß) now correctly.
-- 4.6: Enhanced the PING option for now up to 3 IP-addresses that can be monitored. Code cleanup. Added another url to be able to querry the status of the LEDs.
-- 4.7: Code cleanup. Added a small How-To to add the WordClock REST urls to HomeBridge to be able to control the WordClock from HomeKit and via Siri.
+- 4.1: 		Minor text changes
+- 4.2: 		Integrated 2 REST urls to manually turn the LEDs on or off from an external control like f.e. your smart home controller
+- 4.3: 		Minor text changes. Added 2 more REST urls for an experimental twinkle mode LED test
+- 4.4: 		Changed the startup LED test function to reduce power consumption to fit 5V/3A power supplies, changed the maximum setting for the brightness sliders to 128 from 255. A note for the power supply check was added. The RESET and WiFI RESET function were recreated to remove an error
+- 4.5: 		Added an option to apply the power supply message and to raise the maximum LED intensity again to 255. Code cleanup. Changed the HTML page settings to show german umlauts (äöüß) now correctly.
+- 4.6: 		Enhanced the PING option for now up to 3 IP-addresses that can be monitored. Code cleanup. Added another url to be able to querry the status of the LEDs.
+- 4.7: 		Code cleanup. Added a small How-To to add the WordClock REST urls to HomeBridge to be able to control the WordClock from HomeKit and via Siri.
 
 <hr>
 
-<b>How-To's:</b>
+<h3><b>How-To's:</b></h3>
 
 <hr>
 
@@ -90,7 +90,6 @@ Time here is 07:43 or 19:43 o'clock
 - Add the following code to the accessory after changing the value "WordClockIP" to your WordClock IP-address as well as the "name" value:
 
 <pre><code>
-
 {
     "accessory": "HTTP-SWITCH",
     "name": "WordClock 2",
@@ -117,5 +116,3 @@ Time here is 07:43 or 19:43 o'clock
 <img src="./Images/IMG_1649.PNG">
 
 <hr>
-
-
