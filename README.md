@@ -6,11 +6,11 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<b>Current version: 4.6         </b>
+<b>Current version: 4.7         </b>
 
 <hr>
 
-<img src="WordClock.jpeg">
+<img src="./Images/WordClock.jpeg">
 Time here is 07:43 or 19:43 o'clock
 
 <hr>
@@ -44,7 +44,7 @@ Time here is 07:43 or 19:43 o'clock
 - You can configure the hostname of the device that will be tried to tranfer to your routers DNS configuration to reach the web portal via DNS name too
 - A restart request can be forced with the web portal as well
 - The timezone and NTP-Server configuration can be configured as well to fit to your demands
-- Optional you can set a IP-address (of f.e. your smart phone) connected on your network to be monitored via PING request 2x per minute. After a set amount of failed PING attempts the LEDs will turn off to reduce power consumption when you are not at home
+- Optional you can set up to 3 IP-addresses (of f.e. your smart phones) connected on your network to be monitored via PING requests 2x per minute. After a set amount of failed PING attempts the WordClock LEDs will turn off to reduce power consumption when you are not at home
 
 <hr>
 
@@ -62,3 +62,57 @@ Time here is 07:43 or 19:43 o'clock
 - 4.4: Changed the startup LED test function to reduce power consumption to fit 5V/3A power supplies, changed the maximum setting for the brightness sliders to 128 from 255. A note for the power supply check was added. The RESET and WiFI RESET function were recreated to remove an error
 - 4.5: Added an option to apply the power supply message and to raise the maximum LED intensity again to 255. Code cleanup. Changed the HTML page settings to show german umlauts (äöüß) now correctly.
 - 4.6: Enhanced the PING option for now up to 3 IP-addresses that can be monitored. Code cleanup. Added another url to be able to querry the status of the LEDs.
+- 4.7: Code cleanup. Added a small How-To to add the WordClock REST urls to HomeBridge to be able to control the WordClock from HomeKit and via Siri.
+
+<hr>
+
+<b>How-To's:</b>
+
+<hr>
+
+<b>Add WordClock to Homebridge and control it with HomeKit and via Siri in your smart home:</b>
+
+<b>Note:</b>
+- The here meantioned REST url functions will work similar f.e. in HomeAssistant or other solutions too.
+
+<b>Preconditions:</b>
+- Your smart home alreday runs "HomeBridge" (https://homebridge.io) and the here shown "Homebridge UI" plugin (https://github.com/oznu/homebridge-config-ui-x) to add the configuration via web interface.
+
+<b>Setup:</b>
+- In HomeBridge add the following plugin "Homebridge Http Switch" (https://github.com/Supereg/homebridge-http-switch) 
+
+- After the installation the "Homebridge Http Switch" plugin will be shown:
+<img src="./Images/IMG_1647.PNG">
+
+- Configure its "Settings" and add the WordClock as a new "Accessory": 
+<img src="./Images/IMG_1648.PNG">
+
+- Add the following code to the accessory after changing the value "WordClockIP" to your WordClock IP-address as well as the "name" value:
+########################################################
+{
+    "accessory": "HTTP-SWITCH",
+    "name": "WordClock 2",
+    "switchType": "stateful",
+    "onUrl": {
+        "url": "http://WordClockIP:55555/ledson",
+        "method": "GET"
+    },
+    "offUrl": {
+        "url": "http://WordClockIP:55555/ledsoff",
+        "method": "GET"
+    },
+    "statusUrl": {
+        "url": "http://WordClockIP:55555/ledstatus",
+        "method": "GET"
+    }
+}
+########################################################
+
+- Save the changes and use the HomeBridge UI control to restart HomeBridge.
+
+- After the HomeBridge restart your WordClock can be controlled to turn the LEDs OFF and ON in HomeBridge, HomeKit, automation scenarios and via Siri:
+<img src="./Images/IMG_1649.PNG">
+
+<hr>
+
+

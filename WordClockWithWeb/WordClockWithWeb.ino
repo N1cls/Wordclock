@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.6";
+const char* WORD_CLOCK_VERSION = "V4.7";
 
 
 // ###########################################################################################################################################
@@ -58,6 +58,7 @@ String ntpServer = DEFAULT_NTP_SERVER;                                          
 String UpdatePath = "-";                                                                      // Update via Hostname
 String UpdatePathIP = "-";                                                                    // Update via IP-address
 ESP8266HTTPUpdateServer httpUpdater;                                                          // Update server
+std::unique_ptr<ESP8266WebServer> server1;                                                    // REST function web server
 int PING_ATTEMPTSIP1 = PING_TIMEOUTNUM;                                                       // 1st IP-addres attempts of missed PING requests
 int PING_ATTEMPTSIP2 = PING_TIMEOUTNUM;                                                       // 2nd IP-addres attempts of missed PING requests
 int PING_ATTEMPTSIP3 = PING_TIMEOUTNUM;                                                       // 3rd IP-addres attempts of missed PING requests
@@ -65,17 +66,8 @@ bool PingStatusIP1 = true;                                                      
 bool PingStatusIP2 = true;                                                                    // Status flag 2nd IP-address - PING function
 bool PingStatusIP3 = true;                                                                    // Status flag 3rd IP-address - PING function
 bool LEDsON = true;                                                                           // Global flag to turn LEDs on or off - Used for the PING function
-std::unique_ptr<ESP8266WebServer> server1;                                                    // REST function web server
 bool RESTmanLEDsON = true;                                                                    // Global flag to turn LEDs manually on or off - Used for the REST function
-
-
-// Twinkle LED test:
-float redStates[NUMPIXELS];
-float blueStates[NUMPIXELS];
-float greenStates[NUMPIXELS];
-float Fade = 0.96;
-unsigned int sample;
-bool TwinkleON = false;
+bool TwinkleON = false;                                                                       // Twinkle mode LED test
 
 
 // ###########################################################################################################################################
@@ -150,28 +142,21 @@ void setup() {
   pixels.begin();  // Init the NeoPixel library
 
   readEEPROM(); // get persistent data from EEPROM
-
   DisplayTest(); // Perform the LED test
-
   SetWLAN(); // Show SET WLAN text
+  dunkel(); // Switch display black
 
   // WiFiManager:
-  bool res;
+  bool WiFires;
   WiFiManager wifiManager;
-  dunkel(); // Switch display black
   configNTPTime(); // Set timezone
   wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
-  Serial.println("Before autoConnect...");
-  res = wifiManager.autoConnect(DEFAULT_AP_NAME);
-  if (!res) {
+  WiFires = wifiManager.autoConnect(DEFAULT_AP_NAME);
+  if (!WiFires) {
     Serial.println("Failed to connect to WiFi");
-  }
-  else {
+  } else {
     Serial.println("Connected to WiFi.");
-    if (useshowip)
-    {
-      showIP();
-    }
+    if (useshowip) showIP();
   }
 
   // Web update function setup:
@@ -259,9 +244,7 @@ void loop() {
           DayNightMode(displayonminSA, displayonmaxSA);
           break;
       }
-    }
-    else
-    {
+    } else {
       pixels.setBrightness(intensity); // DAY brightness
       ShowTheTime();
     }
@@ -371,7 +354,6 @@ void readEEPROM() {
     PING_TIMEOUTNUM = parameter.pPING_TIMEOUTNUM;
     PING_DEBUG_MODE = parameter.pPING_DEBUG_MODE;
     PING_USEMONITOR = parameter.pPING_USEMONITOR;
-
     String ntp(parameter.pNTPServer);
     ntpServer = ntp;
     String tz(parameter.pTimeZone);
@@ -601,213 +583,66 @@ void checkClient() {
 
             // Monday:
             // #######
-            client.println("<label for=\"displayonmaxMO\">Montag - Display aus ab: </label>");
-            client.println("<select id=\"displayonmaxMO\" name=\"displayonmaxMO\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("<label for=\"displayonmaxMO\">Montag - Display aus ab: </label><select id=\"displayonmaxMO\" name=\"displayonmaxMO\" ><option selected=\"selected\">");
             client.println(displayonmaxMO);
-            client.println("</option>");
-            client.println("<option>15</option>");
-            client.println("<option>16</option>");
-            client.println("<option>17</option>");
-            client.println("<option>18</option>");
-            client.println("<option>19</option>");
-            client.println("<option>20</option>");
-            client.println("<option>21</option>");
-            client.println("<option>22</option>");
-            client.println("<option>23</option>");
-            client.println("</select>:00 bis ");
-            client.println("<label for=\"displayonminMO\"></label>");
-            client.println("<select id=\"displayonminMO\" name=\"displayonminMO\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
+            client.println("</select>:00 bis <select id=\"displayonminMO\" name=\"displayonminMO\" ><option selected=\"selected\">");
             client.println(displayonminMO);
-            client.println("</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select>:59 Uhr <br>");
-            client.print("<br>");
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br>");
 
             // Tuesday:
             // ########
-            client.println("<label for=\"displayonmaxTU\">Dienstag - Display aus ab: </label>");
-            client.println("<select id=\"displayonmaxTU\" name=\"displayonmaxTU\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("<label for=\"displayonmaxTU\">Dienstag - Display aus ab: </label><select id=\"displayonmaxTU\" name=\"displayonmaxTU\" ><option selected=\"selected\">");
             client.println(displayonmaxTU);
-            client.println("</option>");
-            client.println("<option>15</option>");
-            client.println("<option>16</option>");
-            client.println("<option>17</option>");
-            client.println("<option>18</option>");
-            client.println("<option>19</option>");
-            client.println("<option>20</option>");
-            client.println("<option>21</option>");
-            client.println("<option>22</option>");
-            client.println("<option>23</option>");
-            client.println("</select>:00 bis ");
-            client.println("<label for=\"displayonminTU\"></label>");
-            client.println("<select id=\"displayonminTU\" name=\"displayonminTU\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
+            client.println("</select>:00 bis <select id=\"displayonminTU\" name=\"displayonminTU\" ><option selected=\"selected\">");
             client.println(displayonminTU);
-            client.println("</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select>:59 Uhr <br>");
-            client.print("<br>");
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br>");;
 
             // Wednesday:
             // ##########
-            client.println("<label for=\"displayonmaxWE\">Mittwoch - Display aus ab: </label>");
-            client.println("<select id=\"displayonmaxWE\" name=\"displayonmaxWE\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("<label for=\"displayonmaxWE\">Mittwoch - Display aus ab: </label><select id=\"displayonmaxWE\" name=\"displayonmaxWE\" ><option selected=\"selected\">");
             client.println(displayonmaxWE);
-            client.println("</option>");
-            client.println("<option>15</option>");
-            client.println("<option>16</option>");
-            client.println("<option>17</option>");
-            client.println("<option>18</option>");
-            client.println("<option>19</option>");
-            client.println("<option>20</option>");
-            client.println("<option>21</option>");
-            client.println("<option>22</option>");
-            client.println("<option>23</option>");
-            client.println("</select>:00 bis ");
-            client.println("<label for=\"displayonminWE\"></label>");
-            client.println("<select id=\"displayonminWE\" name=\"displayonminWE\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
+            client.println("</select>:00 bis <select id=\"displayonminWE\" name=\"displayonminWE\" ><option selected=\"selected\">");
             client.println(displayonminWE);
-            client.println("</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select>:59 Uhr <br>");
-            client.print("<br>");
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br>");
 
             // Thursday:
             // #########
-            client.println("<label for=\"displayonmaxTH\">Donnerstag - Display aus ab: </label>");
-            client.println("<select id=\"displayonmaxTH\" name=\"displayonmaxTH\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("<label for=\"displayonmaxTH\">Donnerstag - Display aus ab: </label><select id=\"displayonmaxTH\" name=\"displayonmaxTH\" ><option selected=\"selected\">");
             client.println(displayonmaxTH);
-            client.println("</option>");
-            client.println("<option>15</option>");
-            client.println("<option>16</option>");
-            client.println("<option>17</option>");
-            client.println("<option>18</option>");
-            client.println("<option>19</option>");
-            client.println("<option>20</option>");
-            client.println("<option>21</option>");
-            client.println("<option>22</option>");
-            client.println("<option>23</option>");
-            client.println("</select>:00 bis ");
-            client.println("<label for=\"displayonminTH\"></label>");
-            client.println("<select id=\"displayonminTH\" name=\"displayonminTH\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
+            client.println("</select>:00 bis <select id=\"displayonminTH\" name=\"displayonminTH\" ><option selected=\"selected\">");
             client.println(displayonminTH);
-            client.println("</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select>:59 Uhr <br>");
-            client.print("<br>");
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br>");
 
             // Friday:
             // #######
-            client.println("<label for=\"displayonmaxFR\">Freitag - Display aus ab: </label>");
-            client.println("<select id=\"displayonmaxFR\" name=\"displayonmaxFR\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("<label for=\"displayonmaxFR\">Freitag - Display aus ab: </label><select id=\"displayonmaxFR\" name=\"displayonmaxFR\" ><option selected=\"selected\">");
             client.println(displayonmaxFR);
-            client.println("</option>");
-            client.println("<option>15</option>");
-            client.println("<option>16</option>");
-            client.println("<option>17</option>");
-            client.println("<option>18</option>");
-            client.println("<option>19</option>");
-            client.println("<option>20</option>");
-            client.println("<option>21</option>");
-            client.println("<option>22</option>");
-            client.println("<option>23</option>");
-            client.println("</select>:00 bis ");
-            client.println("<label for=\"displayonminFR\"></label>");
-            client.println("<select id=\"displayonminFR\" name=\"displayonminFR\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
+            client.println("</select>:00 bis <select id=\"displayonminFR\" name=\"displayonminFR\" ><option selected=\"selected\">");
             client.println(displayonminFR);
-            client.println("</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select>:59 Uhr <br>");
-            client.print("<br>");
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br>");
 
             // Saturday:
             // #########
-            client.println("<label for=\"displayonmaxSA\">Samstag - Display aus ab: </label>");
-            client.println("<select id=\"displayonmaxSA\" name=\"displayonmaxSA\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("<label for=\"displayonmaxSA\">Samstag - Display aus ab: </label><select id=\"displayonmaxSA\" name=\"displayonmaxSA\" ><option selected=\"selected\">");
             client.println(displayonmaxSA);
-            client.println("</option>");
-            client.println("<option>15</option>");
-            client.println("<option>16</option>");
-            client.println("<option>17</option>");
-            client.println("<option>18</option>");
-            client.println("<option>19</option>");
-            client.println("<option>20</option>");
-            client.println("<option>21</option>");
-            client.println("<option>22</option>");
-            client.println("<option>23</option>");
-            client.println("</select>:00 bis ");
-            client.println("<label for=\"displayonminSA\"></label>");
-            client.println("<select id=\"displayonminSA\" name=\"displayonminSA\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
+            client.println("</select>:00 bis <select id=\"displayonminSA\" name=\"displayonminSA\" ><option selected=\"selected\">");
             client.println(displayonminSA);
-            client.println("</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select>:59 Uhr <br>");
-            client.print("<br>");
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br>");
 
             // Sunday:
             // #######
-            client.println("<label for=\"displayonmaxSU\">Sonntag - Display aus ab: </label>");
-            client.println("<select id=\"displayonmaxSU\" name=\"displayonmaxSU\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("<label for=\"displayonmaxSU\">Sonntag - Display aus ab: </label><select id=\"displayonmaxSU\" name=\"displayonmaxSU\" ><option selected=\"selected\">");
             client.println(displayonmaxSU);
-            client.println("</option>");
-            client.println("<option>15</option>");
-            client.println("<option>16</option>");
-            client.println("<option>17</option>");
-            client.println("<option>18</option>");
-            client.println("<option>19</option>");
-            client.println("<option>20</option>");
-            client.println("<option>21</option>");
-            client.println("<option>22</option>");
-            client.println("<option>23</option>");
-            client.println("</select>:00 bis ");
-            client.println("<label for=\"displayonminSU\"></label>");
-            client.println("<select id=\"displayonminSU\" name=\"displayonminSU\" >");
-            client.println("<option selected=\"selected\">");
+            client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
+            client.println("</select>:00 bis <select id=\"displayonminSU\" name=\"displayonminSU\" ><option selected=\"selected\">");
             client.println(displayonminSU);
-            client.println("</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select>:59 Uhr <br>");
-            client.print("<br><hr>");
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br><hr>");
 
 
             // Update function:
@@ -819,23 +654,12 @@ void checkClient() {
               client.print(" checked");
               client.print("><br><br>");
               client.println("<label>Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden:</label><br><br>");
-              client.print("<a href=");
-              client.print(UpdatePath);
-              client.print(" target='_blank'>");
-              client.print(UpdatePath);
-              client.println("</a><br><br>");
-              client.print("<a href=");
-              client.print(UpdatePathIP);
-              client.print(" target='_blank'>");
-              client.print(UpdatePathIP);
-              client.println("</a><br><br>");
-              client.println("<label>Hinweis: Es wird eine in der Arduino IDE mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benötigt,<br>die über die Option 'Update Firmware' hochgeladen werden kann.</label>");
+              client.println("<a href=" + UpdatePath + " target='_blank'>" + UpdatePath + "</a><br><br>");
+              client.println("<a href=" + UpdatePathIP + " target='_blank'>" + UpdatePathIP + "</a><br><br>");
+              client.println("<label>Hinweis: Es wird eine in der Arduino IDE mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benötigt,<br>die über die Option 'Update Firmware' hochgeladen werden kann.</label><br><hr>");
+            } else {
+              client.println("><br><br><label>Die Update Funktion ist aktuell deaktiviert.</label><br><hr>");
             }
-            else
-            {
-              client.println("><br><br><label>Die Update Funktion ist aktuell deaktiviert.</label>");
-            }
-            client.print("<br><hr>");
 
 
             // LED display and startup:
@@ -846,9 +670,7 @@ void checkClient() {
             if (useledtest) {
               client.print(" checked");
               client.print("><br><br>");
-            }
-            else
-            {
+            } else {
               client.print("><br><br>");
             }
 
@@ -857,9 +679,7 @@ void checkClient() {
             if (usesetwlan) {
               client.print(" checked");
               client.print("><br><br>");
-            }
-            else
-            {
+            } else {
               client.print("><br><br>");
             }
 
@@ -868,9 +688,7 @@ void checkClient() {
             if (useshowip) {
               client.print(" checked");
               client.print("><br><br>");
-            }
-            else
-            {
+            } else {
               client.print("><br><br>");
             }
 
@@ -879,9 +697,7 @@ void checkClient() {
             if (switchRainBow) {
               client.print(" checked");
               client.print(">");
-            }
-            else
-            {
+            } else {
               client.print(">");
             }
             client.println("<br><br>Wenn diese Option gesetzt wird, wechselt die Farbe der Uhr im Zufallsmodus zu jeder neuen Minute.<br>");
@@ -892,9 +708,7 @@ void checkClient() {
             if (switchLEDOrder) {
               client.print(" checked");
               client.print(">");
-            }
-            else
-            {
+            } else {
               client.print(">");
             }
             client.println("<br><br>Wenn diese Option gesetzt wird, werden die Minuten-LEDs in den 4 Ecken<br>");
@@ -909,9 +723,7 @@ void checkClient() {
             if (PING_USEMONITOR) {
               client.print(" checked");
               client.print("><br><br>");
-            }
-            else
-            {
+            } else {
               client.print("><br><br>");
             }
             client.println("<label>Bitte hier die zu überwachenden IP-Adressen eintragen:</label><br><br>");
@@ -928,7 +740,6 @@ void checkClient() {
             client.print("<input type=\"text\" id=\"PING_IP_ADDR1_O4\" name=\"PING_IP_ADDR1_O4\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR1_O4);
             client.println("\"><br>");
-
             client.println("<label for=\"PING_IP_ADDR2_O1\">2. IP-Adresse:</label>");
             client.print("<input type=\"text\" id=\"PING_IP_ADDR2_O1\" name=\"PING_IP_ADDR2_O1\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR2_O1);
@@ -942,7 +753,6 @@ void checkClient() {
             client.print("<input type=\"text\" id=\"PING_IP_ADDR2_O4\" name=\"PING_IP_ADDR2_O4\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR2_O4);
             client.println("\"><br>");
-
             client.println("<label for=\"PING_IP_ADDR3_O1\">3. IP-Adresse:</label>");
             client.print("<input type=\"text\" id=\"PING_IP_ADDR3_O1\" name=\"PING_IP_ADDR3_O1\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR3_O1);
@@ -956,23 +766,18 @@ void checkClient() {
             client.print("<input type=\"text\" id=\"PING_IP_ADDR3_O4\" name=\"PING_IP_ADDR3_O4\" size=\"3\" value=\"");
             client.print(PING_IP_ADDR3_O4);
             client.println("\"><br>");
-
             client.println("<br><label>Hinweis: Eine IP-Addresse mit dem Wert 0.0.0.0 wird in der Abfrage übersprungen.</label><br>");
-
             client.println("<br><label for=\"PING_TIMEOUTNUM\">Anzahl PING Versuche bis die LEDs abgeschaltet werden:</label>");
             client.print("<input type=\"text\" id=\"PING_TIMEOUTNUM\" name=\"PING_TIMEOUTNUM\" size=\"3\" value=\"");
             client.print(PING_TIMEOUTNUM);
             client.println("\">");
             client.println("<br><label>Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen.</label><br><br>");
-
             client.println("<label for=\"PING_DEBUG_MODE\">DEBUG PING Monitor Funktion verwenden?</label>");
             client.print("<input type=\"checkbox\" id=\"PING_DEBUG_MODE\" name=\"PING_DEBUG_MODE\"");
             if (PING_DEBUG_MODE) {
               client.print(" checked");
               client.print("><br>");
-            }
-            else
-            {
+            } else {
               client.print("><br>");
             }
             client.print("<br><hr>");
@@ -985,18 +790,7 @@ void checkClient() {
             client.println("<select id=\"wchostnamenum\" name=\"wchostnamenum\" >");
             client.println("<option selected=\"selected\">");
             client.println(wchostnamenum);
-            client.println("</option>");
-            client.println("<option>0</option>");
-            client.println("<option>1</option>");
-            client.println("<option>2</option>");
-            client.println("<option>3</option>");
-            client.println("<option>4</option>");
-            client.println("<option>5</option>");
-            client.println("<option>6</option>");
-            client.println("<option>7</option>");
-            client.println("<option>8</option>");
-            client.println("<option>9</option>");
-            client.println("</select><br><br><hr>");
+            client.println("</option><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select><br><br><hr>");
 
 
             // REST functions:
@@ -1011,41 +805,17 @@ void checkClient() {
               client.println("<label>Über einen der folgenden Links kann die WordClock manuell über den Browser ab und an geschaltet werden:</label>");
               client.println("<br>");
               client.println("<label>LEDs ausschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff");
-              client.println("</a><br>");
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff</a><br>");
               client.println("<label>LEDs einschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson");
-              client.println("</a><br>");
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson</a><br>");
               client.println("<label>LED Status: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus");
-              client.println("</a><br>");
-
-
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus</a><br>");
               client.println("<br><label><b>Weitere Funktionen (experimentell):</b></label><br>");
               client.println("<label>LED Test einschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon");
-              client.println("</a><br>");
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon</a><br>");
               client.println("<label>LED Test ausschalten: </label>");
-              client.print("<a href=");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
-              client.print(" target='_blank'>");
-              client.print("http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff");
-              client.println("</a><br>");
-            }
-            else
-            {
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff</a><br>");
+            } else {
               client.println("><br><br><label>Die REST Funktion ist aktuell deaktiviert.</label><br>");
             }
             client.print("<hr>");
@@ -1058,9 +828,7 @@ void checkClient() {
               client.println("<label>WLAN Einstellungen zurücksetzen und Uhr neu starten?</label><br>");
               client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockwifireset target='_blank'>WLAN Einstellungen zurücksetzen</a><br>");
               client.println("<br>! Wenn diese Option verwendet wird, werden die WLAN Einstellungen einmalig gelöscht !<br><br><hr>");
-            }
-            else
-            {
+            } else {
               client.println("<label>Die REST Funktion ist aktuell deaktiviert.</label><br><hr>");
             }
 
@@ -1072,9 +840,7 @@ void checkClient() {
               client.println("<label>WordClock neu starten?</label><br>");
               client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockrestart target='_blank'>WordClock neu starten</a><br>");
               client.println("<br>! Wenn diese Option verwendet wird, wird die Uhr einmalig neu gestartet !<br><br><hr>");
-            }
-            else
-            {
+            } else {
               client.println("<label>Die REST Funktion ist aktuell deaktiviert.</label><br><hr>");
             }
 
@@ -1085,8 +851,7 @@ void checkClient() {
             client.println("<label for=\"ntpserver\"></label>");
             client.print("<input type=\"text\" id=\"ntpserver\" name=\"ntpserver\" size=\"45\" value=\"");
             client.print(ntpServer);
-            client.println("\"><br>");
-            client.println("<br><label for=\"timezone\"></label>");
+            client.println("\"><br><br>");
             client.print("<input type=\"text\" id=\"timezone\" name=\"timezone\" size=\"45\" value=\"");
             client.print(timeZone);
             client.println("\"><br><br>");
@@ -1094,11 +859,9 @@ void checkClient() {
             client.print(DEFAULT_NTP_SERVER);
             client.println("<br><br>");
             client.print(DEFAULT_TIMEZONE);
-            client.println("<br><br>");
-            client.print("<br><a href=\"");
+            client.print("<br><br><br><a href=\"");
             client.println(TZ_WEB_SITE);
-            client.println("\" target=\"_blank\">Erkl&auml;rung zur Einstellung der Zeitzone</a><br>");
-            client.print("<br><hr><br>");
+            client.println("\" target=\"_blank\">Erkl&auml;rung zur Einstellung der Zeitzone</a><br><br><hr><br>");
 
 
             // Save settings button:
@@ -1325,8 +1088,6 @@ void checkClient() {
                 pos = hostStr.indexOf("&");
                 if (pos > 0)
                   hostStr = hostStr.substring(0, pos);
-                // Serial.print("WordClock HostName set to " + wchostname);
-                // Serial.println(hostStr);
                 wchostnamenum = hostStr.toInt();
               }
 
@@ -1622,8 +1383,6 @@ void checkClient() {
                 pos = ntpStr.indexOf("&");                            // "&" !!!
                 if (pos > 0)
                   ntpStr = ntpStr.substring(0, pos);
-                // Serial.print("NTP Server set to ");
-                // Serial.println(ntpStr);
                 ntpServer = ntpStr;
               }
 
@@ -1639,8 +1398,6 @@ void checkClient() {
                   tz = tz.substring(0, pos);
                 }
                 timeZone = urldecode(tz);
-                // Serial.print("Timezone set to ");
-                // Serial.println(timeZone);
               }
 
 
@@ -2318,6 +2075,12 @@ void LedStatus() {
 // ###########################################################################################################################################
 // # Twinkle LED test function:
 // ###########################################################################################################################################
+float redStates[NUMPIXELS];
+float blueStates[NUMPIXELS];
+float greenStates[NUMPIXELS];
+float Fade = 0.96;
+unsigned int sample;
+
 void TwinkleModeOn() {
   WiFiClient client = server.available();
   server1->send(200, "text/plain", "Twinkle LEDs set to ON");
