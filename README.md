@@ -16,10 +16,13 @@ Time here is 07:43 or 19:43 o'clock
 <hr>
 
 <h3><b>Required Hardware:</b></h3>
+
 - Node MCU V3 - ESP8266 board
 - RTC (DS3231) board 
 - 114 LEDs of an WS2812B led stripe 
 - Powersupply 5V / >=3A
+
+
 
 <hr>
 
@@ -55,6 +58,7 @@ Time here is 07:43 or 19:43 o'clock
 <hr>
 
 <h3><b>Version history:</b></h3>
+
 - 1.0 to 3.4: 	Initial releases shared on thingiverse
 - 3.5 to 3.9.3:	Minor function changes and code cleanup
 - 4.0: 		Added an option to periodically ping a IP-address of f.e. your smart phone. 
