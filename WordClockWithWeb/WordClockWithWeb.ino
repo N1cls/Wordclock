@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.7";
+const char* WORD_CLOCK_VERSION = "V4.8";
 
 
 // ###########################################################################################################################################
@@ -147,17 +147,10 @@ void setup() {
   dunkel(); // Switch display black
 
   // WiFiManager:
-  bool WiFires;
-  WiFiManager wifiManager;
-  configNTPTime(); // Set timezone
-  wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
-  WiFires = wifiManager.autoConnect(DEFAULT_AP_NAME);
-  if (!WiFires) {
-    Serial.println("Failed to connect to WiFi");
-  } else {
-    Serial.println("Connected to WiFi.");
-    if (useshowip) showIP();
-  }
+  WIFI_login();
+
+  // Show IP-address on display:
+  if (useshowip) showIP();
 
   // Web update function setup:
   if (useupdate) {
@@ -197,74 +190,81 @@ void setup() {
 // # Loop function which runs all the time after the startup was done:
 // ###########################################################################################################################################
 void loop() {
-  // Check, whether something has been entered on Config Page
-  checkClient();
   ESP.wdtFeed();  // Reset watchdog timer
-
-  if (TwinkleON == true) {
-    Twinkle();
-  } else {
-    handleTime(); // handle NTP / RTC time
-    delay(750);
-
-    if (switchRainBow) { // RainBow effect active - color change every new minute
-      if (iSecond == 0) {
-        redVal = random(255);
-        greenVal = random(255);
-        blueVal = random(255);
-      }
-    } else {
-      redVal    =  parameter.pRed;
-      greenVal  =  parameter.pGreen;
-      blueVal   =  parameter.pBlue;
-    }
-
-    // Show the display only during the set Min/Max time if option is set
-    if (displayoff) {
-      switch (iWeekDay) {
-        case 0:     // Sunday
-          DayNightMode(displayonminSU, displayonmaxSU);
-          break;
-        case 1:     // Monday
-          DayNightMode(displayonminMO, displayonmaxMO);
-          break;
-        case 2:     // Tuesday
-          DayNightMode(displayonminTU, displayonmaxTU);
-          break;
-        case 3:     // Wednesday
-          DayNightMode(displayonminWE, displayonmaxWE);
-          break;
-        case 4:     // Thursday
-          DayNightMode(displayonminTH, displayonmaxTH);
-          break;
-        case 5:     // Friday
-          DayNightMode(displayonminFR, displayonmaxFR);
-          break;
-        case 6:     // Saturday
-          DayNightMode(displayonminSA, displayonmaxSA);
-          break;
-      }
-    } else {
-      pixels.setBrightness(intensity); // DAY brightness
-      ShowTheTime();
-    }
-
-    ESP.wdtFeed();  // Reset watchdog timer
-    delay(delayval);
+  
+  // Check WiFi connection and reconnect if needed:
+  if (WiFi.status() != WL_CONNECTED) {
+    WIFI_login(); // WiFi inactive --> Reconnect to it...
+  } else {        // Wifi active --> Sort some atoms in the univers and show the time...
+    // Check, whether something has been entered on Config Page
+    checkClient();
     ESP.wdtFeed();  // Reset watchdog timer
 
-    // Web update start:
-    httpServer.handleClient();
-    MDNS.update();
+    if (TwinkleON == true) {
+      Twinkle();
+    } else {
+      handleTime(); // handle NTP / RTC time
+      delay(750);
 
-    // PING function:
-    if (PING_USEMONITOR == 1) PingIP();
+      if (switchRainBow) { // RainBow effect active - color change every new minute
+        if (iSecond == 0) {
+          redVal = random(255);
+          greenVal = random(255);
+          blueVal = random(255);
+        }
+      } else {
+        redVal    =  parameter.pRed;
+        greenVal  =  parameter.pGreen;
+        blueVal   =  parameter.pBlue;
+      }
 
-    if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+      // Show the display only during the set Min/Max time if option is set
+      if (displayoff) {
+        switch (iWeekDay) {
+          case 0:     // Sunday
+            DayNightMode(displayonminSU, displayonmaxSU);
+            break;
+          case 1:     // Monday
+            DayNightMode(displayonminMO, displayonmaxMO);
+            break;
+          case 2:     // Tuesday
+            DayNightMode(displayonminTU, displayonmaxTU);
+            break;
+          case 3:     // Wednesday
+            DayNightMode(displayonminWE, displayonmaxWE);
+            break;
+          case 4:     // Thursday
+            DayNightMode(displayonminTH, displayonmaxTH);
+            break;
+          case 5:     // Friday
+            DayNightMode(displayonminFR, displayonmaxFR);
+            break;
+          case 6:     // Saturday
+            DayNightMode(displayonminSA, displayonmaxSA);
+            break;
+        }
+      } else {
+        pixels.setBrightness(intensity); // DAY brightness
+        ShowTheTime();
+      }
+
+      ESP.wdtFeed();  // Reset watchdog timer
+      delay(delayval);
+      ESP.wdtFeed();  // Reset watchdog timer
+
+      // Web update start:
+      httpServer.handleClient();
+      MDNS.update();
+
+      // PING function:
+      if (PING_USEMONITOR == 1) PingIP();
+
+      if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+    }
+
+    // REST function web server:
+    if (useresturl) server1->handleClient();
   }
-
-  // REST function web server:
-  if (useresturl) server1->handleClient();
 }
 
 
@@ -502,7 +502,7 @@ void checkClient() {
 
             // Intensity Day:
             // ##############
-            client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
+        /*    client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
             if (powersupply == 0) {
               client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"128\" value=\"");
             } else {
@@ -511,12 +511,26 @@ void checkClient() {
             client.print(intensity);
             client.print("\"> <label>");
             client.print(intensity);
+            client.println("</label><br><br>");*/
+
+            client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
+            if (powersupply == 0) {
+              client.print("<input type='range' id='intensity' name='intensity' min='1' max='128' value=");
+            } else {
+              client.print("<input type='range' id='intensity' name='intensity' min='1' max='255' value=");
+            }
+            client.print(intensity);  //set the value of the slider based upon the previous page load value
+            client.println(" style='height:30px; width:200px' oninput='showValue(this.value)'>");    //was onchange event
+            client.print("<span id='valrange'>");
+            client.print(intensity);  //set the javascript initial value
+            client.println("</span>");
+            client.println("<script type='text/javascript'>\r\nfunction showValue(newValue)\r\n{\r\ndocument.getElementById('valrange').innerHTML=newValue;\r\n}\r\n</script>\r\n");
             client.println("</label><br><br>");
 
 
             // Intensity Night:
             // ################
-            client.print("<label for=\"intensityNight\">Helligkeit bei Nacht: </label>");
+           /* client.print("<label for=\"intensityNight\">Helligkeit bei Nacht: </label>");
             if (powersupply == 0) {
               client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"128\" value=\"");
             } else {
@@ -525,7 +539,22 @@ void checkClient() {
             client.print(intensityNight);
             client.print("\">  <label>");
             client.print(intensityNight);
+            client.println("</label><br><br>");*/
+
+            client.print("<label for=\"intensity\">Helligkeit bei Nacht: </label>");
+            if (powersupply == 0) {
+              client.print("<input type='range' id='intensityNight' name='intensityNight' min='1' max='128' value=");
+            } else {
+              client.print("<input type='range' id='intensityNight' name='intensityNight' min='1' max='255' value=");
+            }
+            client.print(intensityNight);  //set the value of the slider based upon the previous page load value
+            client.println(" style='height:30px; width:200px' oninput='showValueNight(this.value)'>");    //was onchange event
+            client.print("<span id='valrangeNight'>");
+            client.print(intensityNight);  //set the javascript initial value
+            client.println("</span>");
+            client.println("<script type='text/javascript'>\r\nfunction showValueNight(newValue)\r\n{\r\ndocument.getElementById('valrangeNight').innerHTML=newValue;\r\n}\r\n</script>\r\n");
             client.println("</label><br><br>");
+
             if (powersupply == 0) {
               client.print("<label><b>Wichtig:</b> Beide Werte begrenzt auf 128 von maximal 255. Achte darauf ein geeignetes Netzteil zu verwenden!<br>Je nach LED Anzahl, selektierter Farbe und Helligkeit wird mindestens ein 5V/3A Netzteil empfohlen!</label><br>");
               client.print("<br><label>Den Hinweis zum Netzteil akzeptiere und beachte ich. Ich möchte die Werte wieder auf maximal 255 einstellen können: </label>");
@@ -2394,6 +2423,44 @@ void PingIP() {
       if (RESTmanLEDsON == true) LEDsON = false;
     }
   }
+}
+
+
+// ###########################################################################################################################################
+// # Wifi Manager setup and reconnect function that runs once at startup and during the loop function of the ESP:
+// ###########################################################################################################################################
+void WIFI_login() {
+  bool WiFires;
+  bool DebugWifiLEDs = false;
+  WiFiManager wifiManager;
+  configNTPTime(); // Set timezone
+  wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
+  WiFires = wifiManager.autoConnect(DEFAULT_AP_NAME);
+  if (!WiFires) {
+    Serial.println("Failed to connect to WiFi");
+    if (DebugWifiLEDs) WIFI_DebugWifiLEDs(pixels.Color(255, 0, 0));
+  } else {
+    Serial.println("Connected to WiFi.");
+    if (DebugWifiLEDs) WIFI_DebugWifiLEDs(pixels.Color(0, 255, 0));
+  }
+}
+
+
+// ###########################################################################################################################################
+// # LED debug for Wifi Manager setup and reconnect function that runs once at startup and during the loop function of the ESP:
+// ###########################################################################################################################################
+void WIFI_DebugWifiLEDs(uint32_t color) {
+  for (uint16_t i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, (0, 0, 0));
+  }
+  pixels.show();
+  delay(1000);
+  int myArray [] = {110, 111, 112, 113};
+  for (int element : myArray) {
+    pixels.setPixelColor(element, color);
+  }
+  pixels.show();
+  delay(3000);
 }
 
 
