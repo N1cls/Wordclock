@@ -22,7 +22,6 @@ Time here is 07:43 or 19:43 o'clock
 - 114 LEDs of an WS2812B led stripe 
 - Powersupply 5V / >=3A
 
-
 <hr>
 
 <h3><b>Available functions:</b></h3>
@@ -51,6 +50,14 @@ Time here is 07:43 or 19:43 o'clock
 
 <hr>
 
+<h3>Web configuration interface:</h3>
+
+<img src="./Images/IMG_1791.jpg">
+<img src="./Images/IMG_1792.jpg">
+<img src="./Images/IMG_1793.jpg">
+
+<hr>
+
 <h3><b>Version history:</b></h3>
 
 - 1.0 to 3.4: 	Initial releases shared on thingiverse
@@ -67,7 +74,7 @@ Time here is 07:43 or 19:43 o'clock
 - 4.5: 		Added an option to apply the power supply message and to raise the maximum LED intensity again to 255. Code cleanup. Changed the HTML page settings to show german umlauts (äöüß) now correctly.
 - 4.6: 		Enhanced the PING option for now up to 3 IP-addresses that can be monitored. Code cleanup. Added another url to be able to querry the status of the LEDs.
 - 4.7: 		Code cleanup. Added a small How-To to add the WordClock REST urls to HomeBridge to be able to control the WordClock from HomeKit and via Siri.
-- 4.8:          Added a WiFi reconnect function in case the WiFi connection gets aborted during longer usage. Added a live update of the intensity value text fields next to the 2 sliders.
+- 4.8:          Added a WiFi reconnect function in case the WiFi connection gets aborted during longer usage. Added a live update of the intensity value text fields next to the 2 sliders. Smaller changes to some functions.
 
 <hr>
 

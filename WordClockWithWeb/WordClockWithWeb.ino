@@ -469,7 +469,7 @@ void checkClient() {
             // Display the HTML web page:
             // ##########################
             client.println("<!DOCTYPE html><html>");
-            client.println("<head><title>" + wchostname + wchostnamenum + " - " + WORD_CLOCK_VERSION + "</title><meta charset=\"utf-8\" name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            client.println("<head><title>" + wchostname + wchostnamenum + "</title><meta charset=\"utf-8\" name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
             client.println("<link rel=\"icon\" href=\"data:,\">");
             // CSS to style the on/off buttons
             // Feel free to change the background-color and font-size attributes to fit your preferences
@@ -2128,7 +2128,7 @@ void TwinkleModeOFF() {
 }
 
 void Twinkle() {
-  if (random(25) == 1) {
+  if (random(2) == 1) {
     uint16_t i = random(NUMPIXELS);
     if (redStates[i] < 1 && greenStates[i] < 1 && blueStates[i] < 1) {
       redStates[i] = random(256);
@@ -2221,7 +2221,7 @@ void SetWLAN() {
 void ClockRestart() {
   WiFiClient client = server.available();
   server1->send(200, "text/plain", "WORDCLOCK WILL RESTART IN 3 SECONDS...");
-  delay(5000);
+  delay(1000);
   client.stop();
   dunkel();
   Serial.println("Show RESET before board reset...");
@@ -2244,7 +2244,7 @@ void ClockRestart() {
 void ClockWifiReset() {
   WiFiClient client = server.available();
   server1->send(200, "text/plain", "WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE CONFIGURE WIFI AGAIN...");
-  delay(5000);
+  delay(1000);
   client.stop();
   dunkel();
   Serial.println("Show SET WLAN after WiFi reset...");
@@ -2262,9 +2262,9 @@ void ClockWifiReset() {
   delay(1500);
   wifiManager.resetSettings();
   delay(1500);
-  Serial.println("######################################################################################################");
-  Serial.println("# WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE CONFIGURE WIFI AGAIN...cc #");
-  Serial.println("######################################################################################################");
+  Serial.println("####################################################################################################");
+  Serial.println("# WIFI SETTING WERE SET TO DEFAULT... WORDCLOCK WILL NOW RESTART... PLEASE CONFIGURE WIFI AGAIN... #");
+  Serial.println("####################################################################################################");
   delay(3000);
   ESP.restart();
 }
