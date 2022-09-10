@@ -52,9 +52,9 @@ Time here is 07:43 or 19:43 o'clock
 
 <h3>Web configuration interface:</h3>
 
-<img src="./Images/IMG_1791.jpg">
-<img src="./Images/IMG_1792.jpg">
-<img src="./Images/IMG_1793.jpg">
+<img src="./Images/1.jpg">
+<img src="./Images/2.jpg">
+<img src="./Images/3.jpg">
 
 <hr>
 
