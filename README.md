@@ -39,7 +39,7 @@ Time here is 07:43 or 19:43 o'clock
 - A time span can be selected to turn off the LEDs fully or reduce their intensity for night time usage for each day seperatelly
 - Updates of the software can be done with the web portal as well to avoid connecting the device to Arduino IDE again. The needed .bin file is included
 - During startup you can choose if the following functions should be displayed: IP-address as scrolling text, the SET WLAN text and/or the LED test function
-- The LED color can be shown as randomized 'rainbow' color changed every new minute 
+- The LED color can be shown as randomized 'rainbow' color changed every new minute or the separate words can be shown in a static rainbow color
 - You can choose if the minute LEDs in the corners should be rotated in clockwise or anti clockwise direction
 - The in the internal WifiManager stored WiFi settings can be set to default on request to switch to a new WiFi router afterwards
 - In case the WiFi is no longer available the device will reset the WiFi settings automatically after 240s to avoid flashing with Arduino IDE again
