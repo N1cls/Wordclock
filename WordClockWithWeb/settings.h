@@ -8,7 +8,7 @@
 // # 
 // # Please set the default settings here only: 
 // #
-// # Compatible with WordClock version: 4.8
+// # Compatible with WordClock version: 4.9
 // #
 // ###########################################################################################################################################
 

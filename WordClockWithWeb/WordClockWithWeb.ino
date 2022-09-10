@@ -40,7 +40,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V4.8";
+const char* WORD_CLOCK_VERSION = "4.9";
 
 
 // ###########################################################################################################################################
@@ -68,7 +68,6 @@ bool PingStatusIP3 = true;                                                      
 bool LEDsON = true;                                                                           // Global flag to turn LEDs on or off - Used for the PING function
 bool RESTmanLEDsON = true;                                                                    // Global flag to turn LEDs manually on or off - Used for the REST function
 bool TwinkleON = false;                                                                       // Twinkle mode LED test
-
 
 // ###########################################################################################################################################
 // # Parameter record to store to the EEPROM of the ESP:
@@ -191,7 +190,7 @@ void setup() {
 // ###########################################################################################################################################
 void loop() {
   ESP.wdtFeed();  // Reset watchdog timer
-  
+
   // Check WiFi connection and reconnect if needed:
   if (WiFi.status() != WL_CONNECTED) {
     WIFI_login(); // WiFi inactive --> Reconnect to it...
@@ -206,7 +205,7 @@ void loop() {
       handleTime(); // handle NTP / RTC time
       delay(750);
 
-      if (switchRainBow) { // RainBow effect active - color change every new minute
+      if (switchRainBow == 2) { // RainBow variant 2 effect active - color change every new minute
         if (iSecond == 0) {
           redVal = random(255);
           greenVal = random(255);
@@ -482,7 +481,7 @@ void checkClient() {
             // Web Page Heading:
             // #################
             String title = "<body><h1>WordClock '" + wchostname + wchostnamenum + "' Einstellungen ";
-            title = title + WORD_CLOCK_VERSION;
+            title = title + "V" + WORD_CLOCK_VERSION;
             title = title + "</h1>";
             client.println(title);
             client.println("<form action=\"/setWC.php\">");
@@ -502,17 +501,6 @@ void checkClient() {
 
             // Intensity Day:
             // ##############
-        /*    client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
-            if (powersupply == 0) {
-              client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"128\" value=\"");
-            } else {
-              client.print("<input type=\"range\" id=\"intensity\" name=\"intensity\" min=\"1\" max=\"255\" value=\"");
-            }
-            client.print(intensity);
-            client.print("\"> <label>");
-            client.print(intensity);
-            client.println("</label><br><br>");*/
-
             client.print("<label for=\"intensity\">Helligkeit am Tag: </label>");
             if (powersupply == 0) {
               client.print("<input type='range' id='intensity' name='intensity' min='1' max='128' value=");
@@ -530,17 +518,6 @@ void checkClient() {
 
             // Intensity Night:
             // ################
-           /* client.print("<label for=\"intensityNight\">Helligkeit bei Nacht: </label>");
-            if (powersupply == 0) {
-              client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"128\" value=\"");
-            } else {
-              client.print("<input type=\"range\" id=\"intensityNight\" name=\"intensityNight\" min=\"1\" max=\"255\" value=\"");
-            }
-            client.print(intensityNight);
-            client.print("\">  <label>");
-            client.print(intensityNight);
-            client.println("</label><br><br>");*/
-
             client.print("<label for=\"intensity\">Helligkeit bei Nacht: </label>");
             if (powersupply == 0) {
               client.print("<input type='range' id='intensityNight' name='intensityNight' min='1' max='128' value=");
@@ -674,23 +651,6 @@ void checkClient() {
             client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 Uhr <br><br><hr>");
 
 
-            // Update function:
-            // ################
-            client.println("<h2>WordClock Update</h2>");
-            client.println("<label for=\"useupdate\">Update Funktion verwenden?</label>");
-            client.print("<input type=\"checkbox\" id=\"useupdate\" name=\"useupdate\"");
-            if (useupdate) {
-              client.print(" checked");
-              client.print("><br><br>");
-              client.println("<label>Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden:</label><br><br>");
-              client.println("<a href=" + UpdatePath + " target='_blank'>" + UpdatePath + "</a><br><br>");
-              client.println("<a href=" + UpdatePathIP + " target='_blank'>" + UpdatePathIP + "</a><br><br>");
-              client.println("<label>Hinweis: Es wird eine in der Arduino IDE mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benötigt,<br>die über die Option 'Update Firmware' hochgeladen werden kann.</label><br><hr>");
-            } else {
-              client.println("><br><br><label>Die Update Funktion ist aktuell deaktiviert.</label><br><hr>");
-            }
-
-
             // LED display and startup:
             // ########################
             client.println("<h2>LED Anzeigen und Startverhalten</h2>");
@@ -721,18 +681,43 @@ void checkClient() {
               client.print("><br><br>");
             }
 
-            client.println("<br><label for=\"switchRainBow\">Regenbogen Farbeffekt anzeigen?</label>");
-            client.print("<input type=\"checkbox\" id=\"switchRainBow\" name=\"switchRainBow\"");
-            if (switchRainBow) {
+
+            client.println("<br><label for=\"switchRainBow\">Wähle den Regenbogen Farbeffekt Modus:</label>");
+            client.println("<fieldset border=none>");
+            client.println("<div>");
+            client.println("<input type='radio' id='id0' name='switchRainBow' value='0'");
+            if (switchRainBow == 0) {
               client.print(" checked");
               client.print(">");
             } else {
               client.print(">");
             }
-            client.println("<br><br>Wenn diese Option gesetzt wird, wechselt die Farbe der Uhr im Zufallsmodus zu jeder neuen Minute.<br>");
-            client.println("Die oben eingestellte Hauptfarbe wird dann ignoriert.<br><br>");
+            client.println("<label for='id0'>Aus</label>");
+            client.println("</div>");
+            client.println("<div>");
+            client.println("<input type='radio' id='id1' name='switchRainBow' value='1'");
+            if (switchRainBow == 1) {
+              client.print(" checked");
+              client.print(">");
+            } else {
+              client.print(">");
+            }
+            client.println("<label for='id1'>Variante 1 (Worte verschieden bunt)</label>");
+            client.println("</div>");
+            client.println("<div>");
+            client.println("<input type='radio' id='id2' name='switchRainBow' value='2'");
+            if (switchRainBow == 2) {
+              client.print(" checked");
+              client.print(">");
+            } else {
+              client.print(">");
+            }
+            client.println("<label for='id2'>Variante 2 (Alle Worte zufällig bunt)</label>");
+            client.println("</div>");
+            client.println("</fieldset>");
 
-            client.println("<br><label for=\"switchLEDOrder\">Minuten LEDs Ecken Reihenfolge im Uhrzeigersinn?</label>");
+
+            client.println("<br><br><label for=\"switchLEDOrder\">Minuten LEDs Ecken Reihenfolge im Uhrzeigersinn?</label>");
             client.print("<input type=\"checkbox\" id=\"switchLEDOrder\" name=\"switchLEDOrder\"");
             if (switchLEDOrder) {
               client.print(" checked");
@@ -847,7 +832,26 @@ void checkClient() {
             } else {
               client.println("><br><br><label>Die REST Funktion ist aktuell deaktiviert.</label><br>");
             }
-            client.print("<hr>");
+            client.print("<br><hr>");
+
+
+            // Update function:
+            // ################
+            client.println("<h2>WordClock Update</h2>");
+            client.println("<label for=\"useupdate\">Update Funktion verwenden?</label>");
+            client.print("<input type=\"checkbox\" id=\"useupdate\" name=\"useupdate\"");
+            if (useupdate) {
+              client.print(" checked");
+              client.print("><br><br>");
+              client.println("<label>Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden:</label><br><br>");
+              client.println("<a href=" + UpdatePath + " target='_blank'>" + UpdatePath + "</a><br><br>");
+              client.println("<a href=" + UpdatePathIP + " target='_blank'>" + UpdatePathIP + "</a><br><br>");
+              client.println("<label>Hinweis: Es wird eine in der Arduino IDE mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benötigt,<br>die über die Option 'Update Firmware' hochgeladen werden kann.</label>");
+              client.println("<br><br><label>Die notwendige Update-Datei kann hier heruntergeladen werden:</label>");
+              client.println("<a href='https://github.com/N1cls/Wordclock' target='_blank'>Wordclock Repository auf GitHub</a><br><br><hr>");
+            } else {
+              client.println("><br><br><label>Die Update Funktion ist aktuell deaktiviert.</label><br><br><hr>");
+            }
 
 
             // Reset WiFi configuration:
@@ -1181,10 +1185,13 @@ void checkClient() {
 
               // Check for RainBox switch:
               // #########################
-              if (currentLine.indexOf("&switchRainBow=on&") >= 0) {
-                switchRainBow = -1;
-              } else {
-                switchRainBow = 0;
+              pos = currentLine.indexOf("&switchRainBow=");
+              if (pos >= 0) {
+                String rainbowStr = currentLine.substring(pos + 15);
+                pos = rainbowStr.indexOf("&");
+                if (pos > 0)
+                  rainbowStr = rainbowStr.substring(0, pos);
+                switchRainBow = rainbowStr.toInt();
               }
 
 
@@ -2275,13 +2282,28 @@ void ClockWifiReset() {
 // ###########################################################################################################################################
 void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
   if (switchOn) {
-    if  (ledNrFrom > ledNrTo) {
-      setLED(ledNrTo, ledNrFrom, switchOn); //sets LED numbers in correct order (because of the date programming below)
+    if (switchRainBow == 1) { // RainBow effect active
+      if  (ledNrFrom > ledNrTo) {
+        setLED(ledNrTo, ledNrFrom, switchOn);
+      } else {
+        for (long firstPixelHue = 0; firstPixelHue < 5 * 65536; firstPixelHue += 256) {
+          for (int i = ledNrFrom; i <= ledNrTo; i++) {
+            if ((i >= 0) && (i < NUMPIXELS)) {
+              int pixelHue = firstPixelHue + (i * 65536L / NUMPIXELS);
+              pixels.setPixelColor(i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
+            }
+          }
+        }
+      }
     } else {
-      for (int i = ledNrFrom; i <= ledNrTo; i++) {
-        if ((i >= 0) &&
-            (i < NUMPIXELS))
-          pixels.setPixelColor(i, pixels.Color(redVal, greenVal, blueVal));
+      if  (ledNrFrom > ledNrTo) {
+        setLED(ledNrTo, ledNrFrom, switchOn); //sets LED numbers in correct order (because of the date programming below)
+      } else {
+        for (int i = ledNrFrom; i <= ledNrTo; i++) {
+          if ((i >= 0) &&
+              (i < NUMPIXELS))
+            pixels.setPixelColor(i, pixels.Color(redVal, greenVal, blueVal));
+        }
       }
     }
   }
