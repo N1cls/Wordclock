@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.0
+// # Compatible with WordClock version: V5.1
 // #
 // ###########################################################################################################################################
 
@@ -15,97 +15,27 @@
 // # Default texts in german language:
 // ###########################################################################################################################################
 // General texts:
-String WordClockName = "WordClock";
-String languageSelect = "Sprache";
-String languageInt0 = "Deutsch";
-String languageInt1 = "Englisch";
-String txtSaveSettings = "Einstellungen speichern";
+String WordClockName, languageSelect, languageInt0, languageInt1, txtSaveSettings;
 // LED settings:
-String txtSettings = "Einstellungen";
-String txtLEDsettings = "LED Einstellungen";
-String txtLEDcolor = "Farbe";
-String txtIntensityDay = "Helligkeit am Tag";
-String txtIntensityNight = "Helligkeit bei Nacht";
-String txtPowerSupplyNote1 = "Wichtig: Beide Werte begrenzt auf 128 von maximal 255. Achte darauf ein geeignetes Netzteil zu verwenden!";
-String txtPowerSupplyNote2 = "Je nach LED Anzahl, selektierter Farbe und Helligkeit wird mindestens ein 5V/3A Netzteil empfohlen!";
-String txtPowerSupplyNote3 = "Den Hinweis zum Netzteil akzeptiere und beachte ich. Ich möchte die Werte wieder auf maximal 255 einstellen können";
-String txtPowerSupplyNote4 = "Den wichtigen Hinweis zum Netzteil nicht mehr anzeigen";
-String txtFlashFullHour1 = "Volle Stunde blinken";
-String txtFlashFullHour2 = "Stundenangabe soll zur vollen Stunde blinken?";
-String txtShowDate1 = "Datumsanzeige als Lauftext";
-String txtShowDate2 = "Alle 30 Sekunden anzeigen?";
-String txtNightMode1 = "Display abschalten oder dunkler schalten?";
-String txtNightMode2 = "Display komplett abschalten ...";
-String txtNightMode3 = "... oder nur dunkler schalten auf Wert der Helligkeit bei Nacht?";
-String txtNightModeOff = "Display aus ab";
-String txtNightModeTo = "bis";
-String txtNightModeClock = "Uhr";
-String txtMO = "Montag";
-String txtTU = "Dienstag";
-String txtWE = "Mittwoch";
-String txtTH = "Donnerstag";
-String txtFR = "Freitag";
-String txtSA = "Samstag";
-String txtSU = "Sonntag";
+String txtSettings, txtLEDsettings, txtLEDcolor, txtIntensityDay, txtIntensityNight, txtPowerSupplyNote1, txtPowerSupplyNote2, txtPowerSupplyNote3, txtPowerSupplyNote4;
+String txtFlashFullHour1, txtFlashFullHour2, txtShowDate1, txtShowDate2, txtNightMode1, txtNightMode2, txtNightMode3, txtNightModeOff, txtNightModeTo, txtNightModeClock;
+String txtMO, txtTU, txtWE, txtTH, txtFR, txtSA, txtSU;
 // Content and startup:
-String txtContentStartup = "Anzeigen und Startverhalten";
-String txtUseLEDtest = "LED Start Test anzeigen?";
-String txtUSEsetWLAN = "SET WLAN beim Start anzeigen?";
-String txtShowIP = "IP-Addresse beim Start anzeigen?";
-String txtRainbow1 = "Wähle den Regenbogen Farbeffekt Modus";
-String txtRainbow2 = "Aus";
-String txtRainbow3 = "Variante 1 (Worte verschieden bunt)";
-String txtRainbow4 = "Variante 2 (Alle Worte zufällig bunt)";
-String txtMinDir1 = "Minuten LEDs Ecken Reihenfolge im Uhrzeigersinn?";
-String txtMinDir2 = "Wenn diese Option gesetzt wird, werden die Minuten-LEDs in den 4 Ecken";
-String txtMinDir3 = "im Uhrzeigersinn angezeigt, ansonsten entgegen dem Uhrzeigersinn.";
+String txtContentStartup, txtUseLEDtest, txtUSEsetWLAN, txtShowIP, txtRainbow1, txtRainbow2, txtRainbow3, txtRainbow4, txtMinDir1, txtMinDir2, txtMinDir3;
 // PING monitor IP-adresses:
-String txtPing0 = "PING Monitor für IP-Adresse(n) -> LEDs abschalten wenn IP(s) länger offline";
-String txtPing1 = "PING Monitor Funktion verwenden?";
-String txtPing2 = "Bitte hier die zu überwachende(n) IP-Adresse(n) eintragen";
-String txtPing3 = "1. IP-Adresse";
-String txtPing4 = "2. IP-Adresse";
-String txtPing5 = "3. IP-Adresse";
-String txtPing6 = "Hinweis: Eine IP-Addresse mit dem Wert 0.0.0.0 wird in der Abfrage übersprungen.";
-String txtPing7 = "Anzahl PING Versuche bis die LEDs abgeschaltet werden";
-String txtPing8 = "Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen.";
-String txtPing9 = "DEBUG PING Monitor Funktion verwenden?";
+String txtPing0, txtPing1, txtPing2, txtPing3, txtPing4, txtPing5, txtPing6, txtPing7, txtPing8, txtPing9;
 // Hostname:
-String txtHostName1 = "WordClock Hostname anpassen";
-String txtHostName2 = "Hostname";
+String txtHostName1, txtHostName2;
 // REST functions:
-String txtREST0 = "REST Funktionen";
-String txtREST1 = "Über die folgenden Links können Funktionen der WordClock von Außen gesteuert werden.";
-String txtREST2 = "REST Funktion verwenden?";
-String txtREST3 = "Über einen der folgenden Links kann die WordClock manuell über den Browser ab und an geschaltet werden";
-String txtREST4 = "LEDs ausschalten";
-String txtREST5 = "LEDs einschalten";
-String txtREST6 = "LED Status";
-String txtREST7 = "Weitere Funktionen (experimentell)";
-String txtREST8 = "LED Test einschalten";
-String txtREST9 = "LED Test ausschalten";
-String txtRESTX = "Die REST Funktion ist aktuell deaktiviert.";
+String txtREST0, txtREST1, txtREST2, txtREST3, txtREST4, txtREST5, txtREST6, txtREST7, txtREST8, txtREST9, txtRESTX;
 // Update function:
-String txtUpdate0 = "Update";
-String txtUpdate1 = "Update Funktion verwenden?";
-String txtUpdate2 = "Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden";
-String txtUpdate3 = "Hinweis: Es wird eine in der Arduino IDE mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benötigt,";
-String txtUpdate4 = "die über die Option 'Update Firmware' hochgeladen werden kann.";
-String txtUpdate5 = "Die notwendige Update-Datei kann hier heruntergeladen werden";
-String txtUpdate6 = "Wordclock Repository auf GitHub";
-String txtUpdateX = "Die Update Funktion ist aktuell deaktiviert.";
+String txtUpdate0, txtUpdate1, txtUpdate2, txtUpdate3, txtUpdate4, txtUpdate5, txtUpdate6, txtUpdateX;
 // WiFi:
-String txtWiFi0 = "WLAN Einstellungen zurücksetzen";
-String txtWiFi1 = "WLAN Einstellungen zurücksetzen und Uhr neu starten?";
-String txtWiFi2 = "Wenn diese Option verwendet wird, werden die WLAN Einstellungen einmalig gelöscht";
+String txtWiFi0, txtWiFi1, txtWiFi2;
 // Restart
-String txtRestart0 = "WordClock neustarten";
-String txtRestart1 = "WordClock neustarten?";
-String txtRestart2 = "Wenn diese Option verwendet wird, wird die Uhr einmalig neu gestartet";
+String txtRestart0, txtRestart1, txtRestart2;
 // Time zone and NTP server:
-String txtTZNTP0 = "Zeitzone & NTP-Server";
-String txtTZNTP1 = "Standardwerte";
-String txtTZNTP2 = "Erklärung zur Einstellung der Zeitzone";
+String txtTZNTP0, txtTZNTP1, txtTZNTP2;
 
 
 void setLanguage(int lang) {
@@ -114,7 +44,7 @@ void setLanguage(int lang) {
   // ###########################################################################################################################################
   if (lang == 0) {         // DEUTSCH
     // Allgemeine Texte:
-    WordClockName = "WortUhr";
+    WordClockName = "WordClock";
     languageSelect = "Sprache";
     languageInt0 = "Deutsch";
     languageInt1 = "Englisch";

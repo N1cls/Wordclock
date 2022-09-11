@@ -34,13 +34,13 @@
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 #include <ESP8266Ping.h>              // Used to send ping requests to a IP-address (of your smart phone) to detect if you have left your home
 #include "settings.h"                 // Settings are stored in a seperate file to make to code better readable and to be able to switch to other settings faster
-#include "txtLanguages.h"             // Translation for texts for the HTML page
+#include "languages.h"             // Translation for texts for the HTML page
 
 
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.0";
+const char* WORD_CLOCK_VERSION = "V5.1";
 
 
 // ###########################################################################################################################################
@@ -752,7 +752,7 @@ void checkClient() {
             } else {
               client.print(">");
             }
-            client.println("<label for='id0'>" + languageInt0 + "</label>");
+            client.println("<label for='idlang0'>" + languageInt0 + "</label>");
             client.println("</div>");
             client.println("<div>");
             client.println("<input type='radio' id='idlang1' name='switchLangWeb' value='1'");
@@ -762,7 +762,7 @@ void checkClient() {
             } else {
               client.print(">");
             }
-            client.println("<label for='id1'>" + languageInt1 + "</label>");
+            client.println("<label for='idlang1'>" + languageInt1 + "</label>");
             client.println("</div>");
             client.println("</fieldset>");
             client.println("<br><br><hr>");

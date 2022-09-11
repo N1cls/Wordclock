@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<h3><b>Current version: 5.0         </b></h3>
+<h3><b>Current version: 5.1         </b></h3>
 
 <hr>
 
@@ -80,6 +80,7 @@ Time here is 07:43 or 19:43 o'clock
 - 4.8:          Added a WiFi reconnect function in case the WiFi connection gets aborted during longer usage. Added a live update of the intensity value text fields next to the 2 sliders. Smaller changes to some functions.
 - 4.9:          Added a radio button selector to switch between 2 rainbow color modes. Added a URL to get to the Wordclock repository page on GitHub.
 - 5.0:		Added language support for the HTML configuration interface for english and german. German language is the default.
+- 5.1:		Small bugfix for the new language support function.
 
 <hr>
 
