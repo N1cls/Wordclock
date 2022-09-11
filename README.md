@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<h3><b>Current version: 4.9         </b></h3>
+<h3><b>Current version: 5.0         </b></h3>
 
 <hr>
 
@@ -47,14 +47,17 @@ Time here is 07:43 or 19:43 o'clock
 - A restart request can be forced with the web portal as well
 - The timezone and NTP-Server configuration can be configured as well to fit to your demands
 - Optional you can set up to 3 IP-addresses (of f.e. your smart phones) connected on your network to be monitored via PING requests 2x per minute. After a set amount of failed PING attempts the WordClock LEDs will turn off to reduce power consumption when you are not at home
+- Language support for german and english language in the web interface. REST command texts always written in english language. Feel free to add more languages...
 
 <hr>
 
 <h3>Web configuration interface:</h3>
 
-<img src="./Images/1.jpg">
-<img src="./Images/2.jpg">
-<img src="./Images/3.jpg">
+<img src="./Images/IMG_0031.jpg">
+<img src="./Images/IMG_0032.jpg">
+<img src="./Images/IMG_0033.jpg">
+<img src="./Images/IMG_0034.jpg">
+
 
 <hr>
 
@@ -76,6 +79,7 @@ Time here is 07:43 or 19:43 o'clock
 - 4.7: 		Code cleanup. Added a small How-To to add the WordClock REST urls to HomeBridge to be able to control the WordClock from HomeKit and via Siri.
 - 4.8:          Added a WiFi reconnect function in case the WiFi connection gets aborted during longer usage. Added a live update of the intensity value text fields next to the 2 sliders. Smaller changes to some functions.
 - 4.9:          Added a radio button selector to switch between 2 rainbow color modes. Added a URL to get to the Wordclock repository page on GitHub.
+- 5.0:		Added language support for the HTML configuration interface for english and german. German language is the default.
 
 <hr>
 

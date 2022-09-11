@@ -8,7 +8,7 @@
 // # 
 // # Please set the default settings here only: 
 // #
-// # Compatible with WordClock version: 4.9
+// # Compatible with WordClock version: V5.0
 // #
 // ###########################################################################################################################################
 
@@ -35,6 +35,7 @@ int intensityNight = 21;                     // LED intensity (0..255) in night 
 // ###########################################################################################################################################
 // # Various default settings:
 // ###########################################################################################################################################
+int switchLangWeb = 0;                      // Language default setting (0 = german, 1 = english, 2...x = for future use)
 int wifireset = 0;                          // WiFi Reset switch (not stored in EEPROM)
 int clockreset = 0;                         // WordClock Reset switch (not stored in EEPROM)
 int useupdate = 1;                          // Use the internal web update server
