@@ -83,7 +83,7 @@ Time here is 07:43 or 19:43 o'clock
 - 5.1:		Small bugfix for the new language support function.
 - 5.2:		Optional: Automatic update without the need of a computer. The configuration page will show the available version to update to and
 		with a single click on the note the update will be done automatically. The download and update progress is shown on the clock display.
-		<img src="./Images/D76939B1-55AD-43A6-8DAE-4C544F571979.jpeg">
+		<img src="./Images/IMG_0036.jpeg">
 
 <hr>
 
