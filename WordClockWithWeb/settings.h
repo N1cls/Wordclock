@@ -8,7 +8,7 @@
 // # 
 // # Please set the default settings here only: 
 // #
-// # Compatible with WordClock version: V5.2
+// # Compatible with WordClock version: V5.3
 // #
 // ###########################################################################################################################################
 
@@ -50,6 +50,7 @@ int dcwFlag = 0;                            // Flag for highlighting DCW every H
 int useresturl = 1;                         // Use the REST function web server
 int server1port = 55555;                    // REST function web server port
 int powersupply = 0;                        // Flag for the power supply note text and to raise the limit for the intensity from 128 to 255
+int useRTC = 1;                             // Flag to disable the RTC board (No configuration needed. Set automatically after entering and saving the web config once)
 
 
 // ###########################################################################################################################################

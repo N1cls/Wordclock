@@ -41,7 +41,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.2";
+const char* WORD_CLOCK_VERSION = "V5.3";
 
 
 // ###########################################################################################################################################
@@ -110,6 +110,7 @@ struct parmRec
   int  pswitchLEDOrder;
   int  pwchostnamenum;
   int  pDCWFlag;
+  int  puseRTC;
   int  pBlinkTime;
   int  pPING_IP_ADDR1_O1;
   int  pPING_IP_ADDR1_O2;
@@ -180,6 +181,9 @@ void setup() {
 
   Serial.println("######################################################################");
   Serial.println("# WordClock startup finished...");
+  Serial.println("######################################################################");
+  Serial.print("# Configuration page now available: ");
+  Serial.println("http://" + WiFi.localIP().toString());
   Serial.println("######################################################################");
 }
 
@@ -337,6 +341,7 @@ void readEEPROM() {
     switchLEDOrder = parameter.pswitchLEDOrder;
     blinkTime =  parameter.pBlinkTime;
     dcwFlag =  parameter.pDCWFlag;
+    useRTC = parameter.puseRTC;
     intensity =  parameter.pIntensity;
     intensityNight =  parameter.pIntensityNight;
     PING_IP_ADDR1_O1 = parameter.pPING_IP_ADDR1_O1;
@@ -359,7 +364,7 @@ void readEEPROM() {
     String tz(parameter.pTimeZone);
     timeZone = tz;
   } else {
-    Serial.println("Checksum does not match. New installed ESP detected...");
+    Serial.println("Checksum does not match. New program version or new installed ESP detected...");
   }
 }
 
@@ -375,6 +380,7 @@ void writeEEPROM() {
   parameter.pIntensity = intensity;
   parameter.pIntensityNight = intensityNight;
   parameter.pDCWFlag   = dcwFlag;
+  parameter.puseRTC    = useRTC;
   parameter.pBlinkTime = blinkTime;
   ntpServer.toCharArray(parameter.pNTPServer, sizeof(parameter.pNTPServer));
   timeZone.toCharArray(parameter.pTimeZone, sizeof(parameter.pTimeZone));
@@ -569,10 +575,18 @@ void checkClient() {
             client.print("<input type=\"checkbox\" id=\"showdate\" name=\"showdate\"");
             if (showDate)
               client.print(" checked");
-            if (!checkRTC()) {
-              client.println("<br><br><h2 style=\"text-decoration:blink;color:red\">No RTC found!</h2><br><br>");
+            client.print(">");
+            if (checkRTC() && useRTC == 0) {
+              client.println("<br><h2 style=\"text-decoration:blink;color:green\">RTC found. RTC usage will be enabled after saving this page.</h2>");
+              useRTC = 1;
+              Serial.println("RTC board found. RTC usage will be enabled after saving the configuration page.");
             }
-            client.print("><br><hr>");
+            if (!checkRTC() && useRTC == 1) {
+              client.println("<br><h2 style=\"text-decoration:blink;color:red\">No RTC found. RTC usage will be disabled after saving this page.</h2>");
+              useRTC = 0;
+              Serial.println("No RTC found. RTC usage will be disabled after saving the configuration page!");
+            }
+            client.print("<br><hr>");
 
 
             // Night mode - display off:
@@ -1558,7 +1572,7 @@ void checkClient() {
 // # Read current date & time from RTC:
 // ###########################################################################################################################################
 void rtcReadTime() {
-  if (checkRTC()) {
+  if (checkRTC() && useRTC == 1) {
     DateTime now = rtc.now();
     int oldHour = iHour;
     iYear  = (int)(now.year());
@@ -1588,7 +1602,7 @@ void rtcReadTime() {
       Serial.print(":");
       Serial.println(iSecond);
     }
-  }
+  } 
 }
 
 
@@ -1955,7 +1969,7 @@ byte decToBcd(byte val) {
 // # Function to write / set the clock:
 // ###########################################################################################################################################
 void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int sekunde) {
-  if (checkRTC()) {
+  if (checkRTC() && useRTC == 1) {
     // Serial.println("Wire.write()...");
     Wire.beginTransmission(RTC_I2C_ADDRESS);
     Wire.write(0); //count 0 activates RTC module
@@ -1967,9 +1981,6 @@ void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int seku
     Wire.write(decToBcd(monat));
     Wire.write(decToBcd(jahr - 2000));
     Wire.endTransmission();
-    Serial.print("# Configuration page now available: ");
-    Serial.println("http://" + WiFi.localIP().toString());
-    Serial.println("######################################################################");
   }
 }
 
@@ -1995,17 +2006,17 @@ void handleTime() {
       int ho  = ti.tm_hour;
       int mi  = ti.tm_min;
       int sec = ti.tm_sec;
-      /* Serial.print (ho);
-        Serial.print(':');
-        Serial.print (mi);
-        Serial.print(':');
-        Serial.print (sec);
-        Serial.print("   ==  ");
-        Serial.print(ye);
-        Serial.print('-');
-        Serial.print(mo);
-        Serial.print('-');
-        Serial.println(da); */
+      /*Serial.print (ho);
+      Serial.print(':');
+      Serial.print (mi);
+      Serial.print(':');
+      Serial.print (sec);
+      Serial.print("   ==  ");
+      Serial.print(ye);
+      Serial.print('-');
+      Serial.print(mo);
+      Serial.print('-');
+      Serial.println(da);*/
       // set working timestamp
       iYear  = ye;
       iMonth = mo;
@@ -2013,10 +2024,10 @@ void handleTime() {
       iHour   = ho;
       iMinute = mi;
       iSecond = sec;
-      rtcWriteTime(ye, mo, da, ho, mi, sec);
+      if (checkRTC() && useRTC == 1) rtcWriteTime(ye, mo, da, ho, mi, sec);
     }
   }
-  rtcReadTime();
+  if (checkRTC() && useRTC == 1) rtcReadTime();
 }
 
 
@@ -2109,14 +2120,15 @@ unsigned char h2int(char c)
 // ###########################################################################################################################################
 int checkRTC() {
   // Initialize & check RTC
-  if (!rtcStarted) {
+  if (!rtcStarted && useRTC == 1) {
     if (rtc.begin()) {
       rtcStarted = -1;
       // start RTC Communication via Wire.h library
       // Serial.println("Start RTC communication");
       Wire.begin();
     } else {
-      Serial.println("Couldn't find RTC");
+      useRTC = 0;
+      Serial.println("Couldn't find RTC! --> Permanently disable the RTC usage after saving the configuration page once.");
     }
   }
   return rtcStarted;

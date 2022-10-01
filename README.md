@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<h3><b>Current version: 5.2         </b></h3>
+<h3><b>Current version: 5.3    </b></h3>
 
 <hr>
 
@@ -84,11 +84,12 @@ Time here is 07:43 or 19:43 o'clock
 - 5.2:		Optional: Automatic update without the need of a computer. The configuration page will show the available version to update to and
 		with a single click on the note the update will be done automatically. The download and update progress is shown on the clock display.
 		<img src="./Images/IMG_0036.jpeg">
+- 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock. No configuration needed. If there is no RTC detected a note is shown until the configuration page is saved once. Tested with and without an RTC on a WordClock.
 
 <hr>
 
 <h3><b>Upcomming and planned functions:</b></h3>
-- 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock
+- 		Currently none. Working on an <a href="https://github.com/AWSW-de/WordClock-16x16-LED-matrix" target="_blank">ESP32 version with a 16x16 LED matrix</a> to minimize soldering work to just 3 wires and to have more performance for more features. The here used ESP8266 board really gets to its limits in some cases already...
 
 
 <hr>
