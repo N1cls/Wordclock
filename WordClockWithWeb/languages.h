@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.1
+// # Compatible with WordClock version: V5.2
 // #
 // ###########################################################################################################################################
 
@@ -27,9 +27,9 @@ String txtPing0, txtPing1, txtPing2, txtPing3, txtPing4, txtPing5, txtPing6, txt
 // Hostname:
 String txtHostName1, txtHostName2;
 // REST functions:
-String txtREST0, txtREST1, txtREST2, txtREST3, txtREST4, txtREST5, txtREST6, txtREST7, txtREST8, txtREST9, txtRESTX;
+String txtREST0, txtREST1, txtREST2, txtREST3, txtREST4, txtREST5, txtREST6, txtREST7, txtRESTX;
 // Update function:
-String txtUpdate0, txtUpdate1, txtUpdate2, txtUpdate3, txtUpdate4, txtUpdate5, txtUpdate6, txtUpdateX;
+String txtUpdate0, txtUpdateE1, txtUpdateE2, txtUpdateE3, txtUpdate2, txtUpdate3, txtUpdate4, txtUpdate5, txtUpdate6, txtUpdate7, txtUpdate8, txtUpdate9, txtUpdateX;
 // WiFi:
 String txtWiFi0, txtWiFi1, txtWiFi2;
 // Restart
@@ -115,19 +115,21 @@ void setLanguage(int lang) {
     txtREST4 = "LEDs ausschalten";
     txtREST5 = "LEDs einschalten";
     txtREST6 = "LED Status";
-    txtREST7 = "Weitere Funktionen (experimentell)";
-    txtREST8 = "LED Test einschalten";
-    txtREST9 = "LED Test ausschalten";
     txtRESTX = "Die REST Funktion ist aktuell deaktiviert.";
 
     // Update Funktion:
     txtUpdate0 = "Update";
-    txtUpdate1 = "Update Funktion verwenden?";
+    txtUpdateE1 = "Update Funktion nicht verwenden";
+    txtUpdateE2 = "Lokale Update Funktion verwenden";
+    txtUpdateE3 = "Automatische Update Funktion via Internet verwenden";
     txtUpdate2 = "Über einen der folgenden Links kann die WordClock über den Browser ohne Arduino IDE aktualisiert werden";
     txtUpdate3 = "Hinweis: Es wird eine in der Arduino IDE mit Strg+Alt+S zuvor erstellte .BIN Datei des Sketches benötigt,";
     txtUpdate4 = "die über die Option 'Update Firmware' hochgeladen werden kann.";
     txtUpdate5 = "Die notwendige Update-Datei kann hier heruntergeladen werden";
     txtUpdate6 = "Wordclock Repository auf GitHub";
+    txtUpdate7 = "Die installierte Version entspricht der aktuell verfügbaren Version";
+    txtUpdate8 = "Ein Update ist verfügbar auf Version";
+    txtUpdate9 = "Verwende den folgenden Link um das Update zu starten";
     txtUpdateX = "Die Update Funktion ist aktuell deaktiviert.";
 
     // WLAN:
@@ -223,19 +225,21 @@ void setLanguage(int lang) {
     txtREST4 = "Turn off LEDs";
     txtREST5 = "Turn on LEDs";
     txtREST6 = "LED state";
-    txtREST7 = "Other functions (experimental)";
-    txtREST8 = "Switch on the LED test";
-    txtREST9 = "Switch off the test LED";
     txtRESTX = "The REST function is currently disabled.";
 
     // Update function:
     txtUpdate0 = "Update";
-    txtUpdate1 = "Use update function?";
+    txtUpdateE1 = "Do not use the update function";
+    txtUpdateE2 = "Use local update function";
+    txtUpdateE3 = "Use automatic update function via internet";
     txtUpdate2 = "Using one of the links below, the WordClock can be updated via the browser without the Arduino IDE";
     txtUpdate3 = "Note: A .BIN file of the sketch previously created in the Arduino IDE with Ctrl+Alt+S is required,";
     txtUpdate4 = "which can be uploaded via the 'Update Firmware' option.";
     txtUpdate5 = "The necessary update file can be downloaded here";
     txtUpdate6 = "WordClock repository on GitHub";
+    txtUpdate7 = "The installed version is the same as the available version";
+    txtUpdate8 = "Update available to version";
+    txtUpdate9 = "Use the following link to start the update";
     txtUpdateX = "The update function is currently disabled.";
 
     // WiFi:

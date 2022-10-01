@@ -30,6 +30,7 @@
 #include <time.h>                     // Used to get the time from the internet
 #include <Wire.h>                     // Used to connect the RTC board
 #include <ESP8266mDNS.h>              // Used for the internal update function
+#include <ESP8266httpUpdate.h>        // Used for the http update function
 #include <ESP8266HTTPUpdateServer.h>  // Used for the internal update function
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 #include <ESP8266Ping.h>              // Used to send ping requests to a IP-address (of your smart phone) to detect if you have left your home
@@ -40,7 +41,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.1";
+const char* WORD_CLOCK_VERSION = "V5.2";
 
 
 // ###########################################################################################################################################
@@ -67,7 +68,9 @@ bool PingStatusIP2 = true;                                                      
 bool PingStatusIP3 = true;                                                                    // Status flag 3rd IP-address - PING function
 bool LEDsON = true;                                                                           // Global flag to turn LEDs on or off - Used for the PING function
 bool RESTmanLEDsON = true;                                                                    // Global flag to turn LEDs manually on or off - Used for the REST function
-bool TwinkleON = false;                                                                       // Twinkle mode LED test
+bool UpdateAvailable = false;                                                                 // Global flag to check for avaiable updates
+String AvailableVersion = "-";                                                                // Global string to check for avaiable updates
+
 
 // ###########################################################################################################################################
 // # Parameter record to store to the EEPROM of the ESP:
@@ -108,21 +111,21 @@ struct parmRec
   int  pwchostnamenum;
   int  pDCWFlag;
   int  pBlinkTime;
-  int pPING_IP_ADDR1_O1;
-  int pPING_IP_ADDR1_O2;
-  int pPING_IP_ADDR1_O3;
-  int pPING_IP_ADDR1_O4;
-  int pPING_IP_ADDR2_O1;
-  int pPING_IP_ADDR2_O2;
-  int pPING_IP_ADDR2_O3;
-  int pPING_IP_ADDR2_O4;
-  int pPING_IP_ADDR3_O1;
-  int pPING_IP_ADDR3_O2;
-  int pPING_IP_ADDR3_O3;
-  int pPING_IP_ADDR3_O4;
-  int pPING_TIMEOUTNUM;
-  int pPING_DEBUG_MODE;
-  int pPING_USEMONITOR;
+  int  pPING_IP_ADDR1_O1;
+  int  pPING_IP_ADDR1_O2;
+  int  pPING_IP_ADDR1_O3;
+  int  pPING_IP_ADDR1_O4;
+  int  pPING_IP_ADDR2_O1;
+  int  pPING_IP_ADDR2_O2;
+  int  pPING_IP_ADDR2_O3;
+  int  pPING_IP_ADDR2_O4;
+  int  pPING_IP_ADDR3_O1;
+  int  pPING_IP_ADDR3_O2;
+  int  pPING_IP_ADDR3_O3;
+  int  pPING_IP_ADDR3_O4;
+  int  pPING_TIMEOUTNUM;
+  int  pPING_DEBUG_MODE;
+  int  pPING_USEMONITOR;
   char pTimeZone[50];
   char pNTPServer[50];
   int  pCheckSum;             // This checkSum is used to find out whether we have valid parameters
@@ -134,37 +137,28 @@ struct parmRec
 // ###########################################################################################################################################
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("Start Monitor...");
-  Serial.print("WordClock Version: ");
+  delay(500);
+  Serial.println("######################################################################");
+  Serial.print("# WordClock startup of version: ");
   Serial.println(WORD_CLOCK_VERSION);
+  Serial.println("######################################################################");
+  dunkel();                                 // Switch display black
+  pixels.begin();                           // Init the NeoPixel library
+  readEEPROM();                             // get persistent data from EEPROM
+  pixels.setBrightness(intensity);          // Set LED brightness
+  DisplayTest();                            // Perform the LED test
+  SetWLAN();                                // Show SET WLAN text
+  WIFI_login();                             // WiFiManager
+  if (useshowip) showIP();                  // Show IP-address on display
 
-  pixels.begin();  // Init the NeoPixel library
-
-  readEEPROM(); // get persistent data from EEPROM
-  DisplayTest(); // Perform the LED test
-  SetWLAN(); // Show SET WLAN text
-  dunkel(); // Switch display black
-
-  // WiFiManager:
-  WIFI_login();
-
-  // Show IP-address on display:
-  if (useshowip) showIP();
-
-  // Web update function setup:
-  if (useupdate) {
+  if (useupdate) {                          // Local web update function setup
     MDNS.begin(wchostname + wchostnamenum);
     httpUpdater.setup(&httpServer);
     httpServer.begin();
     MDNS.addService("http", "tcp", 2022);
     MDNS.addService("http", "tcp", 80);
     UpdatePath = "http://" + String(wchostname + wchostnamenum) + ".local:2022/update";
-    Serial.print("Web Update Link: ");
-    Serial.println(UpdatePath);
     UpdatePathIP = "http://" + WiFi.localIP().toString() + ":2022/update";
-    Serial.print("Web Update Link via IP-address: ");
-    Serial.println(UpdatePathIP);
   }
   server.begin();
 
@@ -174,19 +168,19 @@ void setup() {
     server1->on("/", handleRoot);
     server1->on("/ledson", ledsON);
     server1->on("/ledsoff", ledsOFF);
-    server1->on("/twinkleon", TwinkleModeOn);
-    server1->on("/twinkleoff", TwinkleModeOFF);
     server1->on("/clockrestart", ClockRestart);
     server1->on("/clockwifireset", ClockWifiReset);
     server1->on("/ledstatus", LedStatus);
+    server1->on("/esphttpupdate", esphttpupdate);
     server1->begin();
   }
 
-  // Set LED brightness:
-  pixels.setBrightness(intensity);
+  setLanguage(switchLangWeb);             // Load set language
+  if (useupdate == 2) readhttpfile();     // Check for updates on the http server if automatic update function used
 
-  // Load set language:
-  setLanguage(switchLangWeb);
+  Serial.println("######################################################################");
+  Serial.println("# WordClock startup finished...");
+  Serial.println("######################################################################");
 }
 
 
@@ -203,71 +197,72 @@ void loop() {
     // Check, whether something has been entered on Config Page
     checkClient();
     ESP.wdtFeed();  // Reset watchdog timer
+    handleTime(); // handle NTP / RTC time
+    delay(750);
 
-    if (TwinkleON == true) {
-      Twinkle();
+    if (switchRainBow == 2) {                              // RainBow variant 2 effect active - color change every new minute
+      if (iSecond == 0) {
+        redVal = random(255);
+        greenVal = random(255);
+        blueVal = random(255);
+      }
     } else {
-      handleTime(); // handle NTP / RTC time
-      delay(750);
-
-      if (switchRainBow == 2) { // RainBow variant 2 effect active - color change every new minute
-        if (iSecond == 0) {
-          redVal = random(255);
-          greenVal = random(255);
-          blueVal = random(255);
-        }
-      } else {
-        redVal    =  parameter.pRed;
-        greenVal  =  parameter.pGreen;
-        blueVal   =  parameter.pBlue;
-      }
-
-      // Show the display only during the set Min/Max time if option is set
-      if (displayoff) {
-        switch (iWeekDay) {
-          case 0:     // Sunday
-            DayNightMode(displayonminSU, displayonmaxSU);
-            break;
-          case 1:     // Monday
-            DayNightMode(displayonminMO, displayonmaxMO);
-            break;
-          case 2:     // Tuesday
-            DayNightMode(displayonminTU, displayonmaxTU);
-            break;
-          case 3:     // Wednesday
-            DayNightMode(displayonminWE, displayonmaxWE);
-            break;
-          case 4:     // Thursday
-            DayNightMode(displayonminTH, displayonmaxTH);
-            break;
-          case 5:     // Friday
-            DayNightMode(displayonminFR, displayonmaxFR);
-            break;
-          case 6:     // Saturday
-            DayNightMode(displayonminSA, displayonmaxSA);
-            break;
-        }
-      } else {
-        pixels.setBrightness(intensity); // DAY brightness
-        ShowTheTime();
-      }
-
-      ESP.wdtFeed();  // Reset watchdog timer
-      delay(delayval);
-      ESP.wdtFeed();  // Reset watchdog timer
-
-      // Web update start:
-      httpServer.handleClient();
-      MDNS.update();
-
-      // PING function:
-      if (PING_USEMONITOR == 1) PingIP();
-
-      if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+      redVal    = redVal;
+      greenVal  = greenVal;
+      blueVal   = blueVal;
     }
 
-    // REST function web server:
-    if (useresturl) server1->handleClient();
+    // Show the display only during the set Min/Max time if option is set
+    if (displayoff) {
+      switch (iWeekDay) {
+        case 0:     // Sunday
+          DayNightMode(displayonminSU, displayonmaxSU);
+          break;
+        case 1:     // Monday
+          DayNightMode(displayonminMO, displayonmaxMO);
+          break;
+        case 2:     // Tuesday
+          DayNightMode(displayonminTU, displayonmaxTU);
+          break;
+        case 3:     // Wednesday
+          DayNightMode(displayonminWE, displayonmaxWE);
+          break;
+        case 4:     // Thursday
+          DayNightMode(displayonminTH, displayonmaxTH);
+          break;
+        case 5:     // Friday
+          DayNightMode(displayonminFR, displayonmaxFR);
+          break;
+        case 6:     // Saturday
+          DayNightMode(displayonminSA, displayonmaxSA);
+          break;
+      }
+    } else {
+      pixels.setBrightness(intensity); // DAY brightness
+      ShowTheTime();
+    }
+
+    ESP.wdtFeed();  // Reset watchdog timer
+    delay(delayval);
+    ESP.wdtFeed();  // Reset watchdog timer
+
+    // Web update start:
+    httpServer.handleClient();
+    MDNS.update();
+
+    // PING function:
+    if (PING_USEMONITOR == 1) PingIP();
+
+    if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+  }
+
+  // REST function web server:
+  if (useresturl) server1->handleClient();
+
+  // Reset the previous read update information every new hour to refresh the information when the configuration page is manually loaded again
+  if ((useupdate == 2) && (iMinute == 0) && (iSecond == 0)) {
+    UpdateAvailable = false;
+    AvailableVersion = "-";
   }
 }
 
@@ -276,9 +271,9 @@ void loop() {
 // # Try to read settings from FLASH - initialize if WLAN ID read from flash is invalid:
 // ###########################################################################################################################################
 void readEEPROM() {
-  Serial.print("Copy ");
-  Serial.print(sizeof(parameter));
-  Serial.println(" bytes from flash memory to EPROM buffer: ");
+  //Serial.print("Copy ");
+  //Serial.print(sizeof(parameter));
+  //Serial.println(" bytes from flash memory to EPROM buffer: ");
 
   // initialize space to read parameter
   EEPROM.begin(sizeof(parameter));
@@ -296,20 +291,20 @@ void readEEPROM() {
       check = check + b;
 
     *p++ = b;
-    // Serial.print("Read FLASH Byte ");
-    // Serial.print(L);
-    // Serial.print(" = ");
-    // Serial.println(b);
+    /*  Serial.print("Read FLASH Byte ");
+      Serial.print(L);
+      Serial.print(" = ");
+      Serial.println(b);  */
   }
 
   // Check checksum
-  Serial.print("Compare checksums: ");
-  Serial.print(check);
-  Serial.print("/");
-  Serial.println(parameter.pCheckSum);
+  //Serial.print("Compare checksums: ");
+  //Serial.print(check);
+  //Serial.print("/");
+  //Serial.println(parameter.pCheckSum);
 
   if (check == parameter.pCheckSum) {
-    Serial.println("Checksum match! set parameter from EEPROM");
+    // Serial.println("Checksum does match. Get parameter values from EEPROM");
     redVal    =  parameter.pRed;
     greenVal  =  parameter.pGreen;
     blueVal   =  parameter.pBlue;
@@ -363,6 +358,8 @@ void readEEPROM() {
     ntpServer = ntp;
     String tz(parameter.pTimeZone);
     timeZone = tz;
+  } else {
+    Serial.println("Checksum does not match. New installed ESP detected...");
   }
 }
 
@@ -371,7 +368,7 @@ void readEEPROM() {
 // # Write current parameter settings to flash:
 // ###########################################################################################################################################
 void writeEEPROM() {
-  Serial.println("Write parameter into EEPRom");
+  //Serial.println("Write parameter into EEPROM");
   parameter.pRed       = redVal;
   parameter.pGreen     = greenVal;
   parameter.pBlue      = blueVal;
@@ -453,12 +450,12 @@ void checkClient() {
   WiFiClient client = server.available();   // Listen for incoming clients // @suppress("Abstract class cannot be instantiated")
 
   if (client) {                             // If a new client connects,
-    Serial.println("New Client.");          // print a message out in the serial port
+    //Serial.println("New web client...");          // print a message out in the serial port
     String currentLine = "";                // make a String to hold incoming data from the client
     while (client.connected()) {            // loop while the client's connected
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
-        Serial.write(c);                    // print it out the serial monitor
+        // Serial.write(c);                    // print it out the serial monitor
         header += c;
         if (c == '\n') {                    // if the byte is a newline character
           // if the current line is blank, you got two newline characters in a row.
@@ -496,9 +493,13 @@ void checkClient() {
 
             // Convert color into hex settings:
             // ################################
+            if (parameter.pRed >= 0) {            // Load defined color from EEPROM - important after Rainbow random function usage
+              redVal   = parameter.pRed;
+              greenVal = parameter.pGreen;
+              blueVal  = parameter.pBlue;
+            }
             char hex_main[7] = {0};
             sprintf(hex_main, "#%02X%02X%02X", redVal, greenVal, blueVal);
-            // Main color select:
             client.println("<hr><h2>" + txtLEDsettings + ":</h2><br>");
             client.println("<label for=\"favcolor\">" + txtLEDcolor + ": </label>");
             client.print("<input type=\"color\" id=\"favcolor\" name=\"favcolor\" value=\"");
@@ -863,11 +864,6 @@ void checkClient() {
               client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson</a><br>");
               client.println("<label>" + txtREST6 + ": </label>");
               client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus</a><br>");
-              client.println("<br><label><b>" + txtREST7 + ":</b></label><br>");
-              client.println("<label>" + txtREST8 + ": </label>");
-              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleon</a><br>");
-              client.println("<label>" + txtREST9 + ": </label>");
-              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/twinkleoff</a><br>");
             } else {
               client.println("><br><br><label>" + txtRESTX + "</label><br>");
             }
@@ -877,20 +873,67 @@ void checkClient() {
             // Update function:
             // ################
             client.println("<h2>" + txtUpdate0 + ":</h2>");
-            client.println("<label for=\"useupdate\">" + txtUpdate1 + " </label>");
-            client.print("<input type=\"checkbox\" id=\"useupdate\" name=\"useupdate\"");
-            if (useupdate) {
+            client.println("<fieldset>");
+            client.println("<div>");
+            client.println("<input type='radio' id='idupdate0' name='useupdate' value='0'");
+            if (useupdate == 0) {
               client.print(" checked");
-              client.print("><br><br>");
-              client.println("<label>" + txtUpdate2 + ":</label><br><br>");
+              client.print(">");
+            } else {
+              client.print(">");
+            }
+            client.println("<label for='idupdate0'>" + txtUpdateE1 + "</label>");
+            client.println("</div>");
+            client.println("<div>");
+            client.println("<input type='radio' id='idupdate1' name='useupdate' value='1'");
+            if (useupdate == 1) {
+              client.print(" checked");
+              client.print(">");
+            } else {
+              client.print(">");
+            }
+            client.println("<label for='idupdate1'>" + txtUpdateE2 + "</label>");
+            client.println("</div>");
+            client.println("<div>");
+            client.println("<input type='radio' id='idupdate2' name='useupdate' value='2'");
+            if (useupdate == 2) {
+              client.print(" checked");
+              client.print(">");
+            } else {
+              client.print(">");
+            }
+            client.println("<label for='idupdate2'>" + txtUpdateE3 + "</label>");
+            client.println("</div>");
+            client.println("</fieldset>");
+
+            // Update details section:
+            if (useupdate == -1) useupdate = 1;             // Fix for setting from older versions
+            if (useupdate == 0) {
+              client.println("<br><br><label>" + txtUpdateX + "</label>");
+            }
+            if (useupdate == 1) {
+              client.println("<br><br><label>" + txtUpdate2 + ":</label><br><br>");
               client.println("<a href=" + UpdatePath + " target='_blank'>" + UpdatePath + "</a><br><br>");
               client.println("<a href=" + UpdatePathIP + " target='_blank'>" + UpdatePathIP + "</a><br><br>");
               client.println("<label>" + txtUpdate3 + "<br>" + txtUpdate4 + "</label>");
               client.println("<br><br><label>" + txtUpdate5 + ":</label>");
-              client.println("<a href='https://github.com/N1cls/Wordclock' target='_blank'>" + txtUpdate6 + "</a><br><br><hr>");
-            } else {
-              client.println("><br><br><label>" + txtUpdateX + "</label><br><br><hr>");
+              client.println("<a href='https://github.com/N1cls/Wordclock' target='_blank'>" + txtUpdate6 + "</a>");
             }
+            if (useupdate == 2) {
+              if (AvailableVersion == "-") readhttpfile(); // Read version from internet if function used for the first time...
+              if (UpdateAvailable == 0) {
+                client.println("<br><br><label>" + txtUpdate7 + ": " + AvailableVersion + "</label>");
+              }
+              if (UpdateAvailable == 1) {
+                client.println("<br><br><label><b>" + txtUpdate8 + ": " + AvailableVersion + "</b></label><br><br>");
+                if (useresturl == -1) {
+                  client.println("<label>" + txtUpdate9 + ": <a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/esphttpupdate target='_blank'>" + txtUpdate0 + "</a></label>");
+                } else {
+                  client.println("<label>" + txtRESTX + " - " + txtUpdateX + "</label>");
+                }
+              }
+            }
+            client.println("<br><br><hr>");
 
 
             // Reset WiFi configuration:
@@ -1166,21 +1209,23 @@ void checkClient() {
 
               // Check for UseUpdate switch:
               // ###########################
-              if (currentLine.indexOf("&useupdate=on&") >= 0) {
-                useupdate = -1;
+              pos = currentLine.indexOf("&useupdate=");
+              if (pos >= 0) {
+                String updateStr = currentLine.substring(pos + 11);
+                pos = updateStr.indexOf("&");
+                if (pos > 0)
+                  updateStr = updateStr.substring(0, pos);
+                useupdate = updateStr.toInt();
+              }
+              if (useupdate == 1) {
                 MDNS.begin(wchostname + wchostnamenum);
                 httpUpdater.setup(&httpServer);
                 httpServer.begin();
                 MDNS.addService("http", "tcp", 2022);
                 MDNS.addService("http", "tcp", 80);
                 UpdatePath = "http://" + String(wchostname + wchostnamenum) + ".local:2022/update";
-                Serial.print("Web Update Link: ");
-                Serial.println(UpdatePath);
                 UpdatePathIP = "http://" + WiFi.localIP().toString() + ":2022/update";
-                Serial.print("Web Update Link via IP-address: ");
-                Serial.println(UpdatePathIP);
               } else {
-                useupdate = 0;
                 httpUpdater.setup(&httpServer);
                 httpServer.stop();
               }
@@ -1503,8 +1548,8 @@ void checkClient() {
     }
     header = "";    // Clear the header variable
     client.stop();  // Close the connection
-    Serial.println("Web client disconnected.");
-    Serial.println("######################################################################################################");
+    //Serial.println("Web client disconnected.");
+    //Serial.println("######################################################################################################");
   }
 }
 
@@ -1911,7 +1956,7 @@ byte decToBcd(byte val) {
 // ###########################################################################################################################################
 void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int sekunde) {
   if (checkRTC()) {
-    Serial.println("Wire.write()...");
+    // Serial.println("Wire.write()...");
     Wire.beginTransmission(RTC_I2C_ADDRESS);
     Wire.write(0); //count 0 activates RTC module
     Wire.write(decToBcd(sekunde));
@@ -1922,7 +1967,9 @@ void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int seku
     Wire.write(decToBcd(monat));
     Wire.write(decToBcd(jahr - 2000));
     Wire.endTransmission();
-    Serial.println("Configuration page now available...");
+    Serial.print("# Configuration page now available: ");
+    Serial.println("http://" + WiFi.localIP().toString());
+    Serial.println("######################################################################");
   }
 }
 
@@ -1939,7 +1986,7 @@ void handleTime() {
     localtime_r(&now, &ti);
     int i = ti.tm_year + ti.tm_mon + ti.tm_mday + ti.tm_hour;
     if (i != lastRequest) {
-      Serial.print("Set RTC to current time: ");
+      //Serial.print("Set RTC to current time: ");
       lastRequest = i;
       // check for update
       uint16_t ye = ti.tm_year + 1900;
@@ -1948,17 +1995,17 @@ void handleTime() {
       int ho  = ti.tm_hour;
       int mi  = ti.tm_min;
       int sec = ti.tm_sec;
-      Serial.print (ho);
-      Serial.print(':');
-      Serial.print (mi);
-      Serial.print(':');
-      Serial.print (sec);
-      Serial.print("   ==  ");
-      Serial.print(ye);
-      Serial.print('-');
-      Serial.print(mo);
-      Serial.print('-');
-      Serial.println(da);
+      /* Serial.print (ho);
+        Serial.print(':');
+        Serial.print (mi);
+        Serial.print(':');
+        Serial.print (sec);
+        Serial.print("   ==  ");
+        Serial.print(ye);
+        Serial.print('-');
+        Serial.print(mo);
+        Serial.print('-');
+        Serial.println(da); */
       // set working timestamp
       iYear  = ye;
       iMonth = mo;
@@ -2031,10 +2078,10 @@ void DayNightMode(int displayonMin, int displayonMax) {
 // # NTP time function:
 // ###########################################################################################################################################
 void configNTPTime() {
-  Serial.print("Set time zone to ");
-  Serial.println(timeZone);
-  Serial.print("Set time server to ");
-  Serial.println(ntpServer);
+  //Serial.print("Set time zone to ");
+  //Serial.println(timeZone);
+  //Serial.print("Set time server to ");
+  //Serial.println(ntpServer);
   configTime(timeZone.begin(), ntpServer.begin());
 }
 
@@ -2066,7 +2113,7 @@ int checkRTC() {
     if (rtc.begin()) {
       rtcStarted = -1;
       // start RTC Communication via Wire.h library
-      Serial.println("Start RTC communication");
+      // Serial.println("Start RTC communication");
       Wire.begin();
     } else {
       Serial.println("Couldn't find RTC");
@@ -2161,68 +2208,6 @@ void LedStatus() {
 
 
 // ###########################################################################################################################################
-// # Twinkle LED test function:
-// ###########################################################################################################################################
-float redStates[NUMPIXELS];
-float blueStates[NUMPIXELS];
-float greenStates[NUMPIXELS];
-float Fade = 0.96;
-unsigned int sample;
-
-void TwinkleModeOn() {
-  WiFiClient client = server.available();
-  server1->send(200, "text/plain", "Twinkle LEDs set to ON");
-  pixels.setBrightness(128);
-  TwinkleON = true;
-  client.stop();
-}
-
-void TwinkleModeOFF() {
-  WiFiClient client = server.available();
-  server1->send(200, "text/plain", "Twinkle LEDs set to OFF");
-  pixels.setBrightness(intensity);
-  TwinkleON = false;
-  RESTmanLEDsON = true;
-  client.stop();
-}
-
-void Twinkle() {
-  if (random(2) == 1) {
-    uint16_t i = random(NUMPIXELS);
-    if (redStates[i] < 1 && greenStates[i] < 1 && blueStates[i] < 1) {
-      redStates[i] = random(256);
-      greenStates[i] = random(256);
-      blueStates[i] = random(256);
-    }
-  }
-  for (uint16_t l = 0; l < NUMPIXELS; l++) {
-    if (redStates[l] > 1 || greenStates[l] > 1 || blueStates[l] > 1) {
-      pixels.setPixelColor(l, redStates[l], greenStates[l], blueStates[l]);
-      if (redStates[l] > 1) {
-        redStates[l] = redStates[l] * Fade;
-      } else {
-        redStates[l] = 0;
-      }
-      if (greenStates[l] > 1) {
-        greenStates[l] = greenStates[l] * Fade;
-      } else {
-        greenStates[l] = 0;
-      }
-      if (blueStates[l] > 1) {
-        blueStates[l] = blueStates[l] * Fade;
-      } else {
-        blueStates[l] = 0;
-      }
-    } else {
-      pixels.setPixelColor(l, 0, 0, 0);
-    }
-  }
-  pixels.show();
-  delay(5);
-}
-
-
-// ###########################################################################################################################################
 // # Startup LED test function:
 // ###########################################################################################################################################
 // LED test --> no blank display if WiFi was not set yet:
@@ -2237,9 +2222,6 @@ void DisplayTest() {
     }
 
     for (int i = 0; i < NUMPIXELS; i++) {
-      redVal = 0;
-      greenVal = 255;
-      blueVal = 0;
       setLED(i, i, 1);
       pixels.show();
       delay(50);
@@ -2504,6 +2486,8 @@ void PingIP() {
 // # Wifi Manager setup and reconnect function that runs once at startup and during the loop function of the ESP:
 // ###########################################################################################################################################
 void WIFI_login() {
+  Serial.print("Try to connect to WiFi: ");
+  Serial.println(WiFi.SSID());
   bool WiFires;
   bool DebugWifiLEDs = false;
   WiFiManager wifiManager;
@@ -2511,10 +2495,12 @@ void WIFI_login() {
   wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
   WiFires = wifiManager.autoConnect(DEFAULT_AP_NAME);
   if (!WiFires) {
-    Serial.println("Failed to connect to WiFi");
+    Serial.print("Failed to connect to WiFi: ");
+    Serial.println(WiFi.SSID());
     if (DebugWifiLEDs) WIFI_DebugWifiLEDs(pixels.Color(255, 0, 0));
   } else {
-    Serial.println("Connected to WiFi.");
+    Serial.print("Connected to WiFi: ");
+    Serial.println(WiFi.SSID());
     if (DebugWifiLEDs) WIFI_DebugWifiLEDs(pixels.Color(0, 255, 0));
   }
 }
@@ -2535,6 +2521,247 @@ void WIFI_DebugWifiLEDs(uint32_t color) {
   }
   pixels.show();
   delay(3000);
+}
+
+
+// ###########################################################################################################################################
+// # Direct update for the ESP:
+// ###########################################################################################################################################
+void esphttpupdate() {                            // Basic ESP update function
+  if (useupdate != 2) {
+    server1->send(200, "text/plain", "The automatic update function is currently disabled...");
+    Serial.println("The automatic update function is currently disabled...");
+  } else {
+    if (UpdateAvailable == 1) {
+      WiFiClient client = server.available();
+      server1->send(200, "text/plain", "Update Start... Check status on the display...");
+      Serial.println("Update START");
+      ESPhttpUpdate.onStart(update_started);
+      ESPhttpUpdate.onEnd(update_finished);
+      ESPhttpUpdate.onProgress(update_progress);
+      ESPhttpUpdate.onError(update_error);
+      t_httpUpdate_return ret = ESPhttpUpdate.update(client, "http://www.awsw.de/Arduino/WordClock/WordClockWithWeb.ino.nodemcu.bin"); // Update path on AWSW-de's server
+      switch (ret) {
+        case HTTP_UPDATE_FAILED:
+          Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+          break;
+        case HTTP_UPDATE_NO_UPDATES:
+          Serial.println("HTTP_UPDATE_NO_UPDATES");
+          break;
+        case HTTP_UPDATE_OK:
+          Serial.println("HTTP_UPDATE_OK");
+          break;
+      }
+      Serial.println("Update END");
+      client.stop();
+    } else {
+      server1->send(200, "text/plain", "No update available...");
+      Serial.println("No update available...");
+    }
+  }
+}
+
+void update_started() {                            // Callback update start function
+  Serial.println("CALLBACK:  HTTP update process started");
+  for (uint16_t i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, (0, 0, 0));
+  }
+  pixels.show();
+  switchRainBow = 0;
+  pixels.setBrightness(50);
+  redVal = 0;
+  greenVal = 255;
+  blueVal = 255;
+  // Arrow borders:
+  setLED(3, 7, 1);
+  setLED(14, 14, 1);
+  setLED(18, 18, 1);
+  setLED(29, 29, 1);
+  setLED(25, 25, 1);
+  setLED(36, 36, 1);
+  setLED(40, 40, 1);
+  setLED(51, 51, 1);
+  setLED(47, 47, 1);
+  setLED(56, 58, 1);
+  setLED(62, 64, 1);
+  setLED(68, 68, 1);
+  setLED(74, 74, 1);
+  setLED(80, 80, 1);
+  setLED(84, 84, 1);
+  setLED(94, 94, 1);
+  setLED(92, 92, 1);
+  setLED(104, 104, 1);
+  pixels.show();
+  delay(1500);
+}
+
+void update_finished() {                            // Callback update success finish function
+  Serial.println("CALLBACK:  HTTP update process finished");
+  switchRainBow = 0;
+  pixels.setBrightness(50);
+  for (uint16_t i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, (0, 0, 0));
+  }
+  pixels.show();
+  update_msg_LEDs(0, 255, 0);
+  delay(3000);
+  for (uint16_t i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, (0, 0, 0));
+  }
+  pixels.show();
+  Serial.println("Show RESET before board reset...");
+  setLED(30, 31, 1);    // RE
+  setLED(58, 58, 1);    // S
+  setLED(64, 64, 1);    // E
+  setLED(87, 87, 1);    // T
+  pixels.show();
+  Serial.println("##########################################");
+  Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
+  Serial.println("##########################################");
+  delay(3000);
+}
+
+void update_error(int err) {                            // Callback update error finish function
+  Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
+  switchRainBow = 0;
+  pixels.setBrightness(50);
+  for (uint16_t i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, (0, 0, 0));
+  }
+  pixels.show();
+  update_msg_LEDs(255, 0, 0);
+  delay(3000);
+  for (uint16_t i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, (0, 0, 0));
+  }
+  pixels.show();
+  Serial.println("Show RESET before board reset...");
+  setLED(30, 31, 1);    // RE
+  setLED(58, 58, 1);    // S
+  setLED(64, 64, 1);    // E
+  setLED(87, 87, 1);    // T
+  pixels.show();
+  Serial.println("##########################################");
+  Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
+  Serial.println("##########################################");
+  delay(3000);
+}
+
+void update_msg_LEDs(int redCol, int greenCol, int blueCol) {
+  redVal = redCol;
+  greenVal = greenCol;
+  blueVal = blueCol;
+  setLED(1, 2, 1);       // 1 (Arrow)
+  setLED(4, 6, 1);
+  setLED(8, 8, 1);
+  setLED(10, 10, 1);
+  setLED(21, 21, 1);     // 2
+  setLED(19, 19, 1);
+  setLED(17, 17, 1);
+  setLED(15, 15, 1);
+  setLED(13, 13, 1);
+  setLED(11, 11, 1);
+  setLED(22, 22, 1);       // 3
+  setLED(24, 24, 1);
+  setLED(26, 28, 1);
+  setLED(30, 30, 1);
+  setLED(32, 32, 1);
+  setLED(33, 35, 1);       // 4
+  setLED(37, 37, 1);
+  setLED(41, 42, 1);
+  setLED(72, 74, 1);      // O (7-10)
+  setLED(81, 81, 1);
+  setLED(94, 94, 1);
+  setLED(79, 79, 1);
+  setLED(96, 96, 1);
+  setLED(101, 103, 1);
+  setLED(70, 70, 1);      // K (7-10)
+  setLED(83, 83, 1);
+  setLED(92, 92, 1);
+  setLED(105, 105, 1);
+  setLED(68, 68, 1);
+  setLED(84, 84, 1);
+  setLED(91, 91, 1);
+  setLED(107, 107, 1);
+  pixels.show();
+}
+
+void update_progress(int cur, int total) {                            // Callback update download progress function
+  switchRainBow = 0;
+  pixels.setBrightness(50);
+  // Serial.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
+  int percent = (cur * 100) / total;
+  redVal = 0;
+  greenVal = 255;
+  blueVal = 0;
+  if (percent >= 10) {
+    setLED(3, 7, 1);
+  }
+  if (percent >= 20) {
+    setLED(14, 18, 1);
+  }
+  if (percent >= 30) {
+    setLED(25, 29, 1);
+  }
+  if (percent >= 40) {
+    setLED(36, 40, 1);
+  }
+  if (percent >= 50) {
+    setLED(47, 51, 1);
+  }
+  if (percent >= 60) {
+    setLED(56, 64, 1);
+  }
+  if (percent >= 70) {
+    setLED(68, 74, 1);
+  }
+  if (percent >= 80) {
+    setLED(80, 84, 1);
+  }
+  if (percent >= 90) {
+    setLED(92, 94, 1);
+  }
+  if (percent >= 99) {
+    setLED(104, 104, 1);
+  }
+  if (percent == 100) {
+    delay(1500);
+  }
+  pixels.show();
+  Serial.print("Automatic update - download file progress: ");
+  Serial.print(percent);
+  Serial.println("%");
+}
+
+
+// ###########################################################################################################################################
+// # Check for available updates:
+// ###########################################################################################################################################
+void readhttpfile() {
+  //Serial.print("AUTOMATIC UPDATE: Read current version number from http server: ");
+  WiFiClient wifiClient;
+  String errorMessage = "";
+  String response = "";
+  String GetData = "http://www.awsw.de/Arduino/WordClock/version.txt"; // Update path on AWSW-de's server
+  HTTPClient http;
+  http.begin(wifiClient, GetData);
+  int httpCode = http.GET();
+  if (httpCode > 0) {
+    response = http.getString();
+    //Serial.println(response);
+    http.end();
+    AvailableVersion = String(response);
+    if (String(response) != String(WORD_CLOCK_VERSION)) {
+      UpdateAvailable = true;
+      //Serial.print("Software update available: ");
+      //Serial.println(UpdateAvailable);
+    }
+    if (httpCode != 200) {
+      errorMessage = "Error response (" + String(httpCode) + "): " + response;
+      Serial.println(errorMessage);
+      return;
+    }
+  }
 }
 
 

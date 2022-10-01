@@ -81,6 +81,15 @@ Time here is 07:43 or 19:43 o'clock
 - 4.9:          Added a radio button selector to switch between 2 rainbow color modes. Added a URL to get to the Wordclock repository page on GitHub.
 - 5.0:		Added language support for the HTML configuration interface for english and german. German language is the default.
 - 5.1:		Small bugfix for the new language support function.
+- 5.2:		Optional: Automatic update without the need of a computer. The configuration page will show the available version to update to and
+		with a single click on the note the update will be done automatically. The download and update progress is shown on the clock display.
+		<img src="./Images/D76939B1-55AD-43A6-8DAE-4C544F571979.jpeg">
+
+<hr>
+
+<h3><b>Upcomming and planned functions:</b></h3>
+- 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected because of the configuration page access of the WordClock
+
 
 <hr>
 
