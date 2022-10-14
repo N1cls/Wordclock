@@ -6,7 +6,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 <hr>
 
-<h3><b>Current version: 5.3    </b></h3>
+<h3><b>Current version: 5.4    </b></h3>
 
 <hr>
 
@@ -85,6 +85,7 @@ Time here is 07:43 or 19:43 o'clock
 		with a single click on the note the update will be done automatically. The download and update progress is shown on the clock display.
 		<img src="./Images/IMG_0036.jpeg">
 - 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock. No configuration needed. If there is no RTC detected a note is shown until the configuration page is saved once. Tested with and without an RTC on a WordClock.
+- 5.4			BugFix to version 5.3 when no RTC board is used the current time was not updated every minute.
 
 <hr>
 

@@ -35,54 +35,53 @@
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 #include <ESP8266Ping.h>              // Used to send ping requests to a IP-address (of your smart phone) to detect if you have left your home
 #include "settings.h"                 // Settings are stored in a seperate file to make to code better readable and to be able to switch to other settings faster
-#include "languages.h"             // Translation for texts for the HTML page
+#include "languages.h"                // Translation for texts for the HTML page
 
 
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.3";
+const char* WORD_CLOCK_VERSION = "V5.4";
 
 
 // ###########################################################################################################################################
 // # Declartions and variables used in the functions:
 // ###########################################################################################################################################
-String header; // Variable to store the HTTP request
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);           // LED strip settings
-RTC_DS3231 rtc;                                                                               // rtc communication object
-int lastRequest = 0;                                                                          // Variable to control RTC requests
-int rtcStarted = 0;                                                                           // Variable to control whether RTC has been initialized
-int delayval = 250;                                                                           // delay in milliseconds
-int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                                   // variables for RTC-module read time:
-String timeZone = DEFAULT_TIMEZONE;                                                           // Time server settings
-String ntpServer = DEFAULT_NTP_SERVER;                                                        // Time server settings
-String UpdatePath = "-";                                                                      // Update via Hostname
-String UpdatePathIP = "-";                                                                    // Update via IP-address
-ESP8266HTTPUpdateServer httpUpdater;                                                          // Update server
-std::unique_ptr<ESP8266WebServer> server1;                                                    // REST function web server
-int PING_ATTEMPTSIP1 = PING_TIMEOUTNUM;                                                       // 1st IP-addres attempts of missed PING requests
-int PING_ATTEMPTSIP2 = PING_TIMEOUTNUM;                                                       // 2nd IP-addres attempts of missed PING requests
-int PING_ATTEMPTSIP3 = PING_TIMEOUTNUM;                                                       // 3rd IP-addres attempts of missed PING requests
-bool PingStatusIP1 = true;                                                                    // Status flag 1st IP-address - PING function
-bool PingStatusIP2 = true;                                                                    // Status flag 2nd IP-address - PING function
-bool PingStatusIP3 = true;                                                                    // Status flag 3rd IP-address - PING function
-bool LEDsON = true;                                                                           // Global flag to turn LEDs on or off - Used for the PING function
-bool RESTmanLEDsON = true;                                                                    // Global flag to turn LEDs manually on or off - Used for the REST function
-bool UpdateAvailable = false;                                                                 // Global flag to check for avaiable updates
-String AvailableVersion = "-";                                                                // Global string to check for avaiable updates
+String header;                                                                       // Variable to store the HTTP request
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);  // LED strip settings
+RTC_DS3231 rtc;                                                                      // rtc communication object
+int lastRequest = 0;                                                                 // Variable to control RTC requests
+int rtcStarted = 0;                                                                  // Variable to control whether RTC has been initialized
+int delayval = 250;                                                                  // delay in milliseconds
+int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                          // variables for RTC-module read time:
+String timeZone = DEFAULT_TIMEZONE;                                                  // Time server settings
+String ntpServer = DEFAULT_NTP_SERVER;                                               // Time server settings
+String UpdatePath = "-";                                                             // Update via Hostname
+String UpdatePathIP = "-";                                                           // Update via IP-address
+ESP8266HTTPUpdateServer httpUpdater;                                                 // Update server
+std::unique_ptr<ESP8266WebServer> server1;                                           // REST function web server
+int PING_ATTEMPTSIP1 = PING_TIMEOUTNUM;                                              // 1st IP-addres attempts of missed PING requests
+int PING_ATTEMPTSIP2 = PING_TIMEOUTNUM;                                              // 2nd IP-addres attempts of missed PING requests
+int PING_ATTEMPTSIP3 = PING_TIMEOUTNUM;                                              // 3rd IP-addres attempts of missed PING requests
+bool PingStatusIP1 = true;                                                           // Status flag 1st IP-address - PING function
+bool PingStatusIP2 = true;                                                           // Status flag 2nd IP-address - PING function
+bool PingStatusIP3 = true;                                                           // Status flag 3rd IP-address - PING function
+bool LEDsON = true;                                                                  // Global flag to turn LEDs on or off - Used for the PING function
+bool RESTmanLEDsON = true;                                                           // Global flag to turn LEDs manually on or off - Used for the REST function
+bool UpdateAvailable = false;                                                        // Global flag to check for avaiable updates
+String AvailableVersion = "-";                                                       // Global string to check for avaiable updates
 
 
 // ###########################################################################################################################################
 // # Parameter record to store to the EEPROM of the ESP:
 // ###########################################################################################################################################
-struct parmRec
-{
-  int  pRed;
-  int  pGreen;
-  int  pBlue;
-  int  pIntensity;
-  int  pIntensityNight;
-  int  pShowDate;
+struct parmRec {
+  int pRed;
+  int pGreen;
+  int pBlue;
+  int pIntensity;
+  int pIntensityNight;
+  int pShowDate;
   char pdisplayonmaxMO;
   char pdisplayonminMO;
   char pdisplayonmaxTU;
@@ -97,39 +96,39 @@ struct parmRec
   char pdisplayonminSA;
   char pdisplayonmaxSU;
   char pdisplayonminSU;
-  int  pdisplayoff;
-  int  puseNightLEDs;
-  int  puseupdate;
-  int  puseresturl;
-  int  ppowersupply;
-  int  puseledtest;
-  int  pusesetwlan;
-  int  puseshowip;
-  int  pswitchRainBow;
-  int  pswitchLangWeb;
-  int  pswitchLEDOrder;
-  int  pwchostnamenum;
-  int  pDCWFlag;
-  int  puseRTC;
-  int  pBlinkTime;
-  int  pPING_IP_ADDR1_O1;
-  int  pPING_IP_ADDR1_O2;
-  int  pPING_IP_ADDR1_O3;
-  int  pPING_IP_ADDR1_O4;
-  int  pPING_IP_ADDR2_O1;
-  int  pPING_IP_ADDR2_O2;
-  int  pPING_IP_ADDR2_O3;
-  int  pPING_IP_ADDR2_O4;
-  int  pPING_IP_ADDR3_O1;
-  int  pPING_IP_ADDR3_O2;
-  int  pPING_IP_ADDR3_O3;
-  int  pPING_IP_ADDR3_O4;
-  int  pPING_TIMEOUTNUM;
-  int  pPING_DEBUG_MODE;
-  int  pPING_USEMONITOR;
+  int pdisplayoff;
+  int puseNightLEDs;
+  int puseupdate;
+  int puseresturl;
+  int ppowersupply;
+  int puseledtest;
+  int pusesetwlan;
+  int puseshowip;
+  int pswitchRainBow;
+  int pswitchLangWeb;
+  int pswitchLEDOrder;
+  int pwchostnamenum;
+  int pDCWFlag;
+  int puseRTC;
+  int pBlinkTime;
+  int pPING_IP_ADDR1_O1;
+  int pPING_IP_ADDR1_O2;
+  int pPING_IP_ADDR1_O3;
+  int pPING_IP_ADDR1_O4;
+  int pPING_IP_ADDR2_O1;
+  int pPING_IP_ADDR2_O2;
+  int pPING_IP_ADDR2_O3;
+  int pPING_IP_ADDR2_O4;
+  int pPING_IP_ADDR3_O1;
+  int pPING_IP_ADDR3_O2;
+  int pPING_IP_ADDR3_O3;
+  int pPING_IP_ADDR3_O4;
+  int pPING_TIMEOUTNUM;
+  int pPING_DEBUG_MODE;
+  int pPING_USEMONITOR;
   char pTimeZone[50];
   char pNTPServer[50];
-  int  pCheckSum;             // This checkSum is used to find out whether we have valid parameters
+  int pCheckSum;  // This checkSum is used to find out whether we have valid parameters
 } parameter;
 
 
@@ -143,16 +142,16 @@ void setup() {
   Serial.print("# WordClock startup of version: ");
   Serial.println(WORD_CLOCK_VERSION);
   Serial.println("######################################################################");
-  dunkel();                                 // Switch display black
-  pixels.begin();                           // Init the NeoPixel library
-  readEEPROM();                             // get persistent data from EEPROM
-  pixels.setBrightness(intensity);          // Set LED brightness
-  DisplayTest();                            // Perform the LED test
-  SetWLAN();                                // Show SET WLAN text
-  WIFI_login();                             // WiFiManager
-  if (useshowip) showIP();                  // Show IP-address on display
+  dunkel();                         // Switch display black
+  pixels.begin();                   // Init the NeoPixel library
+  readEEPROM();                     // get persistent data from EEPROM
+  pixels.setBrightness(intensity);  // Set LED brightness
+  DisplayTest();                    // Perform the LED test
+  SetWLAN();                        // Show SET WLAN text
+  WIFI_login();                     // WiFiManager
+  if (useshowip) showIP();          // Show IP-address on display
 
-  if (useupdate) {                          // Local web update function setup
+  if (useupdate) {  // Local web update function setup
     MDNS.begin(wchostname + wchostnamenum);
     httpUpdater.setup(&httpServer);
     httpServer.begin();
@@ -176,8 +175,8 @@ void setup() {
     server1->begin();
   }
 
-  setLanguage(switchLangWeb);             // Load set language
-  if (useupdate == 2) readhttpfile();     // Check for updates on the http server if automatic update function used
+  setLanguage(switchLangWeb);          // Load set language
+  if (useupdate == 2) readhttpfile();  // Check for updates on the http server if automatic update function used
 
   Serial.println("######################################################################");
   Serial.println("# WordClock startup finished...");
@@ -196,53 +195,53 @@ void loop() {
 
   // Check WiFi connection and reconnect if needed:
   if (WiFi.status() != WL_CONNECTED) {
-    WIFI_login(); // WiFi inactive --> Reconnect to it...
-  } else {        // Wifi active --> Sort some atoms in the univers and show the time...
+    WIFI_login();  // WiFi inactive --> Reconnect to it...
+  } else {         // Wifi active --> Sort some atoms in the univers and show the time...
     // Check, whether something has been entered on Config Page
     checkClient();
     ESP.wdtFeed();  // Reset watchdog timer
-    handleTime(); // handle NTP / RTC time
+    handleTime();   // handle NTP / RTC time
     delay(750);
 
-    if (switchRainBow == 2) {                              // RainBow variant 2 effect active - color change every new minute
+    if (switchRainBow == 2) {  // RainBow variant 2 effect active - color change every new minute
       if (iSecond == 0) {
         redVal = random(255);
         greenVal = random(255);
         blueVal = random(255);
       }
     } else {
-      redVal    = redVal;
-      greenVal  = greenVal;
-      blueVal   = blueVal;
+      redVal = redVal;
+      greenVal = greenVal;
+      blueVal = blueVal;
     }
 
     // Show the display only during the set Min/Max time if option is set
     if (displayoff) {
       switch (iWeekDay) {
-        case 0:     // Sunday
+        case 0:  // Sunday
           DayNightMode(displayonminSU, displayonmaxSU);
           break;
-        case 1:     // Monday
+        case 1:  // Monday
           DayNightMode(displayonminMO, displayonmaxMO);
           break;
-        case 2:     // Tuesday
+        case 2:  // Tuesday
           DayNightMode(displayonminTU, displayonmaxTU);
           break;
-        case 3:     // Wednesday
+        case 3:  // Wednesday
           DayNightMode(displayonminWE, displayonmaxWE);
           break;
-        case 4:     // Thursday
+        case 4:  // Thursday
           DayNightMode(displayonminTH, displayonmaxTH);
           break;
-        case 5:     // Friday
+        case 5:  // Friday
           DayNightMode(displayonminFR, displayonmaxFR);
           break;
-        case 6:     // Saturday
+        case 6:  // Saturday
           DayNightMode(displayonminSA, displayonmaxSA);
           break;
       }
     } else {
-      pixels.setBrightness(intensity); // DAY brightness
+      pixels.setBrightness(intensity);  // DAY brightness
       ShowTheTime();
     }
 
@@ -257,7 +256,7 @@ void loop() {
     // PING function:
     if (PING_USEMONITOR == 1) PingIP();
 
-    if (LEDsON == true && RESTmanLEDsON == true) pixels.show(); // This sends the updated pixel color to the hardware.
+    if (LEDsON == true && RESTmanLEDsON == true) pixels.show();  // This sends the updated pixel color to the hardware.
   }
 
   // REST function web server:
@@ -309,9 +308,9 @@ void readEEPROM() {
 
   if (check == parameter.pCheckSum) {
     // Serial.println("Checksum does match. Get parameter values from EEPROM");
-    redVal    =  parameter.pRed;
-    greenVal  =  parameter.pGreen;
-    blueVal   =  parameter.pBlue;
+    redVal = parameter.pRed;
+    greenVal = parameter.pGreen;
+    blueVal = parameter.pBlue;
     showDate = parameter.pShowDate;
     displayoff = parameter.pdisplayoff;
     useNightLEDs = parameter.puseNightLEDs;
@@ -339,11 +338,11 @@ void readEEPROM() {
     switchRainBow = parameter.pswitchRainBow;
     switchLangWeb = parameter.pswitchLangWeb;
     switchLEDOrder = parameter.pswitchLEDOrder;
-    blinkTime =  parameter.pBlinkTime;
-    dcwFlag =  parameter.pDCWFlag;
+    blinkTime = parameter.pBlinkTime;
+    dcwFlag = parameter.pDCWFlag;
     useRTC = parameter.puseRTC;
-    intensity =  parameter.pIntensity;
-    intensityNight =  parameter.pIntensityNight;
+    intensity = parameter.pIntensity;
+    intensityNight = parameter.pIntensityNight;
     PING_IP_ADDR1_O1 = parameter.pPING_IP_ADDR1_O1;
     PING_IP_ADDR1_O2 = parameter.pPING_IP_ADDR1_O2;
     PING_IP_ADDR1_O3 = parameter.pPING_IP_ADDR1_O3;
@@ -374,19 +373,19 @@ void readEEPROM() {
 // ###########################################################################################################################################
 void writeEEPROM() {
   //Serial.println("Write parameter into EEPROM");
-  parameter.pRed       = redVal;
-  parameter.pGreen     = greenVal;
-  parameter.pBlue      = blueVal;
+  parameter.pRed = redVal;
+  parameter.pGreen = greenVal;
+  parameter.pBlue = blueVal;
   parameter.pIntensity = intensity;
   parameter.pIntensityNight = intensityNight;
-  parameter.pDCWFlag   = dcwFlag;
-  parameter.puseRTC    = useRTC;
+  parameter.pDCWFlag = dcwFlag;
+  parameter.puseRTC = useRTC;
   parameter.pBlinkTime = blinkTime;
   ntpServer.toCharArray(parameter.pNTPServer, sizeof(parameter.pNTPServer));
   timeZone.toCharArray(parameter.pTimeZone, sizeof(parameter.pTimeZone));
-  parameter.pShowDate  = showDate;
-  parameter.pdisplayoff  = displayoff;
-  parameter.puseNightLEDs  = useNightLEDs;
+  parameter.pShowDate = showDate;
+  parameter.pdisplayoff = displayoff;
+  parameter.puseNightLEDs = useNightLEDs;
   parameter.pdisplayonmaxMO = displayonmaxMO;
   parameter.pdisplayonminMO = displayonminMO;
   parameter.pdisplayonmaxTU = displayonmaxTU;
@@ -402,12 +401,12 @@ void writeEEPROM() {
   parameter.pdisplayonmaxSU = displayonmaxSU;
   parameter.pdisplayonminSU = displayonminSU;
   parameter.pwchostnamenum = wchostnamenum;
-  parameter.puseupdate  = useupdate;
+  parameter.puseupdate = useupdate;
   parameter.puseresturl = useresturl;
   parameter.ppowersupply = powersupply;
-  parameter.puseledtest  = useledtest;
-  parameter.pusesetwlan  = usesetwlan;
-  parameter.puseshowip   = useshowip;
+  parameter.puseledtest = useledtest;
+  parameter.pusesetwlan = usesetwlan;
+  parameter.puseshowip = useshowip;
   parameter.pswitchRainBow = switchRainBow;
   parameter.pswitchLangWeb = switchLangWeb;
   parameter.pswitchLEDOrder = switchLEDOrder;
@@ -453,17 +452,17 @@ void writeEEPROM() {
 // ###########################################################################################################################################
 void checkClient() {
   //Serial.println("check for client");
-  WiFiClient client = server.available();   // Listen for incoming clients // @suppress("Abstract class cannot be instantiated")
+  WiFiClient client = server.available();  // Listen for incoming clients // @suppress("Abstract class cannot be instantiated")
 
-  if (client) {                             // If a new client connects,
+  if (client) {  // If a new client connects,
     //Serial.println("New web client...");          // print a message out in the serial port
-    String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected()) {            // loop while the client's connected
-      if (client.available()) {             // if there's bytes to read from the client,
-        char c = client.read();             // read a byte, then
+    String currentLine = "";      // make a String to hold incoming data from the client
+    while (client.connected()) {  // loop while the client's connected
+      if (client.available()) {   // if there's bytes to read from the client,
+        char c = client.read();   // read a byte, then
         // Serial.write(c);                    // print it out the serial monitor
         header += c;
-        if (c == '\n') {                    // if the byte is a newline character
+        if (c == '\n') {  // if the byte is a newline character
           // if the current line is blank, you got two newline characters in a row.
           // that's the end of the client HTTP request, so send a response:
           if (currentLine.length() == 0) {
@@ -499,12 +498,12 @@ void checkClient() {
 
             // Convert color into hex settings:
             // ################################
-            if (parameter.pRed >= 0) {            // Load defined color from EEPROM - important after Rainbow random function usage
-              redVal   = parameter.pRed;
+            if (parameter.pRed >= 0) {  // Load defined color from EEPROM - important after Rainbow random function usage
+              redVal = parameter.pRed;
               greenVal = parameter.pGreen;
-              blueVal  = parameter.pBlue;
+              blueVal = parameter.pBlue;
             }
-            char hex_main[7] = {0};
+            char hex_main[7] = { 0 };
             sprintf(hex_main, "#%02X%02X%02X", redVal, greenVal, blueVal);
             client.println("<hr><h2>" + txtLEDsettings + ":</h2><br>");
             client.println("<label for=\"favcolor\">" + txtLEDcolor + ": </label>");
@@ -625,7 +624,8 @@ void checkClient() {
             client.println("</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option>");
             client.println("</select>:00 " + txtNightModeTo + " <select id=\"displayonminTU\" name=\"displayonminTU\" ><option selected=\"selected\">");
             client.println(displayonminTU);
-            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 " + txtNightModeClock + " <br><br>");;
+            client.println("</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select>:59 " + txtNightModeClock + " <br><br>");
+            ;
 
             // Wednesday:
             // ##########
@@ -873,11 +873,11 @@ void checkClient() {
               client.println("<label>" + txtREST3 + ": </label>");
               client.println("<br>");
               client.println("<label>" + txtREST4 + ": </label>");
-              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledsoff</a><br>");
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port + "/ledsoff target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port + "/ledsoff</a><br>");
               client.println("<label>" + txtREST5 + ": </label>");
-              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledson</a><br>");
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port + "/ledson target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port + "/ledson</a><br>");
               client.println("<label>" + txtREST6 + ": </label>");
-              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port +  "/ledstatus</a><br>");
+              client.println("<a href=http://" + WiFi.localIP().toString() + ":" + server1port + "/ledstatus target='_blank'>http://" + WiFi.localIP().toString() + ":" + server1port + "/ledstatus</a><br>");
             } else {
               client.println("><br><br><label>" + txtRESTX + "</label><br>");
             }
@@ -921,7 +921,7 @@ void checkClient() {
             client.println("</fieldset>");
 
             // Update details section:
-            if (useupdate == -1) useupdate = 1;             // Fix for setting from older versions
+            if (useupdate == -1) useupdate = 1;  // Fix for setting from older versions
             if (useupdate == 0) {
               client.println("<br><br><label>" + txtUpdateX + "</label>");
             }
@@ -934,14 +934,14 @@ void checkClient() {
               client.println("<a href='https://github.com/N1cls/Wordclock' target='_blank'>" + txtUpdate6 + "</a>");
             }
             if (useupdate == 2) {
-              if (AvailableVersion == "-") readhttpfile(); // Read version from internet if function used for the first time...
+              if (AvailableVersion == "-") readhttpfile();  // Read version from internet if function used for the first time...
               if (UpdateAvailable == 0) {
                 client.println("<br><br><label>" + txtUpdate7 + ": " + AvailableVersion + "</label>");
               }
               if (UpdateAvailable == 1) {
                 client.println("<br><br><label><b>" + txtUpdate8 + ": " + AvailableVersion + "</b></label><br><br>");
                 if (useresturl == -1) {
-                  client.println("<label>" + txtUpdate9 + ": <a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/esphttpupdate target='_blank'>" + txtUpdate0 + "</a></label>");
+                  client.println("<label>" + txtUpdate9 + ": <a href= http://" + WiFi.localIP().toString() + ":" + server1port + "/esphttpupdate target='_blank'>" + txtUpdate0 + "</a></label>");
                 } else {
                   client.println("<label>" + txtRESTX + " - " + txtUpdateX + "</label>");
                 }
@@ -955,7 +955,7 @@ void checkClient() {
             client.println("<h2>" + txtWiFi0 + ":</h2><br>");
             if (useresturl) {
               client.println("<label>" + txtWiFi1 + "</label><br>");
-              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockwifireset target='_blank'>" + txtWiFi0 + "</a><br>");
+              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port + "/clockwifireset target='_blank'>" + txtWiFi0 + "</a><br>");
               client.println("<br>! " + txtWiFi2 + " !<br><br><hr>");
             } else {
               client.println("<label>" + txtRESTX + "</label><br><hr>");
@@ -967,7 +967,7 @@ void checkClient() {
             client.println("<h2>" + txtRestart0 + ":</h2><br>");
             if (useresturl) {
               client.println("<label>" + txtRestart1 + "</label><br>");
-              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port +  "/clockrestart target='_blank'>" + txtRestart0 + "</a><br>");
+              client.println("<br><a href= http://" + WiFi.localIP().toString() + ":" + server1port + "/clockrestart target='_blank'>" + txtRestart0 + "</a><br>");
               client.println("<br>! " + txtRestart2 + " !<br><br><hr>");
             } else {
               client.println("<label>" + txtRESTX + "</label><br><hr>");
@@ -1003,7 +1003,7 @@ void checkClient() {
             client.println();
             // Break out of the while loop
             break;
-          } else { // if you got a newline, then clear currentLine
+          } else {  // if you got a newline, then clear currentLine
             if (currentLine.startsWith("GET /setWC.php?")) {
               // Serial.print("Current request:  ");
               // Serial.println(currentLine);
@@ -1013,13 +1013,13 @@ void checkClient() {
               // #########################
               int pos = currentLine.indexOf("favcolor=%23");
               if (pos >= 0) {
-                char * succ;
+                char* succ;
                 String newColStr = currentLine.substring(pos + 12, pos + 18);
-                String newRed   = newColStr.substring(0, 2);
+                String newRed = newColStr.substring(0, 2);
                 redVal = strtol(newRed.begin(), &succ, 16);
                 String newGreen = newColStr.substring(2, 4);
                 greenVal = strtol(newGreen.begin(), &succ, 16);
-                String newBlue  = newColStr.substring(4, 6);
+                String newBlue = newColStr.substring(4, 6);
                 blueVal = strtol(newBlue.begin(), &succ, 16);
               }
 
@@ -1527,7 +1527,7 @@ void checkClient() {
               pos = currentLine.indexOf("&ntpserver=");
               if (pos >= 0) {
                 String ntpStr = currentLine.substring(pos + 11);
-                pos = ntpStr.indexOf("&");                            // "&" !!!
+                pos = ntpStr.indexOf("&");  // "&" !!!
                 if (pos > 0)
                   ntpStr = ntpStr.substring(0, pos);
                 ntpServer = ntpStr;
@@ -1540,7 +1540,7 @@ void checkClient() {
               if (pos >= 0) {
                 String tz = currentLine.substring(pos + 9);
                 // check for unwanted suffix
-                pos = tz.indexOf(" ");                                // " " !!!
+                pos = tz.indexOf(" ");  // " " !!!
                 if (pos > 0) {
                   tz = tz.substring(0, pos);
                 }
@@ -1550,10 +1550,10 @@ void checkClient() {
 
               // Save data to EEPROM:
               // ####################
-              writeEEPROM(); // save DATA to EEPROM
-              configNTPTime(); // Reset NTP
+              writeEEPROM();    // save DATA to EEPROM
+              configNTPTime();  // Reset NTP
             }
-            currentLine = ""; // Clear the current command line
+            currentLine = "";  // Clear the current command line
           }
         } else if (c != '\r') {  // if you got anything else but a carriage return character,
           currentLine += c;      // add it to the end of the currentLine
@@ -1575,10 +1575,10 @@ void rtcReadTime() {
   if (checkRTC() && useRTC == 1) {
     DateTime now = rtc.now();
     int oldHour = iHour;
-    iYear  = (int)(now.year());
+    iYear = (int)(now.year());
     iMonth = (int)(now.month());
-    iDay   = (int)(now.day());
-    iHour   = (int)(now.hour());
+    iDay = (int)(now.day());
+    iHour = (int)(now.hour());
     iMinute = (int)(now.minute());
     iSecond = (int)(now.second());
     iWeekDay = (int)(now.dayOfTheWeek());
@@ -1602,14 +1602,14 @@ void rtcReadTime() {
       Serial.print(":");
       Serial.println(iSecond);
     }
-  } 
+  }
 }
 
 
 // ###########################################################################################################################################
 // # Show the IP-address on the display:
 // ###########################################################################################################################################
-void showIP () {
+void showIP() {
   IPAddress ip = WiFi.localIP();
   Serial.print("Displaying IP address ");
   Serial.println(ip);
@@ -1620,12 +1620,12 @@ void showIP () {
     // Loop over 4 bytes of IP Address
     for (int idx = 0; idx < 4; idx++) {
       uint8_t octet = ip[idx];
-      printAt (octet / 100, offSet, 2);
+      printAt(octet / 100, offSet, 2);
       octet = octet % 100;
       offSet = offSet + 6;
-      printAt (octet / 10, offSet, 2);
+      printAt(octet / 10, offSet, 2);
       offSet = offSet + 6;
-      printAt (octet % 10, offSet, 2);
+      printAt(octet % 10, offSet, 2);
       offSet = offSet + 6;
       // add delimiter between octets
       if (idx < 3) {
@@ -1634,7 +1634,7 @@ void showIP () {
       }
     }
     pixels.show();
-    delay (150);    // set speed of timeshift
+    delay(150);  // set speed of timeshift
   }
 }
 
@@ -1644,7 +1644,7 @@ void showIP () {
 // ###########################################################################################################################################
 void dunkel() {
   for (int i = 0; i < NUMPIXELS; i++) {
-    pixels.setPixelColor(i, pixels.Color(0, 0, 0)); // Switch off all LEDs
+    pixels.setPixelColor(i, pixels.Color(0, 0, 0));  // Switch off all LEDs
   }
 }
 
@@ -1653,24 +1653,21 @@ void dunkel() {
 // # Switch on default Text "ES IST":
 // ###########################################################################################################################################
 void defaultText() {
-  pixels.setPixelColor( 5, pixels.Color(redVal, greenVal, blueVal)); // set on default text
-  pixels.setPixelColor( 6, pixels.Color(redVal, greenVal, blueVal)); // set on default text
-  pixels.setPixelColor( 7, pixels.Color(redVal, greenVal, blueVal)); // set on default text
-  pixels.setPixelColor( 9, pixels.Color(redVal, greenVal, blueVal)); // set on default text
-  pixels.setPixelColor(10, pixels.Color(redVal, greenVal, blueVal)); // set on default text
+  pixels.setPixelColor(5, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+  pixels.setPixelColor(6, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+  pixels.setPixelColor(7, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+  pixels.setPixelColor(9, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+  pixels.setPixelColor(10, pixels.Color(redVal, greenVal, blueVal));  // set on default text
 }
 
 
 // ###########################################################################################################################################
 // # Convert x/y coordinates into LED number return -1 for invalid coordinate:
 // ###########################################################################################################################################
-int ledXY (int x, int y) {
+int ledXY(int x, int y) {
   // Test for valid coordinates
   // If outside panel return -1
-  if ((x < 0)  ||
-      (x > 10) ||
-      (y < 0)  ||
-      (y > 9))
+  if ((x < 0) || (x > 10) || (y < 0) || (y > 9))
     return -1;
   int ledNr = (9 - y) * 11;
   if ((y % 2) == 0)
@@ -1684,39 +1681,39 @@ int ledXY (int x, int y) {
 // ###########################################################################################################################################
 // # Sets, where the numbers from 1 to 9 are printed:
 // ###########################################################################################################################################
-void printAt (int ziffer, int x, int y) {
+void printAt(int ziffer, int x, int y) {
   switch (ziffer) {
-    case 0:   //number 0
-      setLEDLine(x + 1, x + 3, y + 6, -1); //-1 is true, so switchOn
+    case 0:                                 //number 0
+      setLEDLine(x + 1, x + 3, y + 6, -1);  //-1 is true, so switchOn
       for (int yd = 1; yd < 6; yd++) {
-        setLED(ledXY(x,   y + yd), ledXY(x,   y + yd), -1);
+        setLED(ledXY(x, y + yd), ledXY(x, y + yd), -1);
         setLED(ledXY(x + 4, y + yd), ledXY(x + 4, y + yd), -1);
       }
       setLEDLine(x + 1, x + 3, y, -1);
       break;
 
-    case 1:   //number 1
+    case 1:  //number 1
       setLED(ledXY(x + 3, y + 5), ledXY(x + 3, y + 5), -1);
       setLED(ledXY(x + 2, y + 4), ledXY(x + 2, y + 4), -1);
       for (int yd = 0; yd <= 6; yd++) {
-        setLED(ledXY(x + 4,   y + yd), ledXY(x + 4,   y + yd), -1);
+        setLED(ledXY(x + 4, y + yd), ledXY(x + 4, y + yd), -1);
       }
       break;
 
-    case 2:   //number 2
+    case 2:  //number 2
       for (int d = 1; d <= 4; d++) {
-        setLED(ledXY(x + d,   y + d), ledXY(x + d,   y + d), -1);
+        setLED(ledXY(x + d, y + d), ledXY(x + d, y + d), -1);
       }
       setLEDLine(x, x + 4, y, -1);
-      setLED(ledXY(x, y + 5),   ledXY(x, y + 5), -1);
+      setLED(ledXY(x, y + 5), ledXY(x, y + 5), -1);
       setLED(ledXY(x + 4, y + 5), ledXY(x + 4, y + 5), -1);
       setLEDLine(x + 1, x + 3, y + 6, -1);
       break;
 
-    case 3:   //number 3
+    case 3:  //number 3
       for (int yd = 1; yd <= 2; yd++) {
         setLED(ledXY(x + 4, y + yd + 3), ledXY(x + 4, y + yd + 3), -1);
-        setLED(ledXY(x + 4, y + yd),   ledXY(x + 4, y + yd), -1);
+        setLED(ledXY(x + 4, y + yd), ledXY(x + 4, y + yd), -1);
       }
       for (int yd = 0; yd < 7; yd = yd + 3) {
         setLEDLine(x + 1, x + 3, y + yd, -1);
@@ -1725,29 +1722,29 @@ void printAt (int ziffer, int x, int y) {
       setLED(ledXY(x, y + 5), ledXY(x, y + 5), -1);
       break;
 
-    case 4:   //number 4
+    case 4:  //number 4
       for (int d = 0; d <= 3; d++) {
-        setLED(ledXY(x + d,   y + d + 3), ledXY(x + d,   y + d + 3), -1);
+        setLED(ledXY(x + d, y + d + 3), ledXY(x + d, y + d + 3), -1);
       }
       for (int yd = 0; yd <= 3; yd++) {
-        setLED(ledXY(x + 3,   y + yd), ledXY(x + 3,   y + yd), -1);
+        setLED(ledXY(x + 3, y + yd), ledXY(x + 3, y + yd), -1);
       }
       setLEDLine(x, x + 4, y + 2, -1);
       break;
 
-    case 5:   //number 5
+    case 5:  //number 5
       setLEDLine(x, x + 4, y + 6, -1);
-      setLED(ledXY(x  , y + 5), ledXY(x  , y + 5), -1);
-      setLED(ledXY(x  , y + 4), ledXY(x  , y + 4), -1);
+      setLED(ledXY(x, y + 5), ledXY(x, y + 5), -1);
+      setLED(ledXY(x, y + 4), ledXY(x, y + 4), -1);
       setLEDLine(x, x + 3, y + 3, -1);
       setLED(ledXY(x + 4, y + 2), ledXY(x + 4, y + 2), -1);
       setLED(ledXY(x + 4, y + 1), ledXY(x + 4, y + 1), -1);
       setLEDLine(x, x + 3, y, -1);
       break;
 
-    case 6:   //number 6
+    case 6:  //number 6
       for (int d = 0; d <= 3; d++) {
-        setLED(ledXY(x + d,   y + d + 3), ledXY(x + d,   y + d + 3), -1);
+        setLED(ledXY(x + d, y + d + 3), ledXY(x + d, y + d + 3), -1);
       }
       for (int yd = 0; yd < 4; yd = yd + 3) {
         setLEDLine(x + 1, x + 3, y + yd, -1);
@@ -1758,33 +1755,33 @@ void printAt (int ziffer, int x, int y) {
       setLED(ledXY(x + 4, y + 2), ledXY(x + 4, y + 2), -1);
       break;
 
-    case 7:   //number 7
+    case 7:  //number 7
       for (int yd = 0; yd <= 6; yd++) {
-        setLED(ledXY(x + 3,   y + yd), ledXY(x + 3,   y + yd), -1);
+        setLED(ledXY(x + 3, y + yd), ledXY(x + 3, y + yd), -1);
       }
       setLEDLine(x + 1, x + 4, y + 3, -1);
       setLEDLine(x, x + 3, y + 6, -1);
       break;
 
-    case 8:   //number 8
+    case 8:  //number 8
       for (int yd = 1; yd <= 2; yd++) {
         setLED(ledXY(x + 4, y + yd + 3), ledXY(x + 4, y + yd + 3), -1);
-        setLED(ledXY(x + 4, y + yd),   ledXY(x + 4, y + yd), -1);
-        setLED(ledXY(x, y + yd + 3),   ledXY(x, y + yd + 3), -1);
-        setLED(ledXY(x, y + yd),     ledXY(x, y + yd), -1);
+        setLED(ledXY(x + 4, y + yd), ledXY(x + 4, y + yd), -1);
+        setLED(ledXY(x, y + yd + 3), ledXY(x, y + yd + 3), -1);
+        setLED(ledXY(x, y + yd), ledXY(x, y + yd), -1);
       }
       for (int yd = 0; yd < 7; yd = yd + 3) {
         setLEDLine(x + 1, x + 3, y + yd, -1);
       }
       break;
 
-    case 9:   //number 9
+    case 9:  //number 9
       for (int d = 0; d <= 3; d++) {
-        setLED(ledXY(x + d + 1,   y + d),  ledXY(x + d + 1,   y + d), -1);
+        setLED(ledXY(x + d + 1, y + d), ledXY(x + d + 1, y + d), -1);
       }
       for (int yd = 4; yd <= 5; yd++) {
-        setLED(ledXY(x, y + yd),     ledXY(x, y + yd), -1);
-        setLED(ledXY(x + 4, y + yd),   ledXY(x + 4, y + yd), -1);
+        setLED(ledXY(x, y + yd), ledXY(x, y + yd), -1);
+        setLED(ledXY(x + 4, y + yd), ledXY(x + 4, y + yd), -1);
       }
       setLEDLine(x + 1, x + 3, y + 6, -1);
       setLEDLine(x + 1, x + 4, y + 3, -1);
@@ -1800,14 +1797,14 @@ void showMinutes(int minutes) {
   int minMod = (minutes % 5);
   for (int i = 1; i < 5; i++) {
     int ledNr = 0;
-    if (switchLEDOrder) {               // clockwise
+    if (switchLEDOrder) {  // clockwise
       switch (i) {
         case 1: ledNr = 110; break;
         case 2: ledNr = 111; break;
         case 3: ledNr = 112; break;
         case 4: ledNr = 113; break;
       }
-    } else {                            // anti clockwise
+    } else {  // anti clockwise
       switch (i) {
         case 1: ledNr = 113; break;
         case 2: ledNr = 112; break;
@@ -1826,25 +1823,25 @@ void showMinutes(int minutes) {
 // ###########################################################################################################################################
 // # Show current date on clock with moving digits:
 // ###########################################################################################################################################
-void showCurrentDate () {
+void showCurrentDate() {
   for (int x = 11; x > -50; x--) {
     dunkel();
-    printAt (iDay / 10,   x,    2);
-    printAt (iDay % 10,   x + 6,  2);
-    setLED(ledXY(x + 11, 2), ledXY(x + 11, 2), -1); //sets first point
-    printAt (iMonth / 10, x + 13, 2);
-    printAt (iMonth % 10, x + 19, 2);
+    printAt(iDay / 10, x, 2);
+    printAt(iDay % 10, x + 6, 2);
+    setLED(ledXY(x + 11, 2), ledXY(x + 11, 2), -1);  //sets first point
+    printAt(iMonth / 10, x + 13, 2);
+    printAt(iMonth % 10, x + 19, 2);
     if (iYear < 1000)
       iYear = iYear + 2000;
-    setLED(ledXY(x + 24, 2), ledXY(x + 24, 2), -1); //sets second point
-    printAt (iYear / 1000, x + 26, 2);
+    setLED(ledXY(x + 24, 2), ledXY(x + 24, 2), -1);  //sets second point
+    printAt(iYear / 1000, x + 26, 2);
     iYear = iYear % 1000;
-    printAt (iYear / 100,  x + 32, 2);
+    printAt(iYear / 100, x + 32, 2);
     iYear = iYear % 100;
-    printAt (iYear / 10,  x + 38, 2);
-    printAt (iYear % 10,  x + 44, 2);
+    printAt(iYear / 10, x + 38, 2);
+    printAt(iYear % 10, x + 44, 2);
     pixels.show();
-    delay (150);// set speed of timeshift
+    delay(150);  // set speed of timeshift
   }
 }
 
@@ -1853,47 +1850,31 @@ void showCurrentDate () {
 // # Display current time:
 // ###########################################################################################################################################
 void showCurrentTime() {
-  dunkel();      // switch off all LEDs
-  defaultText(); // Switch on ES IST
+  dunkel();       // switch off all LEDs
+  defaultText();  // Switch on ES IST
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
 
   // Fuenf (Minuten)
-  setLED(  0,   3, ((minDiv ==  1) ||
-                    (minDiv ==  5) ||
-                    (minDiv ==  7) ||
-                    (minDiv == 11)));
+  setLED(0, 3, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
 
   // Viertel
-  setLED( 22,  28, ((minDiv == 3) ||
-                    (minDiv == 9)));
+  setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
 
   // Zehn (Minuten)
-  setLED( 11,  14, ((minDiv ==  2) ||
-                    (minDiv == 10)));
+  setLED(11, 14, ((minDiv == 2) || (minDiv == 10)));
 
   // Zwanzig
-  setLED( 15,  21, ((minDiv == 4) ||
-                    (minDiv == 8)));
+  setLED(15, 21, ((minDiv == 4) || (minDiv == 8)));
 
   // Nach
-  setLED( 40,  43, ((minDiv == 1) ||
-                    (minDiv == 2) ||
-                    (minDiv == 3) ||
-                    (minDiv == 4) ||
-                    (minDiv == 7)));
+  setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
 
   // Vor
-  setLED( 33,  35, ((minDiv ==  5) ||
-                    (minDiv ==  8) ||
-                    (minDiv ==  9) ||
-                    (minDiv == 10) ||
-                    (minDiv == 11)));
+  setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
 
   // Halb
-  setLED(  51, 54, ((minDiv == 5) ||
-                    (minDiv == 6) ||
-                    (minDiv == 7)));
+  setLED(51, 54, ((minDiv == 5) || (minDiv == 6) || (minDiv == 7)));
 
   // Eck-LEDs: 1 pro Minute
   showMinutes(iMinute);
@@ -1916,44 +1897,43 @@ void showCurrentTime() {
   setLED(107, 109, (iMinute < 5));
 
   // Ein
-  setLEDHour( 55,  57, (xHour == 1));
+  setLEDHour(55, 57, (xHour == 1));
 
   // einS (S in EINS) (just used if not point 1 o'clock)
-  setLEDHour( 58,  58, ((xHour == 1) &&
-                        (iMinute > 4)));
+  setLEDHour(58, 58, ((xHour == 1) && (iMinute > 4)));
 
   // Zwei
-  setLEDHour( 62,  65, (xHour == 2));
+  setLEDHour(62, 65, (xHour == 2));
 
   // Drei
-  setLEDHour( 73,  76, (xHour == 3));
+  setLEDHour(73, 76, (xHour == 3));
 
   // Vier
-  setLEDHour( 66,  69, (xHour == 4));
+  setLEDHour(66, 69, (xHour == 4));
 
   // Fuenf
-  setLEDHour( 44,  47, (xHour == 5));
+  setLEDHour(44, 47, (xHour == 5));
 
   // Sechs
-  setLEDHour( 77,  81, (xHour == 6));
+  setLEDHour(77, 81, (xHour == 6));
 
   // Sieben
-  setLEDHour( 93,  98, (xHour == 7));
+  setLEDHour(93, 98, (xHour == 7));
 
   // Acht
-  setLEDHour( 84,  87, (xHour == 8));
+  setLEDHour(84, 87, (xHour == 8));
 
   // Neun
   setLEDHour(102, 105, (xHour == 9));
 
   // Zehn (Stunden)
-  setLEDHour( 99, 102, (xHour == 10));
+  setLEDHour(99, 102, (xHour == 10));
 
   // Elf
-  setLEDHour( 47,  49, (xHour == 11));
+  setLEDHour(47, 49, (xHour == 11));
 
   // Zwoelf
-  setLEDHour( 88,  92, (xHour == 12));
+  setLEDHour(88, 92, (xHour == 12));
 }
 
 
@@ -1961,7 +1941,7 @@ void showCurrentTime() {
 // # Converts decimal to binary signs:
 // ###########################################################################################################################################
 byte decToBcd(byte val) {
-  return ( (val / 10 * 16) + (val % 10) );
+  return ((val / 10 * 16) + (val % 10));
 }
 
 
@@ -1972,11 +1952,11 @@ void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int seku
   if (checkRTC() && useRTC == 1) {
     // Serial.println("Wire.write()...");
     Wire.beginTransmission(RTC_I2C_ADDRESS);
-    Wire.write(0); //count 0 activates RTC module
+    Wire.write(0);  //count 0 activates RTC module
     Wire.write(decToBcd(sekunde));
     Wire.write(decToBcd(minute));
     Wire.write(decToBcd(stunde));
-    Wire.write(decToBcd(0)); // weekdays not respected
+    Wire.write(decToBcd(0));  // weekdays not respected
     Wire.write(decToBcd(tag));
     Wire.write(decToBcd(monat));
     Wire.write(decToBcd(jahr - 2000));
@@ -1989,42 +1969,56 @@ void rtcWriteTime(int jahr, int monat, int tag, int stunde, int minute, int seku
 // # Handle the time from the NTP server and write it to the RTC:
 // ###########################################################################################################################################
 void handleTime() {
+  int timedebug = 0;
   // Check, whether we are connected to WLAN
   if ((WiFi.status() == WL_CONNECTED)) {
     time_t now;
-    time(&now);                       // read the current time
-    struct tm  ti;
+    time(&now);  // read the current time
+    struct tm ti;
     localtime_r(&now, &ti);
-    int i = ti.tm_year + ti.tm_mon + ti.tm_mday + ti.tm_hour;
-    if (i != lastRequest) {
-      //Serial.print("Set RTC to current time: ");
-      lastRequest = i;
-      // check for update
-      uint16_t ye = ti.tm_year + 1900;
-      uint8_t  mo = ti.tm_mon + 1;
-      uint8_t  da = ti.tm_mday;
-      int ho  = ti.tm_hour;
-      int mi  = ti.tm_min;
-      int sec = ti.tm_sec;
-      /*Serial.print (ho);
+    uint16_t ye = ti.tm_year + 1900;
+    uint8_t mo = ti.tm_mon + 1;
+    uint8_t da = ti.tm_mday;
+    int ho = ti.tm_hour;
+    int mi = ti.tm_min;
+    int sec = ti.tm_sec;
+    if (checkRTC() && useRTC == 1) {
+      int i = ti.tm_year + ti.tm_mon + ti.tm_mday + ti.tm_hour;
+      if (i != lastRequest) {
+        if (timedebug == 1) Serial.print("Set RTC to current time: ");
+        lastRequest = i;
+        // check for update
+        if (timedebug == 1) Serial.print("WITH RTC: ");
+        iYear = ye;
+        iMonth = mo;
+        iDay = da;
+        iHour = ho;
+        iMinute = mi;
+        iSecond = sec;
+        if (checkRTC() && useRTC == 1) rtcWriteTime(ye, mo, da, ho, mi, sec);
+      }
+    } else {
+      // NTP TIME WITHOUT RTC:
+      if (timedebug == 1) Serial.print("WITHOUT RTC: ");
+      iYear = ye;
+      iMonth = mo;
+      iDay = da;
+      iHour = ho;
+      iMinute = mi;
+      iSecond = sec;
+    }
+    if (timedebug == 1) {
+      Serial.print(ho);
       Serial.print(':');
-      Serial.print (mi);
+      Serial.print(mi);
       Serial.print(':');
-      Serial.print (sec);
-      Serial.print("   ==  ");
+      Serial.print(sec);
+      Serial.print(" ");
       Serial.print(ye);
       Serial.print('-');
       Serial.print(mo);
       Serial.print('-');
-      Serial.println(da);*/
-      // set working timestamp
-      iYear  = ye;
-      iMonth = mo;
-      iDay   = da;
-      iHour   = ho;
-      iMinute = mi;
-      iSecond = sec;
-      if (checkRTC() && useRTC == 1) rtcWriteTime(ye, mo, da, ho, mi, sec);
+      Serial.println(da);
     }
   }
   if (checkRTC() && useRTC == 1) rtcReadTime();
@@ -2035,17 +2029,15 @@ void handleTime() {
 // # Every Hour blink orange DCW - if switched on:
 // ###########################################################################################################################################
 void showDCW() {
-  if ((dcwFlag) &&
-      (iMinute == 0) &&
-      (iSecond < 10)) {
+  if ((dcwFlag) && (iMinute == 0) && (iSecond < 10)) {
     if ((iSecond % 2) == 0) {
-      pixels.setPixelColor( 59, pixels.Color(255, 128, 0));
-      pixels.setPixelColor( 60, pixels.Color(255, 128, 0));
-      pixels.setPixelColor( 61, pixels.Color(255, 128, 0));
+      pixels.setPixelColor(59, pixels.Color(255, 128, 0));
+      pixels.setPixelColor(60, pixels.Color(255, 128, 0));
+      pixels.setPixelColor(61, pixels.Color(255, 128, 0));
     } else {
-      pixels.setPixelColor( 59, pixels.Color(0, 0, 0));
-      pixels.setPixelColor( 60, pixels.Color(0, 0, 0));
-      pixels.setPixelColor( 61, pixels.Color(0, 0, 0));
+      pixels.setPixelColor(59, pixels.Color(0, 0, 0));
+      pixels.setPixelColor(60, pixels.Color(0, 0, 0));
+      pixels.setPixelColor(61, pixels.Color(0, 0, 0));
     }
   }
 }
@@ -2070,15 +2062,11 @@ void ShowTheTime() {
 void DayNightMode(int displayonMin, int displayonMax) {
   if (iHour > displayonMin && iHour < displayonMax) {
     ShowTheTime();
-  }
-  else
-  {
+  } else {
     if (useNightLEDs == -1) {
-      pixels.setBrightness(intensityNight); // Night brightness
+      pixels.setBrightness(intensityNight);  // Night brightness
       ShowTheTime();
-    }
-    else
-    {
+    } else {
       dunkel();
     }
   }
@@ -2100,8 +2088,7 @@ void configNTPTime() {
 // ###########################################################################################################################################
 // # Convert hex digit to int value:
 // ###########################################################################################################################################
-unsigned char h2int(char c)
-{
+unsigned char h2int(char c) {
   if (c >= '0' && c <= '9') {
     return ((unsigned char)c - '0');
   }
@@ -2138,8 +2125,7 @@ int checkRTC() {
 // ###########################################################################################################################################
 // # Decode %xx values in String - comming from URL / HTTP:
 // ###########################################################################################################################################
-String urldecode(String str)
-{
+String urldecode(String str) {
   String encodedString = "";
   char c;
   char code0;
@@ -2278,10 +2264,10 @@ void ClockRestart() {
   client.stop();
   dunkel();
   Serial.println("Show RESET before board reset...");
-  setLED(30, 31, 1);    // RE
-  setLED(58, 58, 1);    // S
-  setLED(64, 64, 1);    // E
-  setLED(87, 87, 1);    // T
+  setLED(30, 31, 1);  // RE
+  setLED(58, 58, 1);  // S
+  setLED(64, 64, 1);  // E
+  setLED(87, 87, 1);  // T
   pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
@@ -2301,13 +2287,13 @@ void ClockWifiReset() {
   client.stop();
   dunkel();
   Serial.println("Show SET WLAN after WiFi reset...");
-  setLED(6, 6, 1);      // S
-  setLED(12, 12, 1);    // E
-  setLED(24, 24, 1);    // T
-  setLED(63, 63, 1);    // W
-  setLED(83, 83, 1);    // L
-  setLED(84, 84, 1);    // A
-  setLED(93, 93, 1);    // N
+  setLED(6, 6, 1);    // S
+  setLED(12, 12, 1);  // E
+  setLED(24, 24, 1);  // T
+  setLED(63, 63, 1);  // W
+  setLED(83, 83, 1);  // L
+  setLED(84, 84, 1);  // A
+  setLED(93, 93, 1);  // N
   pixels.show();
   WiFi.disconnect(true);
   delay(1500);
@@ -2328,8 +2314,8 @@ void ClockWifiReset() {
 // ###########################################################################################################################################
 void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
   if (switchOn) {
-    if (switchRainBow == 1) { // RainBow effect active
-      if  (ledNrFrom > ledNrTo) {
+    if (switchRainBow == 1) {  // RainBow effect active
+      if (ledNrFrom > ledNrTo) {
         setLED(ledNrTo, ledNrFrom, switchOn);
       } else {
         for (long firstPixelHue = 0; firstPixelHue < 5 * 65536; firstPixelHue += 256) {
@@ -2342,12 +2328,11 @@ void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
         }
       }
     } else {
-      if  (ledNrFrom > ledNrTo) {
-        setLED(ledNrTo, ledNrFrom, switchOn); //sets LED numbers in correct order (because of the date programming below)
+      if (ledNrFrom > ledNrTo) {
+        setLED(ledNrTo, ledNrFrom, switchOn);  //sets LED numbers in correct order (because of the date programming below)
       } else {
         for (int i = ledNrFrom; i <= ledNrTo; i++) {
-          if ((i >= 0) &&
-              (i < NUMPIXELS))
+          if ((i >= 0) && (i < NUMPIXELS))
             pixels.setPixelColor(i, pixels.Color(redVal, greenVal, blueVal));
         }
       }
@@ -2361,14 +2346,10 @@ void setLED(int ledNrFrom, int ledNrTo, int switchOn) {
 // ###########################################################################################################################################
 void setLEDHour(int ledNrFrom, int ledNrTo, int switchOn) {
   // Every Hour blink orange
-  if ((blinkTime) &&
-      (switchOn) &&
-      (iMinute == 0) &&
-      (iSecond < 10)) {
+  if ((blinkTime) && (switchOn) && (iMinute == 0) && (iSecond < 10)) {
     if ((iSecond % 2) == 1) {
       for (int i = ledNrFrom; i <= ledNrTo; i++) {
-        if ((i >= 0) &&
-            (i < NUMPIXELS))
+        if ((i >= 0) && (i < NUMPIXELS))
           pixels.setPixelColor(i, pixels.Color(255, 128, 0));
       }
     } else
@@ -2397,9 +2378,9 @@ void setLEDLine(int xFrom, int xTo, int y, int switchOn) {
 // ###########################################################################################################################################
 void PingIP() {
   if (iSecond == 45 || iSecond == 15) {
-    IPAddress IP1 (PING_IP_ADDR1_O1, PING_IP_ADDR1_O2, PING_IP_ADDR1_O3, PING_IP_ADDR1_O4);
-    IPAddress IP2 (PING_IP_ADDR2_O1, PING_IP_ADDR2_O2, PING_IP_ADDR2_O3, PING_IP_ADDR2_O4);
-    IPAddress IP3 (PING_IP_ADDR3_O1, PING_IP_ADDR3_O2, PING_IP_ADDR3_O3, PING_IP_ADDR3_O4);
+    IPAddress IP1(PING_IP_ADDR1_O1, PING_IP_ADDR1_O2, PING_IP_ADDR1_O3, PING_IP_ADDR1_O4);
+    IPAddress IP2(PING_IP_ADDR2_O1, PING_IP_ADDR2_O2, PING_IP_ADDR2_O3, PING_IP_ADDR2_O4);
+    IPAddress IP3(PING_IP_ADDR3_O1, PING_IP_ADDR3_O2, PING_IP_ADDR3_O3, PING_IP_ADDR3_O4);
 
     // IP 1:
     // #####
@@ -2409,10 +2390,9 @@ void PingIP() {
         Serial.print(String(PING_IP_ADDR1_O1) + "." + String(PING_IP_ADDR1_O2) + "." + String(PING_IP_ADDR1_O3) + "." + String(PING_IP_ADDR1_O4));
         Serial.print(" --> ");
       }
-      if (Ping.ping(IP1))
-      {
+      if (Ping.ping(IP1)) {
         if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
-        PING_ATTEMPTSIP1 = PING_TIMEOUTNUM; // Reset to configured value
+        PING_ATTEMPTSIP1 = PING_TIMEOUTNUM;  // Reset to configured value
         if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP1);
         PingStatusIP1 = true;
       } else {
@@ -2435,10 +2415,9 @@ void PingIP() {
         Serial.print(String(PING_IP_ADDR2_O1) + "." + String(PING_IP_ADDR2_O2) + "." + String(PING_IP_ADDR2_O3) + "." + String(PING_IP_ADDR2_O4));
         Serial.print(" --> ");
       }
-      if (Ping.ping(IP2))
-      {
+      if (Ping.ping(IP2)) {
         if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
-        PING_ATTEMPTSIP2 = PING_TIMEOUTNUM; // Reset to configured value
+        PING_ATTEMPTSIP2 = PING_TIMEOUTNUM;  // Reset to configured value
         if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP2);
         PingStatusIP2 = true;
       } else {
@@ -2461,10 +2440,9 @@ void PingIP() {
         Serial.print(String(PING_IP_ADDR3_O1) + "." + String(PING_IP_ADDR3_O2) + "." + String(PING_IP_ADDR3_O3) + "." + String(PING_IP_ADDR3_O4));
         Serial.print(" --> ");
       }
-      if (Ping.ping(IP3))
-      {
+      if (Ping.ping(IP3)) {
         if (PING_DEBUG_MODE == 1) Serial.print("online - remaining attempts = ");
-        PING_ATTEMPTSIP3 = PING_TIMEOUTNUM; // Reset to configured value
+        PING_ATTEMPTSIP3 = PING_TIMEOUTNUM;  // Reset to configured value
         if (PING_DEBUG_MODE == 1) Serial.println(PING_ATTEMPTSIP3);
         PingStatusIP3 = true;
       } else {
@@ -2503,8 +2481,8 @@ void WIFI_login() {
   bool WiFires;
   bool DebugWifiLEDs = false;
   WiFiManager wifiManager;
-  configNTPTime(); // Set timezone
-  wifiManager.setConfigPortalTimeout(AP_TIMEOUT); // Max wait for 3 minutes
+  configNTPTime();                                 // Set timezone
+  wifiManager.setConfigPortalTimeout(AP_TIMEOUT);  // Max wait for 3 minutes
   WiFires = wifiManager.autoConnect(DEFAULT_AP_NAME);
   if (!WiFires) {
     Serial.print("Failed to connect to WiFi: ");
@@ -2527,7 +2505,7 @@ void WIFI_DebugWifiLEDs(uint32_t color) {
   }
   pixels.show();
   delay(1000);
-  int myArray [] = {110, 111, 112, 113};
+  int myArray[] = { 110, 111, 112, 113 };
   for (int element : myArray) {
     pixels.setPixelColor(element, color);
   }
@@ -2539,7 +2517,7 @@ void WIFI_DebugWifiLEDs(uint32_t color) {
 // ###########################################################################################################################################
 // # Direct update for the ESP:
 // ###########################################################################################################################################
-void esphttpupdate() {                            // Basic ESP update function
+void esphttpupdate() {  // Basic ESP update function
   if (useupdate != 2) {
     server1->send(200, "text/plain", "The automatic update function is currently disabled...");
     Serial.println("The automatic update function is currently disabled...");
@@ -2552,7 +2530,7 @@ void esphttpupdate() {                            // Basic ESP update function
       ESPhttpUpdate.onEnd(update_finished);
       ESPhttpUpdate.onProgress(update_progress);
       ESPhttpUpdate.onError(update_error);
-      t_httpUpdate_return ret = ESPhttpUpdate.update(client, "http://www.awsw.de/Arduino/WordClock/WordClockWithWeb.ino.nodemcu.bin"); // Update path on AWSW-de's server
+      t_httpUpdate_return ret = ESPhttpUpdate.update(client, "http://www.awsw.de/Arduino/WordClock/WordClockWithWeb.ino.nodemcu.bin");  // Update path on AWSW-de's server
       switch (ret) {
         case HTTP_UPDATE_FAILED:
           Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
@@ -2573,7 +2551,7 @@ void esphttpupdate() {                            // Basic ESP update function
   }
 }
 
-void update_started() {                            // Callback update start function
+void update_started() {  // Callback update start function
   Serial.println("CALLBACK:  HTTP update process started");
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
@@ -2607,7 +2585,7 @@ void update_started() {                            // Callback update start func
   delay(1500);
 }
 
-void update_finished() {                            // Callback update success finish function
+void update_finished() {  // Callback update success finish function
   Serial.println("CALLBACK:  HTTP update process finished");
   switchRainBow = 0;
   pixels.setBrightness(50);
@@ -2622,10 +2600,10 @@ void update_finished() {                            // Callback update success f
   }
   pixels.show();
   Serial.println("Show RESET before board reset...");
-  setLED(30, 31, 1);    // RE
-  setLED(58, 58, 1);    // S
-  setLED(64, 64, 1);    // E
-  setLED(87, 87, 1);    // T
+  setLED(30, 31, 1);  // RE
+  setLED(58, 58, 1);  // S
+  setLED(64, 64, 1);  // E
+  setLED(87, 87, 1);  // T
   pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
@@ -2633,7 +2611,7 @@ void update_finished() {                            // Callback update success f
   delay(3000);
 }
 
-void update_error(int err) {                            // Callback update error finish function
+void update_error(int err) {  // Callback update error finish function
   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
   switchRainBow = 0;
   pixels.setBrightness(50);
@@ -2648,10 +2626,10 @@ void update_error(int err) {                            // Callback update error
   }
   pixels.show();
   Serial.println("Show RESET before board reset...");
-  setLED(30, 31, 1);    // RE
-  setLED(58, 58, 1);    // S
-  setLED(64, 64, 1);    // E
-  setLED(87, 87, 1);    // T
+  setLED(30, 31, 1);  // RE
+  setLED(58, 58, 1);  // S
+  setLED(64, 64, 1);  // E
+  setLED(87, 87, 1);  // T
   pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
@@ -2663,31 +2641,31 @@ void update_msg_LEDs(int redCol, int greenCol, int blueCol) {
   redVal = redCol;
   greenVal = greenCol;
   blueVal = blueCol;
-  setLED(1, 2, 1);       // 1 (Arrow)
+  setLED(1, 2, 1);  // 1 (Arrow)
   setLED(4, 6, 1);
   setLED(8, 8, 1);
   setLED(10, 10, 1);
-  setLED(21, 21, 1);     // 2
+  setLED(21, 21, 1);  // 2
   setLED(19, 19, 1);
   setLED(17, 17, 1);
   setLED(15, 15, 1);
   setLED(13, 13, 1);
   setLED(11, 11, 1);
-  setLED(22, 22, 1);       // 3
+  setLED(22, 22, 1);  // 3
   setLED(24, 24, 1);
   setLED(26, 28, 1);
   setLED(30, 30, 1);
   setLED(32, 32, 1);
-  setLED(33, 35, 1);       // 4
+  setLED(33, 35, 1);  // 4
   setLED(37, 37, 1);
   setLED(41, 42, 1);
-  setLED(72, 74, 1);      // O (7-10)
+  setLED(72, 74, 1);  // O (7-10)
   setLED(81, 81, 1);
   setLED(94, 94, 1);
   setLED(79, 79, 1);
   setLED(96, 96, 1);
   setLED(101, 103, 1);
-  setLED(70, 70, 1);      // K (7-10)
+  setLED(70, 70, 1);  // K (7-10)
   setLED(83, 83, 1);
   setLED(92, 92, 1);
   setLED(105, 105, 1);
@@ -2698,7 +2676,7 @@ void update_msg_LEDs(int redCol, int greenCol, int blueCol) {
   pixels.show();
 }
 
-void update_progress(int cur, int total) {                            // Callback update download progress function
+void update_progress(int cur, int total) {  // Callback update download progress function
   switchRainBow = 0;
   pixels.setBrightness(50);
   // Serial.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
@@ -2754,7 +2732,7 @@ void readhttpfile() {
   WiFiClient wifiClient;
   String errorMessage = "";
   String response = "";
-  String GetData = "http://www.awsw.de/Arduino/WordClock/version.txt"; // Update path on AWSW-de's server
+  String GetData = "http://www.awsw.de/Arduino/WordClock/version.txt";  // Update path on AWSW-de's server
   HTTPClient http;
   http.begin(wifiClient, GetData);
   int httpCode = http.GET();
