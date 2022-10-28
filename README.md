@@ -90,7 +90,7 @@ Time here is 07:43 or 19:43 o'clock
 <hr>
 
 <h3><b>Upcomming and planned functions:</b></h3>
-- English layout support of the WordClock front plate. Currently in development. Print files already availble in version 2 (V2) on thingiverse. Please have  look for the 3 new .STL files there with an advanced back plate as well. The first try does not look too shabby i think:
+- English layout support of the WordClock front plate. Currently in development. Print files already availble in version 2 (V2) on thingiverse. Please have  look for the 3 new .STL files there with an advanced back plate as well. The first try does not look too shabby, i think:
 
 <img src="./Images/442110D2-7029-455F-9D93-1769C59E0E3F.jpeg">
 
