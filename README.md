@@ -90,13 +90,13 @@ Time here is 07:43 or 19:43 o'clock
 <hr>
 
 <h3><b>Upcomming and planned functions:</b></h3>
--               English layout support of the WordClock front plate. Currently in development. Print files already availble in version 2 (V2) on thingiverse. Please have  look for the 3 new .STL files there with an advanced back plate as well. The first try does not look too shabby i think:
+- English layout support of the WordClock front plate. Currently in development. Print files already availble in version 2 (V2) on thingiverse. Please have  look for the 3 new .STL files there with an advanced back plate as well. The first try does not look too shabby i think:
 
 <img src="./Images/442110D2-7029-455F-9D93-1769C59E0E3F.jpeg">
 
 <img src="./Images/54FBBF5E-6665-40F9-8136-F29E286A9A64.jpeg">
 
-- 		Currently no further features planned... Working on an <a href="https://github.com/AWSW-de/WordClock-16x16-LED-matrix" target="_blank">ESP32 version with a 16x16 LED matrix</a> to minimize soldering work to just 3 wires and to have more performance for more features. The here used ESP8266 board really gets to its limits in some cases already...
+- Currently no further features planned... Working on an <a href="https://github.com/AWSW-de/WordClock-16x16-LED-matrix" target="_blank">ESP32 version with a 16x16 LED matrix</a> to minimize soldering work to just 3 wires and to have more performance for more features. The here used ESP8266 board really gets to its limits in some cases already...
 
 
 <hr>
