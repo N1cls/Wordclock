@@ -4,16 +4,22 @@ This is the <b>WordClock</b> software to the thingiverse project: <a href="https
 
 Feel free to add functions, ideas and everything else, which helps this project to grow! 
 
+
 <hr>
+
 
 <h3><b>Current version: 5.4    </b></h3>
 
+
 <hr>
+
 
 <img src="./Images/WordClock.jpeg">
 Time here is 07:43 or 19:43 o'clock
 
+
 <hr>
+
 
 <h3><b>Required Hardware:</b></h3>
 
@@ -22,7 +28,9 @@ Time here is 07:43 or 19:43 o'clock
 - 114 LEDs of an WS2812B led stripe 
 - Powersupply 5V / >=3A
 
+
 <hr>
+
 
 <h3><b>Available functions:</b></h3>
 
@@ -49,7 +57,9 @@ Time here is 07:43 or 19:43 o'clock
 - Optional you can set up to 3 IP-addresses (of f.e. your smart phones) connected on your network to be monitored via PING requests 2x per minute. After a set amount of failed PING attempts the WordClock LEDs will turn off to reduce power consumption when you are not at home
 - Language support for german and english language in the web interface. REST command texts always written in english language. Feel free to add more languages...
 
+
 <hr>
+
 
 <h3>Web configuration interface:</h3>
 
@@ -60,6 +70,21 @@ Time here is 07:43 or 19:43 o'clock
 
 
 <hr>
+
+
+<h3>Wiring instructions:</h3>
+
+<img src="./Images/wiring1.png">
+
+<img src="./Images/wiring2.png">
+
+<b>Note:</b> Take care of the LED strip direction as shown in the pictures. The LEDs have little arrows that will tell you their direction:
+
+<img src="./Images/wiring3.png">
+
+
+<hr>
+
 
 <h3><b>Version history:</b></h3>
 
@@ -87,7 +112,9 @@ Time here is 07:43 or 19:43 o'clock
 - 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock. No configuration needed. If there is no RTC detected a note is shown until the configuration page is saved once. Tested with and without an RTC on a WordClock.
 - 5.4			BugFix to version 5.3 when no RTC board is used the current time was not updated every minute.
 
+
 <hr>
+
 
 <h3><b>Upcomming and planned functions:</b></h3>
 - English layout support of the WordClock front plate. Currently in development. Print files already availble in version 2 (V2) on thingiverse. Please have  look for the 3 new .STL files there with an advanced back plate as well. The first try does not look too shabby, i think:
@@ -101,9 +128,12 @@ Time here is 07:43 or 19:43 o'clock
 
 <hr>
 
+
 <h3><b>How-To's:</b></h3>
 
+
 <hr>
+
 
 <b>Add WordClock to Homebridge and control it with HomeKit and via Siri in your smart home:</b>
 
@@ -149,5 +179,6 @@ Time here is 07:43 or 19:43 o'clock
 
 - After the HomeBridge restart your WordClock can be controlled to turn the LEDs OFF and ON in HomeBridge, HomeKit, automation scenarios and via Siri:
 <img src="./Images/IMG_1649.PNG">
+
 
 <hr>
