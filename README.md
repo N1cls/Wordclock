@@ -74,13 +74,13 @@ Time here is 07:43 or 19:43 o'clock
 
 <h3>Wiring instructions:</h3>
 
-<img src="./Images/wiring1.png">
+<img src="./Images/wiring1.PNG">
 
-<img src="./Images/wiring2.png">
+<img src="./Images/wiring2.PNG">
 
 <b>Note:</b> Take care of the LED strip direction as shown in the pictures. The LEDs have little arrows that will tell you their direction:
 
-<img src="./Images/wiring3.png">
+<img src="./Images/wiring3.PNG">
 
 
 <hr>
