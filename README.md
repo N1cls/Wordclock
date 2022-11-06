@@ -39,6 +39,14 @@ English variant available too
 <hr>
 
 
+<h3><b>How to setup the Arduino IDE to support the ESP8266 and select the Node MCU V3 - ESP8266 board:</b></h3>
+
+- Please use this manual: https://randomnerdtutorials.com/how-to-install-esp8266-board-arduino-ide/
+
+
+<hr>
+
+
 <h3><b>Available functions:</b></h3>
 
 - Note: Check the settings.h file for the latest functions
