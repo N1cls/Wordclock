@@ -6,9 +6,22 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.4
+// # Compatible with WordClock version: V5.5
 // #
 // ###########################################################################################################################################
+/*
+      ___           ___           ___           ___           ___           ___       ___           ___           ___     
+     /\__\         /\  \         /\  \         /\  \         /\  \         /\__\     /\  \         /\  \         /\__\    
+    /:/ _/_       /::\  \       /::\  \       /::\  \       /::\  \       /:/  /    /::\  \       /::\  \       /:/  /    
+   /:/ /\__\     /:/\:\  \     /:/\:\  \     /:/\:\  \     /:/\:\  \     /:/  /    /:/\:\  \     /:/\:\  \     /:/__/     
+  /:/ /:/ _/_   /:/  \:\  \   /::\~\:\  \   /:/  \:\__\   /:/  \:\  \   /:/  /    /:/  \:\  \   /:/  \:\  \   /::\__\____ 
+ /:/_/:/ /\__\ /:/__/ \:\__\ /:/\:\ \:\__\ /:/__/ \:|__| /:/__/ \:\__\ /:/__/    /:/__/ \:\__\ /:/__/ \:\__\ /:/\:::::\__\
+ \:\/:/ /:/  / \:\  \ /:/  / \/_|::\/:/  / \:\  \ /:/  / \:\  \  \/__/ \:\  \    \:\  \ /:/  / \:\  \  \/__/ \/_|:|~~|~   
+  \::/_/:/  /   \:\  /:/  /     |:|::/  /   \:\  /:/  /   \:\  \        \:\  \    \:\  /:/  /   \:\  \          |:|  |    
+   \:\/:/  /     \:\/:/  /      |:|\/__/     \:\/:/  /     \:\  \        \:\  \    \:\/:/  /     \:\  \         |:|  |    
+    \::/  /       \::/  /       |:|  |        \::/__/       \:\__\        \:\__\    \::/  /       \:\__\        |:|  |    
+     \/__/         \/__/         \|__|         ~~            \/__/         \/__/     \/__/         \/__/         \|__|    
+*/
 
 
 // ###########################################################################################################################################
@@ -45,7 +58,7 @@ void setLanguage(int lang) {
   if (lang == 0) {         // DEUTSCH
     // Allgemeine Texte:
     WordClockName = "WordClock";
-    languageSelect = "Sprache";
+    languageSelect = "Sprache für das WordClock Layout und die Web Konfiguration";
     languageInt0 = "Deutsch";
     languageInt1 = "Englisch";
     txtSaveSettings = "Einstellungen speichern";
@@ -155,7 +168,7 @@ void setLanguage(int lang) {
   if (lang == 1) {         // ENGLISH
     // General texts:
     WordClockName = "WordClock";
-    languageSelect = "Language";
+    languageSelect = "Language for the WordClock layout and web configuration";
     languageInt0 = "German";
     languageInt1 = "English";
     txtSaveSettings = "Save settings";
@@ -191,7 +204,7 @@ void setLanguage(int lang) {
     // Content and startup:
     txtContentStartup = "Content and startup";
     txtUseLEDtest = "Run LED test on startup?";
-    txtUSEsetWLAN = "Show SET WLAN text on startup?";
+    txtUSEsetWLAN = "Show WIFI text on startup?";
     txtShowIP = "Show IP-address on startup?";
     txtRainbow1 = "Choose the rainbow color effect mode";
     txtRainbow2 = "Off";

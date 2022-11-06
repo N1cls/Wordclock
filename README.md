@@ -1,5 +1,18 @@
 # WordClock
 
+      ___           ___           ___           ___           ___           ___       ___           ___           ___     
+     /\__\         /\  \         /\  \         /\  \         /\  \         /\__\     /\  \         /\  \         /\__\    
+    /:/ _/_       /::\  \       /::\  \       /::\  \       /::\  \       /:/  /    /::\  \       /::\  \       /:/  /    
+   /:/ /\__\     /:/\:\  \     /:/\:\  \     /:/\:\  \     /:/\:\  \     /:/  /    /:/\:\  \     /:/\:\  \     /:/__/     
+  /:/ /:/ _/_   /:/  \:\  \   /::\~\:\  \   /:/  \:\__\   /:/  \:\  \   /:/  /    /:/  \:\  \   /:/  \:\  \   /::\__\____ 
+ /:/_/:/ /\__\ /:/__/ \:\__\ /:/\:\ \:\__\ /:/__/ \:|__| /:/__/ \:\__\ /:/__/    /:/__/ \:\__\ /:/__/ \:\__\ /:/\:::::\__\
+ \:\/:/ /:/  / \:\  \ /:/  / \/_|::\/:/  / \:\  \ /:/  / \:\  \  \/__/ \:\  \    \:\  \ /:/  / \:\  \  \/__/ \/_|:|~~|~   
+  \::/_/:/  /   \:\  /:/  /     |:|::/  /   \:\  /:/  /   \:\  \        \:\  \    \:\  /:/  /   \:\  \          |:|  |    
+   \:\/:/  /     \:\/:/  /      |:|\/__/     \:\/:/  /     \:\  \        \:\  \    \:\/:/  /     \:\  \         |:|  |    
+    \::/  /       \::/  /       |:|  |        \::/__/       \:\__\        \:\__\    \::/  /       \:\__\        |:|  |    
+     \/__/         \/__/         \|__|         ~~            \/__/         \/__/     \/__/         \/__/         \|__|    
+
+
 This is the <b>WordClock</b> software to the thingiverse project: <a href="https://www.thingiverse.com/thing:4693081" target="_blank">Wordclock Wortuhr</a>
 
 Feel free to add functions, ideas and everything else, which helps this project to grow! 
@@ -8,14 +21,17 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: 5.4     </b></h3>
+<h3><b>Current version: 5.5     </b></h3>
 
 
 <hr>
 
 
-<img src="./Images/WordClock.jpeg">
+<img src="./Images/WordClockDE.jpeg">
 Time here is 07:43 or 19:43 o'clock
+
+<img src="./Images/WordClockEN.jpeg">
+English variant available too
 
 
 <hr>
@@ -63,10 +79,10 @@ Time here is 07:43 or 19:43 o'clock
 
 <h3>Web configuration interface:</h3>
 
-<img src="./Images/IMG_0031.jpg">
-<img src="./Images/IMG_0032.jpg">
-<img src="./Images/IMG_0033.jpg">
-<img src="./Images/IMG_0034.jpg">
+<img src="./Images/config1.PNG">
+<img src="./Images/config2.PNG">
+<img src="./Images/config3.PNG">
+<img src="./Images/config4.PNG">
 
 
 <hr>
@@ -108,20 +124,16 @@ Time here is 07:43 or 19:43 o'clock
 - 5.1:		Small bugfix for the new language support function.
 - 5.2:		Optional: Automatic update without the need of a computer. The configuration page will show the available version to update to and
 		with a single click on the note the update will be done automatically. The download and update progress is shown on the clock display.
-		<img src="./Images/IMG_0036.jpeg">
+		<img src="./Images/update.jpeg">
 - 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock. No configuration needed. If there is no RTC detected a note is shown until the configuration page is saved once. Tested with and without an RTC on a WordClock.
 - 5.4			BugFix to version 5.3 when no RTC board is used the current time was not updated every minute.
+- 5.5			Added laguage support for the englisch layout variant of the WordClock. The switch between the german or english layout is done by switching the language in the web configuration.
 
 
 <hr>
 
 
 <h3><b>Upcomming and planned functions:</b></h3>
-- English layout support of the WordClock front plate. Currently in development. Print files already availble in version 2 (V2) on thingiverse. Please have  look for the 3 new .STL files there with an advanced back plate as well. The first try does not look too shabby, i think:
-
-<img src="./Images/442110D2-7029-455F-9D93-1769C59E0E3F.jpeg">
-
-<img src="./Images/54FBBF5E-6665-40F9-8136-F29E286A9A64.jpeg">
 
 - Currently no further features planned... Working on an <a href="https://github.com/AWSW-de/WordClock-16x16-LED-matrix" target="_blank">ESP32 version with a 16x16 LED matrix</a> to minimize soldering work to just 3 wires and to have more performance for more features. The here used ESP8266 board really gets to its limits in some cases already...
 

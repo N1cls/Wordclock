@@ -7,6 +7,19 @@
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
 // ###########################################################################################################################################
+/*
+      ___           ___           ___           ___           ___           ___       ___           ___           ___     
+     /\__\         /\  \         /\  \         /\  \         /\  \         /\__\     /\  \         /\  \         /\__\    
+    /:/ _/_       /::\  \       /::\  \       /::\  \       /::\  \       /:/  /    /::\  \       /::\  \       /:/  /    
+   /:/ /\__\     /:/\:\  \     /:/\:\  \     /:/\:\  \     /:/\:\  \     /:/  /    /:/\:\  \     /:/\:\  \     /:/__/     
+  /:/ /:/ _/_   /:/  \:\  \   /::\~\:\  \   /:/  \:\__\   /:/  \:\  \   /:/  /    /:/  \:\  \   /:/  \:\  \   /::\__\____ 
+ /:/_/:/ /\__\ /:/__/ \:\__\ /:/\:\ \:\__\ /:/__/ \:|__| /:/__/ \:\__\ /:/__/    /:/__/ \:\__\ /:/__/ \:\__\ /:/\:::::\__\
+ \:\/:/ /:/  / \:\  \ /:/  / \/_|::\/:/  / \:\  \ /:/  / \:\  \  \/__/ \:\  \    \:\  \ /:/  / \:\  \  \/__/ \/_|:|~~|~   
+  \::/_/:/  /   \:\  /:/  /     |:|::/  /   \:\  /:/  /   \:\  \        \:\  \    \:\  /:/  /   \:\  \          |:|  |    
+   \:\/:/  /     \:\/:/  /      |:|\/__/     \:\/:/  /     \:\  \        \:\  \    \:\/:/  /     \:\  \         |:|  |    
+    \::/  /       \::/  /       |:|  |        \::/__/       \:\__\        \:\__\    \::/  /       \:\__\        |:|  |    
+     \/__/         \/__/         \|__|         ~~            \/__/         \/__/     \/__/         \/__/         \|__|    
+*/
 
 
 // ###########################################################################################################################################
@@ -41,7 +54,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.4";
+const char* WORD_CLOCK_VERSION = "V5.5";
 
 
 // ###########################################################################################################################################
@@ -1650,14 +1663,38 @@ void dunkel() {
 
 
 // ###########################################################################################################################################
-// # Switch on default Text "ES IST":
+// # Switch on default Text "ES IST" / "IT IS": (DE or EN depending on the set web configuration language)
 // ###########################################################################################################################################
 void defaultText() {
-  pixels.setPixelColor(5, pixels.Color(redVal, greenVal, blueVal));   // set on default text
-  pixels.setPixelColor(6, pixels.Color(redVal, greenVal, blueVal));   // set on default text
-  pixels.setPixelColor(7, pixels.Color(redVal, greenVal, blueVal));   // set on default text
-  pixels.setPixelColor(9, pixels.Color(redVal, greenVal, blueVal));   // set on default text
-  pixels.setPixelColor(10, pixels.Color(redVal, greenVal, blueVal));  // set on default text
+  switch (switchLangWeb) {
+    case 0:  // DE
+      {
+        pixels.setPixelColor(5, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(6, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(7, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(9, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(10, pixels.Color(redVal, greenVal, blueVal));  // set on default text
+        break;
+      }
+    case 1:  // EN
+      {
+        // pixels.setPixelColor(5, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(6, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(7, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(9, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(10, pixels.Color(redVal, greenVal, blueVal));  // set on default text
+        break;
+      }
+    default:  // DE
+      {
+        pixels.setPixelColor(5, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(6, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(7, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(9, pixels.Color(redVal, greenVal, blueVal));   // set on default text
+        pixels.setPixelColor(10, pixels.Color(redVal, greenVal, blueVal));  // set on default text
+        break;
+      }
+  }
 }
 
 
@@ -1847,93 +1884,142 @@ void showCurrentDate() {
 
 
 // ###########################################################################################################################################
-// # Display current time:
+// # Display current time: (DE or EN depending on the set web configuration language)
 // ###########################################################################################################################################
 void showCurrentTime() {
   dunkel();       // switch off all LEDs
-  defaultText();  // Switch on ES IST
+  defaultText();  // Switch on "ES IST" / "IT IS"
+
+  // TEST TIMES:
+  // iHour = 12;
+  // iMinute = 56;
+
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
 
-  // Fuenf (Minuten)
-  setLED(0, 3, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
+  switch (switchLangWeb) {
+    case 0:  // DE
+      {
+        // Fuenf: (Minuten)
+        setLED(0, 3, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
+        // Viertel:
+        setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
+        // Zehn: (Minuten)
+        setLED(11, 14, ((minDiv == 2) || (minDiv == 10)));
+        // Zwanzig:
+        setLED(15, 21, ((minDiv == 4) || (minDiv == 8)));
+        // Nach:
+        setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
+        // Vor:
+        setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
+        // Halb:
+        setLED(51, 54, ((minDiv == 5) || (minDiv == 6) || (minDiv == 7)));
+        // Eck-LEDs: 1 pro Minute
+        showMinutes(iMinute);
 
-  // Viertel
-  setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
+        //set hour from 1 to 12 (at noon, or midnight)
+        int xHour = (iHour % 12);
+        if (xHour == 0)
+          xHour = 12;
+        // at minute 25 hour needs to be counted up:
+        // fuenf vor halb 2 = 13:25
+        if (iMinute >= 25) {
+          if (xHour == 12)
+            xHour = 1;
+          else
+            xHour++;
+        }
 
-  // Zehn (Minuten)
-  setLED(11, 14, ((minDiv == 2) || (minDiv == 10)));
+        // Uhr:
+        setLED(107, 109, (iMinute < 5));
+        // Ein:
+        setLEDHour(55, 57, (xHour == 1));
+        // EinS: (S in EINS) (just used if not point 1 o'clock)
+        setLEDHour(58, 58, ((xHour == 1) && (iMinute > 4)));
+        // Zwei:
+        setLEDHour(62, 65, (xHour == 2));
+        // Drei:
+        setLEDHour(73, 76, (xHour == 3));
+        // Vier:
+        setLEDHour(66, 69, (xHour == 4));
+        // Fuenf:
+        setLEDHour(44, 47, (xHour == 5));
+        // Sechs:
+        setLEDHour(77, 81, (xHour == 6));
+        // Sieben:
+        setLEDHour(93, 98, (xHour == 7));
+        // Acht:
+        setLEDHour(84, 87, (xHour == 8));
+        // Neun:
+        setLEDHour(102, 105, (xHour == 9));
+        // Zehn: (Stunden)
+        setLEDHour(99, 102, (xHour == 10));
+        // Elf:
+        setLEDHour(47, 49, (xHour == 11));
+        // Zwoelf:
+        setLEDHour(88, 92, (xHour == 12));
+        break;
+      }
+    case 1:  // EN
+      {
+        // FIVE: (Minutes)
+        setLED(23, 26, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
+        // QUARTER:
+        setLED(13, 19, ((minDiv == 3) || (minDiv == 9)));
+        // TEN: (Minutes)
+        setLED(38, 40, ((minDiv == 2) || (minDiv == 10)));
+        // TWENTY:
+        setLED(27, 32, ((minDiv == 4) || (minDiv == 8)));
+        // PAST:
+        setLED(51, 54, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
+        // TO:
+        setLED(42, 43, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
+        // HALF:
+        setLED(33, 36, ((minDiv == 5) || (minDiv == 6) || (minDiv == 7)));
+        // CORNER-LEDs: 1 per minute
+        showMinutes(iMinute);
 
-  // Zwanzig
-  setLED(15, 21, ((minDiv == 4) || (minDiv == 8)));
+        //set hour from 1 to 12 (at noon, or midnight)
+        int xHour = (iHour % 12);
+        if (xHour == 0)
+          xHour = 12;
+        // at minute 25 hour needs to be counted up:
+        if (iMinute >= 25) {
+          if (xHour == 12)
+            xHour = 1;
+          else
+            xHour++;
+        }
 
-  // Nach
-  setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
-
-  // Vor
-  setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
-
-  // Halb
-  setLED(51, 54, ((minDiv == 5) || (minDiv == 6) || (minDiv == 7)));
-
-  // Eck-LEDs: 1 pro Minute
-  showMinutes(iMinute);
-
-  //set hour from 1 to 12 (at noon, or midnight)
-  int xHour = (iHour % 12);
-  if (xHour == 0)
-    xHour = 12;
-
-  // at minute 25 hour needs to be counted up:
-  // fuenf vor halb 2 = 13:25
-  if (iMinute >= 25) {
-    if (xHour == 12)
-      xHour = 1;
-    else
-      xHour++;
+        // O'CLOCK:
+        setLED(104, 109, (iMinute < 5));
+        // ONE:
+        setLEDHour(55, 57, (xHour == 1));
+        // TWO:
+        setLEDHour(66, 68, (xHour == 2));
+        // THREE:
+        setLEDHour(61, 65, (xHour == 3));
+        // FOUR:
+        setLEDHour(73, 76, (xHour == 4));
+        // FIVE:
+        setLEDHour(69, 72, (xHour == 5));
+        // SIX:
+        setLEDHour(58, 60, (xHour == 6));
+        // SEVEN:
+        setLEDHour(94, 98, (xHour == 7));
+        // EIGHT:
+        setLEDHour(77, 81, (xHour == 8));
+        // NINE:
+        setLEDHour(44, 47, (xHour == 9));
+        // TEN: (Hour)
+        setLEDHour(99, 101, (xHour == 10));
+        // ELEVEN:
+        setLEDHour(82, 87, (xHour == 11));
+        // TWELVE:
+        setLEDHour(88, 93, (xHour == 12));
+        break;
+      }
   }
-
-  // Uhr
-  setLED(107, 109, (iMinute < 5));
-
-  // Ein
-  setLEDHour(55, 57, (xHour == 1));
-
-  // einS (S in EINS) (just used if not point 1 o'clock)
-  setLEDHour(58, 58, ((xHour == 1) && (iMinute > 4)));
-
-  // Zwei
-  setLEDHour(62, 65, (xHour == 2));
-
-  // Drei
-  setLEDHour(73, 76, (xHour == 3));
-
-  // Vier
-  setLEDHour(66, 69, (xHour == 4));
-
-  // Fuenf
-  setLEDHour(44, 47, (xHour == 5));
-
-  // Sechs
-  setLEDHour(77, 81, (xHour == 6));
-
-  // Sieben
-  setLEDHour(93, 98, (xHour == 7));
-
-  // Acht
-  setLEDHour(84, 87, (xHour == 8));
-
-  // Neun
-  setLEDHour(102, 105, (xHour == 9));
-
-  // Zehn (Stunden)
-  setLEDHour(99, 102, (xHour == 10));
-
-  // Elf
-  setLEDHour(47, 49, (xHour == 11));
-
-  // Zwoelf
-  setLEDHour(88, 92, (xHour == 12));
 }
 
 
@@ -2237,22 +2323,40 @@ void DisplayTest() {
 // ###########################################################################################################################################
 void SetWLAN() {
   if (usesetwlan) {
-    Serial.println("Show SET WLAN...");
-    setLED(6, 6, 1);      // S
-    setLED(12, 12, 1);    // E
-    setLED(24, 24, 1);    // T
-    setLED(63, 63, 1);    // W
-    setLED(83, 83, 1);    // L
-    setLED(84, 84, 1);    // A
-    setLED(93, 93, 1);    // N
-    setLED(110, 110, 1);  // Corner 1
-    setLED(111, 111, 1);  // Corner 2
-    setLED(112, 112, 1);  // Corner 3
-    setLED(113, 113, 1);  // Corner 4
+    switch (switchLangWeb) {
+      case 0:
+        {  // DE:
+          Serial.println("Show SET WLAN...");
+          setLED(6, 6, 1);      // S
+          setLED(12, 12, 1);    // E
+          setLED(24, 24, 1);    // T
+          setLED(63, 63, 1);    // W
+          setLED(83, 83, 1);    // L
+          setLED(84, 84, 1);    // A
+          setLED(93, 93, 1);    // N
+          setLED(110, 110, 1);  // Corner 1
+          setLED(111, 111, 1);  // Corner 2
+          setLED(112, 112, 1);  // Corner 3
+          setLED(113, 113, 1);  // Corner 4
+          break;
+        }
+      case 1:
+        {  // EN:
+          Serial.println("Show WIFI...");
+          setLED(31, 31, 1);    // W
+          setLED(25, 25, 1);    // I
+          setLED(76, 76, 1);    // F
+          setLED(71, 71, 1);    // I
+          setLED(110, 110, 1);  // Corner 1
+          setLED(111, 111, 1);  // Corner 2
+          setLED(112, 112, 1);  // Corner 3
+          setLED(113, 113, 1);  // Corner 4
+          break;
+        }
+    }
     pixels.show();
   }
 }
-
 
 // ###########################################################################################################################################
 // # Restart the clock:
@@ -2264,10 +2368,25 @@ void ClockRestart() {
   client.stop();
   dunkel();
   Serial.println("Show RESET before board reset...");
-  setLED(30, 31, 1);  // RE
-  setLED(58, 58, 1);  // S
-  setLED(64, 64, 1);  // E
-  setLED(87, 87, 1);  // T
+  switch (switchLangWeb) {
+    case 0:  // DE:
+      {
+        setLED(30, 31, 1);  // RE
+        setLED(58, 58, 1);  // S
+        setLED(64, 64, 1);  // E
+        setLED(87, 87, 1);  // T
+        break;
+      }
+    case 1:  // EN:
+      {
+        setLED(16, 16, 1);  // R
+        setLED(30, 30, 1);  // E
+        setLED(37, 37, 1);  // S
+        setLED(39, 39, 1);  // E
+        setLED(42, 42, 1);  // T
+        break;
+      }
+  }
   pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
@@ -2286,15 +2405,38 @@ void ClockWifiReset() {
   delay(1000);
   client.stop();
   dunkel();
-  Serial.println("Show SET WLAN after WiFi reset...");
-  setLED(6, 6, 1);    // S
-  setLED(12, 12, 1);  // E
-  setLED(24, 24, 1);  // T
-  setLED(63, 63, 1);  // W
-  setLED(83, 83, 1);  // L
-  setLED(84, 84, 1);  // A
-  setLED(93, 93, 1);  // N
-  pixels.show();
+  switch (switchLangWeb) {
+    case 0:
+      {  // DE:
+        Serial.println("Show SET WLAN...");
+        setLED(6, 6, 1);      // S
+        setLED(12, 12, 1);    // E
+        setLED(24, 24, 1);    // T
+        setLED(63, 63, 1);    // W
+        setLED(83, 83, 1);    // L
+        setLED(84, 84, 1);    // A
+        setLED(93, 93, 1);    // N
+        setLED(110, 110, 1);  // Corner 1
+        setLED(111, 111, 1);  // Corner 2
+        setLED(112, 112, 1);  // Corner 3
+        setLED(113, 113, 1);  // Corner 4
+        break;
+      }
+    case 1:
+      {  // EN:
+        Serial.println("Show WIFI...");
+        setLED(31, 31, 1);    // W
+        setLED(25, 25, 1);    // I
+        setLED(76, 76, 1);    // F
+        setLED(71, 71, 1);    // I
+        setLED(110, 110, 1);  // Corner 1
+        setLED(111, 111, 1);  // Corner 2
+        setLED(112, 112, 1);  // Corner 3
+        setLED(113, 113, 1);  // Corner 4
+        break;
+      }
+      pixels.show();
+  }
   WiFi.disconnect(true);
   delay(1500);
   WiFiManager wifiManager;
@@ -2600,10 +2742,25 @@ void update_finished() {  // Callback update success finish function
   }
   pixels.show();
   Serial.println("Show RESET before board reset...");
-  setLED(30, 31, 1);  // RE
-  setLED(58, 58, 1);  // S
-  setLED(64, 64, 1);  // E
-  setLED(87, 87, 1);  // T
+  switch (switchLangWeb) {
+    case 0:  // DE:
+      {
+        setLED(30, 31, 1);  // RE
+        setLED(58, 58, 1);  // S
+        setLED(64, 64, 1);  // E
+        setLED(87, 87, 1);  // T
+        break;
+      }
+    case 1:  // EN:
+      {
+        setLED(16, 16, 1);  // R
+        setLED(30, 30, 1);  // E
+        setLED(37, 37, 1);  // S
+        setLED(39, 39, 1);  // E
+        setLED(42, 42, 1);  // T
+        break;
+      }
+  }
   pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
@@ -2626,10 +2783,25 @@ void update_error(int err) {  // Callback update error finish function
   }
   pixels.show();
   Serial.println("Show RESET before board reset...");
-  setLED(30, 31, 1);  // RE
-  setLED(58, 58, 1);  // S
-  setLED(64, 64, 1);  // E
-  setLED(87, 87, 1);  // T
+  switch (switchLangWeb) {
+    case 0:  // DE:
+      {
+        setLED(30, 31, 1);  // RE
+        setLED(58, 58, 1);  // S
+        setLED(64, 64, 1);  // E
+        setLED(87, 87, 1);  // T
+        break;
+      }
+    case 1:  // EN:
+      {
+        setLED(16, 16, 1);  // R
+        setLED(30, 30, 1);  // E
+        setLED(37, 37, 1);  // S
+        setLED(39, 39, 1);  // E
+        setLED(42, 42, 1);  // T
+        break;
+      }
+  }
   pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
