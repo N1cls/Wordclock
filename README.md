@@ -70,6 +70,7 @@ English variant available too
 - A restart request can be forced with the web portal as well
 - The timezone and NTP-Server configuration can be configured as well to fit to your demands
 - Optional you can set up to 3 IP-addresses (of f.e. your smart phones) connected on your network to be monitored via PING requests 2x per minute. After a set amount of failed PING attempts the WordClock LEDs will turn off to reduce power consumption when you are not at home
+- Automatic update without the need of a computer. The configuration page will show the available version to update to and with a single click on the note the update will be done automatically. The download and update progress is shown on the clock display.
 - Language support for german and english language in the web interface. REST command texts always written in english language. Feel free to add more languages.
 - Language support for the german and english layout variant of the WordClock. The switch between the german or english layout is done by selecting the language in the web configuration.
 
