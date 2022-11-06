@@ -126,7 +126,7 @@ English variant available too
 		<img src="./Images/update.jpeg">
 - 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock. No configuration needed. If there is no RTC detected a note is shown until the configuration page is saved once. Tested with and without an RTC on a WordClock.
 - 5.4			BugFix to version 5.3 when no RTC board is used the current time was not updated every minute.
-- 5.5			Added laguage support for the englisch layout variant of the WordClock. The switch between the german or english layout is done by switching the language in the web configuration.
+- 5.5			Added language support for the english layout variant of the WordClock. The switch between the german or english layout is done by selecting the language in the web configuration.
 
 
 <hr>
