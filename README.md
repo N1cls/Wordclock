@@ -15,10 +15,12 @@ Feel free to add functions, ideas and everything else, which helps this project 
 
 
 <img src="./Images/WordClockDE.jpeg">
+
 Time here is 07:43 or 19:43 o'clock
 
 
 <img src="./Images/WordClockEN.jpg">
+
 English variant available too
 
 
