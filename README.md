@@ -59,7 +59,7 @@ English variant available too
 - The LED intensity can be set for a day time and optional for a night mode usage
 - To every new hour the hour text can flash orange to notify about the new reached hour
 - Optional you can choose to show the date as scrolling text every minute + 30 seconds
-- A time span can be selected to turn off the LEDs fully or reduce their intensity for night time usage for each day seperatelly
+- A time span can be selected to turn off the LEDs fully or reduce their intensity for night time usage for each day seperately
 - Updates of the software can be done with the web portal as well to avoid connecting the device to Arduino IDE again. The needed .bin file is included
 - During startup you can choose if the following functions should be displayed: IP-address as scrolling text, the SET WLAN/WiFi text and/or the LED test function
 - The LED color can be shown as randomised 'rainbow' color changed every new minute or the separate words can be shown in a static rainbow color
