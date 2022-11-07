@@ -53,7 +53,7 @@ English variant available too
 - WiFi Manager integration to avoid setting your WiFi credentials manually in the code
 - The from your WiFi router received IP-address can be shown as a scrolling text to inform you about the current value
 - During startup in default a LED test function is shown to check your wiring. All LEDs should light up in green color and turn off again
-- During startup a text "SET WLAN" is shown until the WiFi settings were done for the first time or afterwards until the device received a new IP-address
+- During startup a text “SET WLAN“ (DE) or “WiFi“ (EN) is shown until the WiFi settings were done for the first time or afterwards until the device received a new IP-address
 - The configuraton can be set with an integrated web portal by f.e. http://WordClock0 or http://192.168.178.50 (depending on your settings)
 - The LED color can be configured to a static value
 - The LED intensity can be set for a day time and optional for a night mode usage
