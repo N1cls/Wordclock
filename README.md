@@ -28,6 +28,15 @@ English variant available too
 <hr>
 
 
+<h3><b>Video:</b></h3>
+
+[![DE](https://img.youtube.com/vi/_Dh8sHsFg8s/0.jpg)](https://www.youtube.com/embed/_Dh8sHsFg8s)
+Music credit: Used some free music from Apple iMovie
+
+
+<hr>
+
+
 <h3><b>Required Hardware:</b></h3>
 
 - Node MCU V3 - ESP8266 board
