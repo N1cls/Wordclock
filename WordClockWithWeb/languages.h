@@ -215,7 +215,7 @@ void setLanguage(int lang) {
     txtMinDir3 = "displayed clockwise, otherwise counterclockwise.";
 
     // PING monitor IP-adresses:
-    txtPing0 = "PING monitor for IP address(es) -> Turn off LEDs if IP(s) are offline for a longer period of time";
+    txtPing0 = "PING monitor for IP address(es) -> Turn off LEDs if IP(s) are offline for a period of time";
     txtPing1 = "Use PING monitor function?";
     txtPing2 = "Please enter the IP address(es) to be monitored here";
     txtPing3 = "1. IP address";
