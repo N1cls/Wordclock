@@ -148,12 +148,12 @@ void setLanguage(int lang) {
     // WLAN:
     txtWiFi0 = "WLAN Einstellungen zurücksetzen";
     txtWiFi1 = "WLAN Einstellungen zurücksetzen und Uhr neu starten?";
-    txtWiFi2 = "Wenn diese Option verwendet wird, werden die WLAN Einstellungen einmalig gelöscht";
+    txtWiFi2 = "Wenn diese Option verwendet wird, werden die WLAN Einstellungen gelöscht";
 
     // Neustart:
     txtRestart0 = "WordClock neustarten";
     txtRestart1 = "WordClock neustarten?";
-    txtRestart2 = "Wenn diese Option verwendet wird, wird die Uhr einmalig neu gestartet";
+    txtRestart2 = "Wenn diese Option verwendet wird, wird die Uhr neu gestartet";
 
     // Zeitzone and NTP-Server:
     txtTZNTP0 = "Zeitzone & NTP-Server";
@@ -258,12 +258,12 @@ void setLanguage(int lang) {
     // WiFi:
     txtWiFi0 = "Reset WiFi settings";
     txtWiFi1 = "Reset wifi settings and restart watch?";
-    txtWiFi2 = "If this option is used, the WLAN settings will be deleted once";
+    txtWiFi2 = "If this option is used, the WiFi settings will be deleted";
 
     // Restart:
     txtRestart0 = "Restart WordClock";
     txtRestart1 = "Restart WordClock?";
-    txtRestart2 = "If this option is used, the clock will be restarted once";
+    txtRestart2 = "If this option is used, the clock will be restarted";
 
     // Time zone and NTP server:
     txtTZNTP0 = "Time zone & NTP server";
