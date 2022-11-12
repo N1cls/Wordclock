@@ -1,6 +1,6 @@
 # WordClock
 
-This is the <b>WordClock</b> software to the thingiverse project: <a href="https://www.thingiverse.com/thing:4693081" target="_blank">Wordclock Wortuhr</a>. Also available for download <a href="https://www.printables.com/de/model/311949-wordclock" target="_blank">here</a>.
+This is the <b>WordClock</b> software to the thingiverse project: <a href="https://www.thingiverse.com/thing:4693081" target="_blank">Wordclock Wortuhr</a>. Also available for download on <a href="https://www.printables.com/de/model/311949-wordclock" target="_blank">Prusa Printables</a>.
 
 Feel free to add functions, ideas and everything else, which helps this project to grow! 
 
@@ -22,7 +22,7 @@ Time here is 07:43 or 19:43 o'clock
 
 <img src="./Images/AFB8EA75-64D4-4DD7-9111-3CC96E4FC5EF.jpeg">
 
-English variant available too
+English variant available too. Time here is 01:18 or 13:18 o'clock.
 
 
 <hr>
