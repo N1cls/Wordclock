@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: 5.5     </b></h3>
+<h3><b>Current version: 5.7     </b></h3>
 
 
 <hr>
@@ -140,6 +140,8 @@ Music credit: Used some free music from Apple iMovie
 - 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock. No configuration needed. If there is no RTC detected a note is shown until the configuration page is saved once. Tested with and without an RTC on a WordClock.
 - 5.4			BugFix to version 5.3 when no RTC board is used the current time was not updated every minute.
 - 5.5			Added language support for the english layout variant of the WordClock. The switch between the german or english layout is done by selecting the language in the web configuration.
+- 5.6          Version 5.6 was used for software update tests from 5.5 to 5.5 and will not be released, because it was 5.5
+- 5.7          Thanks to a user feedback the english time texts could be updated to a more propper english.
 
 
 <hr>
