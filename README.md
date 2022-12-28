@@ -1,6 +1,6 @@
 # WordClock
 
-This is the <b>WordClock</b> software to the thingiverse project: <a href="https://www.thingiverse.com/thing:4693081" target="_blank">Wordclock Wortuhr</a>. Also available for download on <a href="https://www.printables.com/de/model/311949-wordclock-2022" target="_blank">Prusa Printables - AWSW</a>.
+This is the <b>WordClock</b> software to the thingiverse project: <a href="https://www.thingiverse.com/thing:4693081">Wordclock Wortuhr</a>. Also available for download on <a href="https://www.printables.com/de/model/311949-wordclock-2022">Prusa Printables</a>.
 
 Feel free to add functions, ideas and everything else, which helps this project to grow! 
 
@@ -149,7 +149,7 @@ Music credit: Used some free music from Apple iMovie
 
 <h3><b>Upcomming and planned functions:</b></h3>
 
-- Currently no further features planned... Working on an <a href="https://github.com/AWSW-de/WordClock-16x16-LED-matrix" target="_blank">ESP32 version with a 16x16 LED matrix</a> to minimize soldering work to just 3 wires and to have more performance for more features. The here used ESP8266 board really gets to its limits in some cases already...
+- Currently no further features planned... Working on an <a href="https://www.printables.com/de/model/331012-wordclock-16x16-led-matrix">ESP32 version with a 16x16 LED matrix and more smart home integration</a> as well as on a <a href="https://www.printables.com/de/model/350568-wordclock-16x16-led-matrix-2023">ESP32 version with a 16x16 LED matrix without smart functions</a> to minimize soldering work to just 3 wires and to have more performance for more features. The here used ESP8266 board really gets to its limits in some cases already...
 
 
 <hr>
