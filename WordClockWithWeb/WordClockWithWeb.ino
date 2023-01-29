@@ -54,7 +54,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.8";
+const char* WORD_CLOCK_VERSION = "V5.9";
 
 
 // ###########################################################################################################################################
@@ -139,6 +139,7 @@ struct parmRec {
   int pPING_TIMEOUTNUM;
   int pPING_DEBUG_MODE;
   int pPING_USEMONITOR;
+  int pDEspecial1;
   char pTimeZone[50];
   char pNTPServer[50];
   int pCheckSum;  // This checkSum is used to find out whether we have valid parameters
@@ -352,6 +353,7 @@ void readEEPROM() {
     switchLangWeb = parameter.pswitchLangWeb;
     switchLEDOrder = parameter.pswitchLEDOrder;
     blinkTime = parameter.pBlinkTime;
+    DEspecial1 = parameter.pDEspecial1;
     dcwFlag = parameter.pDCWFlag;
     useRTC = parameter.puseRTC;
     intensity = parameter.pIntensity;
@@ -394,6 +396,7 @@ void writeEEPROM() {
   parameter.pDCWFlag = dcwFlag;
   parameter.puseRTC = useRTC;
   parameter.pBlinkTime = blinkTime;
+  parameter.pDEspecial1 = DEspecial1;
   ntpServer.toCharArray(parameter.pNTPServer, sizeof(parameter.pNTPServer));
   timeZone.toCharArray(parameter.pTimeZone, sizeof(parameter.pTimeZone));
   parameter.pShowDate = showDate;
@@ -794,6 +797,40 @@ void checkClient() {
             client.println("</div>");
             client.println("</fieldset>");
             client.println("<br><br><hr>");
+
+
+
+            // DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
+            // ###########################################################
+            if (switchLangWeb == 0) {
+              client.println("<br><label for=\"DEspecial1\"><h2>" + DEspecial1Text1 + ":</h2></label>");
+              client.println("<fieldset>");
+              client.println("<div>");
+
+              client.println("<input type='radio' id='iddespecial0' name='DEspecial1' value='0'");
+              if (DEspecial1 == 0) {
+                client.print(" checked");
+                client.print(">");
+              } else {
+                client.print(">");
+              }
+              client.println("<label for='iddespecial0'>" + DEspecial1Text2 + "</label>");
+              client.println("</div>");
+              client.println("<div>");
+
+              client.println("<input type='radio' id='iddespecial1' name='DEspecial1' value='1'");
+              if (DEspecial1 == 1) {
+                client.print(" checked");
+                client.print(">");
+              } else {
+                client.print(">");
+              }
+              client.println("<label for='iddespecial1'>" + DEspecial1Text3 + "</label>");
+              client.println("</div>");
+              client.println("</fieldset>");
+              client.println("<br><br><hr>");
+            }
+
 
 
             // PING IP-address:
@@ -1316,6 +1353,20 @@ void checkClient() {
                   LangWebStr = LangWebStr.substring(0, pos);
                 switchLangWeb = LangWebStr.toInt();
                 setLanguage(switchLangWeb);
+              }
+
+
+              // DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
+              // ###########################################################
+              pos = currentLine.indexOf("&DEspecial1=");
+              if (pos >= 0) {
+                String DEspecial = currentLine.substring(pos + 12);
+                pos = DEspecial.indexOf("&");
+                if (pos > 0)
+                  DEspecial = DEspecial.substring(0, pos);
+                DEspecial1 = DEspecial.toInt();
+                // Serial.print("DEspecial1: ");
+                // Serial.println(DEspecial1);
               }
 
 
@@ -2154,6 +2205,7 @@ void ShowTheTime() {
 // ###########################################################################################################################################
 void DayNightMode(int displayonMin, int displayonMax) {
   if (iHour > displayonMin && iHour < displayonMax) {
+    pixels.setBrightness(intensity);  // Day brightness
     ShowTheTime();
   } else {
     if (useNightLEDs == -1) {

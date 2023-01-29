@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.8
+// # Compatible with WordClock version: V5.9
 // #
 // ###########################################################################################################################################
 /*
@@ -49,19 +49,24 @@ String txtWiFi0, txtWiFi1, txtWiFi2;
 String txtRestart0, txtRestart1, txtRestart2;
 // Time zone and NTP server:
 String txtTZNTP0, txtTZNTP1, txtTZNTP2;
+// DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
+String DEspecial1Text1, DEspecial1Text2, DEspecial1Text3;
 
 
 void setLanguage(int lang) {
   // ###########################################################################################################################################
   // # Translations for: DE
   // ###########################################################################################################################################
-  if (lang == 0) {         // DEUTSCH
+  if (lang == 0) {  // DEUTSCH
     // Allgemeine Texte:
     WordClockName = "WordClock";
     languageSelect = "Sprache für das WordClock Layout und die Web Konfiguration";
     languageInt0 = "Deutsch";
     languageInt1 = "Englisch";
     txtSaveSettings = "Einstellungen speichern";
+    DEspecial1Text1 = "Schreibweise für x:45";
+    DEspecial1Text2 = "VIERTEL VOR";
+    DEspecial1Text3 = "DREIVIERTEL";
 
     // LED Einstellungen:
     txtSettings = "Einstellungen";
@@ -165,7 +170,7 @@ void setLanguage(int lang) {
   // ###########################################################################################################################################
   // # Translations for: EN
   // ###########################################################################################################################################
-  if (lang == 1) {         // ENGLISH
+  if (lang == 1) {  // ENGLISH
     // General texts:
     WordClockName = "WordClock";
     languageSelect = "Language for the WordClock layout and web configuration";
@@ -270,8 +275,6 @@ void setLanguage(int lang) {
     txtTZNTP1 = "Default values";
     txtTZNTP2 = "Explanation of setting the time zone";
   }
-
-
 }
 // ###########################################################################################################################################
 // # EOF - You have successfully reached the end of the code - well done ;-)
