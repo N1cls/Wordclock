@@ -54,7 +54,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.7";
+const char* WORD_CLOCK_VERSION = "V5.8";
 
 
 // ###########################################################################################################################################
@@ -1892,7 +1892,7 @@ void showCurrentTime() {
 
   // TEST TIMES:
   // iHour = 9;
-  // iMinute = 55;
+  // iMinute = 45;
 
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
@@ -1903,7 +1903,10 @@ void showCurrentTime() {
         // Fuenf: (Minuten)
         setLED(0, 3, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
         // Viertel:
-        setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
+        if (DEspecial1 == 0) setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
+        if (DEspecial1 == 1) setLED(22, 28, ((minDiv == 3)));
+        // DREIVIERTEL:
+        if (DEspecial1 == 1) setLED(22, 32, ((minDiv == 9)));
         // Zehn: (Minuten)
         setLED(11, 14, ((minDiv == 2) || (minDiv == 10)));
         // Zwanzig:
@@ -1911,7 +1914,8 @@ void showCurrentTime() {
         // Nach:
         setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
         // Vor:
-        setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
+        if (DEspecial1 == 0) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
+        if (DEspecial1 == 1) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 10) || (minDiv == 11)));
         // Halb:
         setLED(51, 54, ((minDiv == 5) || (minDiv == 6) || (minDiv == 7)));
         // Eck-LEDs: 1 pro Minute
@@ -1963,17 +1967,17 @@ void showCurrentTime() {
     case 1:  // EN
       {
         // FIVE: (Minutes)            // x:05 + x:25 + x:35 + x:55
-        setLED(23, 26, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));  
+        setLED(23, 26, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
         // QUARTER:                   // x:15 + X:45
-        setLED(13, 19, ((minDiv == 3) || (minDiv == 9)));  
+        setLED(13, 19, ((minDiv == 3) || (minDiv == 9)));
         // TEN: (Minutes)             // x:10 + x:50
-        setLED(38, 40, ((minDiv == 2) || (minDiv == 10))); 
+        setLED(38, 40, ((minDiv == 2) || (minDiv == 10)));
         // TWENTY:                    // x:20 + x:25 + x:35 + x:40
         setLED(27, 32, ((minDiv == 4) || (minDiv == 5) || (minDiv == 7) || (minDiv == 8)));
         // PAST:                      // x:05 + x:10 + x:15 + x:20 + x:25 + x:30
         setLED(51, 54, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 5) || (minDiv == 6)));
         // TO:                        // x:35 + x:40 + x:45 + x:50 + x:55
-        setLED(42, 43, ((minDiv == 7) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11))); 
+        setLED(42, 43, ((minDiv == 7) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
         // HALF:                      // x:30
         setLED(33, 36, ((minDiv == 6)));
         // A:                         // x:15 + X:45
