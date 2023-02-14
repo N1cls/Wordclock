@@ -54,7 +54,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.9";
+const char* WORD_CLOCK_VERSION = "V5.9.1";
 
 
 // ###########################################################################################################################################
@@ -1943,7 +1943,7 @@ void showCurrentTime() {
 
   // TEST TIMES:
   // iHour = 9;
-  // iMinute = 45;
+  // iMinute = 15;
 
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
@@ -1963,7 +1963,8 @@ void showCurrentTime() {
         // Zwanzig:
         setLED(15, 21, ((minDiv == 4) || (minDiv == 8)));
         // Nach:
-        setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
+        if (DEspecial1 == 0) setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
+        if (DEspecial1 == 1) setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 4) || (minDiv == 7)));
         // Vor:
         if (DEspecial1 == 0) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
         if (DEspecial1 == 1) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 10) || (minDiv == 11)));

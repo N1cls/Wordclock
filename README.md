@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: 5.9     </b></h3>
+<h3><b>Current version: 5.9.1     </b></h3>
 
 
 <hr>
@@ -144,6 +144,7 @@ Music credit: Used some free music from Apple iMovie
 - 5.7          Thanks to a user feedback the english time texts could be updated to a more propper english.
 - 5.8          Added a DE special function: Change between "VIERTEL VOR" = "0" and "DREIVIERTEL" = "1" in settings.h possible
 - 5.9          Added a DE special function from V5.8 to web interface in German language setting. 2 small bug fixes that prevented changes to color and intensity settings when the Day/Night mode setting was turned on.
+- 5.9.1        Added a DE special function: Change between "VIERTEL NACH" = "0" and "VIERTEL" = "1" in settings.h possible
 
 
 <hr>

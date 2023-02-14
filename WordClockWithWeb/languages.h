@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.9
+// # Compatible with WordClock version: V5.9.1
 // #
 // ###########################################################################################################################################
 /*
@@ -64,9 +64,9 @@ void setLanguage(int lang) {
     languageInt0 = "Deutsch";
     languageInt1 = "Englisch";
     txtSaveSettings = "Einstellungen speichern";
-    DEspecial1Text1 = "Schreibweise für x:45";
-    DEspecial1Text2 = "VIERTEL VOR";
-    DEspecial1Text3 = "DREIVIERTEL";
+    DEspecial1Text1 = "Schreibweise für x:15 und x:45";
+    DEspecial1Text2 = "VIERTEL VOR / VIERTEL NACH";
+    DEspecial1Text3 = "DREIVIERTEL / VIERTEL";
 
     // LED Einstellungen:
     txtSettings = "Einstellungen";
