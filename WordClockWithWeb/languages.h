@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.9.1
+// # Compatible with WordClock version: V5.9.2
 // #
 // ###########################################################################################################################################
 /*

@@ -54,7 +54,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.9.1";
+const char* WORD_CLOCK_VERSION = "V5.9.2";
 
 
 // ###########################################################################################################################################
@@ -1964,7 +1964,10 @@ void showCurrentTime() {
         setLED(15, 21, ((minDiv == 4) || (minDiv == 8)));
         // Nach:
         if (DEspecial1 == 0) setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
-        if (DEspecial1 == 1) setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 4) || (minDiv == 7)));
+        if (DEspecial1 == 1) {
+          setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 4) || (minDiv == 7)));
+          if (minDiv == 3) iHour = iHour + 1;
+        }
         // Vor:
         if (DEspecial1 == 0) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
         if (DEspecial1 == 1) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 10) || (minDiv == 11)));
