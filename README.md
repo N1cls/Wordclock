@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V5.9.2     </b></h3>
+<h3><b>Current version: V5.9.3     </b></h3>
 
 
 <hr>
@@ -138,14 +138,15 @@ Music credit: Used some free music from Apple iMovie
 		with a single click on the note the update will be done automatically. The download and update progress is shown on the clock display.
 		<img src="./Images/update.jpeg">
 - 5.3		Optional: Remove the need of an RTC board, because the WiFi is always connected for the configuration page access of the WordClock. No configuration needed. If there is no RTC detected a note is shown until the configuration page is saved once. Tested with and without an RTC on a WordClock.
-- 5.4			BugFix to version 5.3 when no RTC board is used the current time was not updated every minute.
+- 5.4			BugFix to version 5.3 when no RTC board is used the current time was not updated every minute
 - 5.5			Added language support for the english layout variant of the WordClock. The switch between the german or english layout is done by selecting the language in the web configuration.
-- 5.6          Version 5.6 was used for software update tests from 5.5 to 5.5 and will not be released, because it was 5.5
+- 5.6          Version 5.6 was used for software update tests from 5.5 to 5.5 and will not be released, because it was 5.5.
 - 5.7          Thanks to a user feedback the english time texts could be updated to a more propper english.
-- 5.8          Added a DE special function: Change between "VIERTEL VOR" = "0" and "DREIVIERTEL" = "1" in settings.h possible
+- 5.8          Added a DE special function: Change between "VIERTEL VOR" = "0" and "DREIVIERTEL" = "1" in settings.h possible.
 - 5.9          Added a DE special function from V5.8 to web interface in German language setting. 2 small bug fixes that prevented changes to color and intensity settings when the Day/Night mode setting was turned on.
-- 5.9.1        Added a DE special function: Change between "VIERTEL NACH" = "0" and "VIERTEL" = "1" in settings.h possible
+- 5.9.1        Added a DE special function: Change between "VIERTEL NACH" = "0" and "VIERTEL" = "1" in settings.h possible.
 - 5.9.2	   Small correction to V5.9.1 in DE language.
+- 5.9.3	   Changed the scrolling text to display the date from every 30 seconds to every 30 minutes, so hour + 30 minutes on request.
 
 
 <hr>

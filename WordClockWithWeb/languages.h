@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.9.2
+// # Compatible with WordClock version: V5.9.3
 // #
 // ###########################################################################################################################################
 /*
@@ -81,7 +81,7 @@ void setLanguage(int lang) {
     txtFlashFullHour1 = "Volle Stunde blinken";
     txtFlashFullHour2 = "Stundenangabe soll zur vollen Stunde blinken?";
     txtShowDate1 = "Datumsanzeige als Lauftext";
-    txtShowDate2 = "Alle 30 Sekunden anzeigen?";
+    txtShowDate2 = "Alle 30 Minuten anzeigen?";
     txtNightMode1 = "Display abschalten oder dunkler schalten?";
     txtNightMode2 = "Display komplett abschalten ...";
     txtNightMode3 = "... oder nur dunkler schalten auf Wert der Helligkeit bei Nacht?";
@@ -191,7 +191,7 @@ void setLanguage(int lang) {
     txtFlashFullHour1 = "Flash full hour";
     txtFlashFullHour2 = "Flash the hour value every new hour?";
     txtShowDate1 = "Show date as scolling text";
-    txtShowDate2 = "Display the date every 30 seconds?";
+    txtShowDate2 = "Display the date every 30 minutes?";
     txtNightMode1 = "Switch off or darken the display?";
     txtNightMode2 = "Switch off the display completely ...";
     txtNightMode3 = "... or only switch it darker to the value of the intensity in night mode?";

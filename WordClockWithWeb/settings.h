@@ -8,7 +8,7 @@
 // #
 // # Please set the default settings here only:
 // #
-// # Compatible with WordClock version: V5.9.2
+// # Compatible with WordClock version: V5.9.3
 // #
 // ###########################################################################################################################################
 /*
@@ -57,7 +57,7 @@ int usesetwlan = 1;       // Show start animation and display test at boot
 int useshowip = 1;        // Show the current ip at boot
 int switchRainBow = 0;    // Show the display in rainbow mode (default color is then ignored)
 int switchLEDOrder = 1;   // Show the minute LEDs in the 4 corners in clockwise order if set to 1
-int showDate = 0;         // Show date when seconds = 30 ? - Note: Any value <> 0 shows the date when second = 30
+int showDate = 0;         // Show date when minute = 30 ? - Note: Any value <> 0 shows the date when minute = 30
 int blinkTime = 0;        // Flag for blinking hour time name every hour
 int dcwFlag = 0;          // Flag for highlighting DCW every Hour
 int useresturl = 1;       // Use the REST function web server
