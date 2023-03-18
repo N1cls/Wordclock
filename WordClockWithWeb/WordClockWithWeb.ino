@@ -2195,7 +2195,7 @@ void showDCW() {
 // # Display the time:
 // ###########################################################################################################################################
 void ShowTheTime() {
-  if (iMinute == 30) {
+  if ((iMinute == 30) && (iSecond == 0))  {
     if (showDate)
       showCurrentDate();
   }
