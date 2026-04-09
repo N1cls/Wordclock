@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.9.4
+// # Compatible with WordClock version: V5.10.2
 // #
 // ###########################################################################################################################################
 /*
@@ -37,6 +37,8 @@ String txtMO, txtTU, txtWE, txtTH, txtFR, txtSA, txtSU;
 String txtContentStartup, txtUseLEDtest, txtUSEsetWLAN, txtShowIP, txtRainbow1, txtRainbow2, txtRainbow3, txtRainbow4, txtMinDir1, txtMinDir2, txtMinDir3;
 // PING monitor IP-adresses:
 String txtPing0, txtPing1, txtPing2, txtPing3, txtPing4, txtPing5, txtPing6, txtPing7, txtPing8, txtPing9;
+// LED corner sequence:
+String txtCornerLED1, txtCornerLED2;
 // Hostname:
 String txtHostName1, txtHostName2;
 // REST functions:
@@ -121,6 +123,10 @@ void setLanguage(int lang) {
     txtPing8 = "Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen.";
     txtPing9 = "DEBUG PING Monitor Funktion verwenden?";
 
+    // Corner LEDs
+    txtCornerLED1 = "Benutzerdefinierte Minuten-LED-Reihenfolge";
+    txtCornerLED2 = "(Reihenfolge 1–4 wird auf die LEDs 110–113 abgebildet) oder <code>112,113,110,111</code> (direkte LED-Nummern angeben)";
+    
     // Hostname:
     txtHostName1 = "WordClock Hostname anpassen";
     txtHostName2 = "Hostname";
@@ -230,6 +236,10 @@ void setLanguage(int lang) {
     txtPing7 = "Number of PING attempts until the LEDs are switched off";
     txtPing8 = "Note: Count = 10 means a 5 minute timeout as there are 2 PING attempts per minute.";
     txtPing9 = "Use DEBUG PING monitor function?";
+
+    // Corner LEDs
+    txtCornerLED1 = "Custom minute LED order";
+    txtCornerLED2 = "(Order 1–4 is mapped to LEDs 110–113) or <code>112,113,110,111</code> (specify direct LED numbers)";
 
     // Hostname:
     txtHostName1 = "Customize WordClock hostname";

@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V5.9.4     </b></h3>
+<h3><b>Current version: V5.10.2     </b></h3>
 
 
 <hr>
@@ -148,7 +148,7 @@ Music credit: Used some free music from Apple iMovie
 - 5.9.2	   Small correction to V5.9.1 in DE language.
 - 5.9.3	   Changed the scrolling text to display the date from every 30 seconds to every 30 minutes, so hour + 30 minutes on request.
 - 5.9.4	   Small correction to avoid a behavior when night time was reached and the PING function was used. The display was set to day brightness every 30 seconds again.
-
+- 5.10.4   CHange the web interface and the internal logic to configure the sequence of the 4 corner LEDs
 
 <hr>
 

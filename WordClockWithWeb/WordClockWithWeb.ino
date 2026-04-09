@@ -54,7 +54,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.9.4";
+const char* WORD_CLOCK_VERSION = "V5.10.2";
 
 
 // ###########################################################################################################################################
@@ -121,6 +121,11 @@ struct parmRec {
   int pswitchRainBow;
   int pswitchLangWeb;
   int pswitchLEDOrder;
+  int puseCustomMinuteOrder;
+  int pMinuteOrder1;
+  int pMinuteOrder2;
+  int pMinuteOrder3;
+  int pMinuteOrder4;
   int pwchostnamenum;
   int pDCWFlag;
   int puseRTC;
@@ -146,6 +151,116 @@ struct parmRec {
   int pCheckSum;  // This checkSum is used to find out whether we have valid parameters
 } parameter;
 
+// ###########################################################################################################################################
+// # Minute corner LEDs order (1 LED per minute):
+// # - Default behavior is kept via switchLEDOrder (clockwise / anti clockwise)
+// # - Optional: fully custom order via web interface (saved to EEPROM)
+// #
+// # minuteLedOrder[] stores the LED indices (0..NUMPIXELS-1) in the order for minute 1..4.
+// # You can enter either:
+// #   - a permutation of 1..4 (e.g. "3,1,4,2") which will be mapped to the base corner LEDs {110,111,112,113}
+// #   - OR the real LED numbers directly (e.g. "112,113,110,111")
+// ###########################################################################################################################################
+int useCustomMinuteOrder = 0;                  // 0 = use switchLEDOrder mapping, 1 = use minuteLedOrder[]
+int minuteLedOrder[4] = {112, 113, 110, 111}; // default (clockwise, "new wiring")
+const int minuteCornerBase[4] = {110, 111, 112, 113};
+
+void setDefaultMinuteLedOrderFromSwitch() {
+  if (switchLEDOrder) {  // clockwise
+    minuteLedOrder[0] = 112;
+    minuteLedOrder[1] = 113;
+    minuteLedOrder[2] = 110;
+    minuteLedOrder[3] = 111;
+  } else {  // anti clockwise
+    minuteLedOrder[0] = 113;
+    minuteLedOrder[1] = 112;
+    minuteLedOrder[2] = 111;
+    minuteLedOrder[3] = 110;
+  }
+}
+
+static String urlDecodeMinimal(String s) {
+  s.replace("+", " ");
+  s.replace("%2C", ",");
+  s.replace("%2c", ",");
+  s.replace("%3B", ";");
+  s.replace("%3b", ";");
+  return s;
+}
+
+static bool isUnique4(const int a[4]) {
+  for (int i = 0; i < 4; i++) {
+    for (int j = i + 1; j < 4; j++) {
+      if (a[i] == a[j]) return false;
+    }
+  }
+  return true;
+}
+
+// Parse "3,1,4,2" (perm 1..4) or "112,113,110,111" (LED indices)
+static bool parseMinuteOrder(String raw, int outOrder[4]) {
+  raw = urlDecodeMinimal(raw);
+  raw.trim();
+  if (raw.length() == 0) return false;
+
+  raw.replace(";", ",");
+  raw.replace(" ", ",");
+  while (raw.indexOf(",,") >= 0) raw.replace(",,", ",");
+
+  int vals[4] = {-1, -1, -1, -1};
+  int found = 0;
+
+  int start = 0;
+  while (found < 4) {
+    int comma = raw.indexOf(',', start);
+    String token = (comma >= 0) ? raw.substring(start, comma) : raw.substring(start);
+    token.trim();
+    if (token.length() == 0) break;
+    vals[found++] = token.toInt();
+    if (comma < 0) break;
+    start = comma + 1;
+  }
+  if (found != 4) return false;
+
+  // Case A: permutation of 1..4 -> map to base {110,111,112,113}
+  bool perm = true;
+  for (int i = 0; i < 4; i++) {
+    if (vals[i] < 1 || vals[i] > 4) { perm = false; break; }
+  }
+  if (perm) {
+    if (!isUnique4(vals)) return false;
+    for (int i = 0; i < 4; i++) outOrder[i] = minuteCornerBase[vals[i] - 1];
+    return true;
+  }
+
+  // Case B: direct LED indices (e.g. 110..113)
+  for (int i = 0; i < 4; i++) {
+    if (vals[i] < 0 || vals[i] >= NUMPIXELS) return false;
+    outOrder[i] = vals[i];
+  }
+  if (!isUnique4(outOrder)) return false;
+  return true;
+}
+
+static String minuteOrderToDisplayString() {
+  // Prefer showing as 1..4 if possible (matches base corner set)
+  int perm[4] = {-1, -1, -1, -1};
+  bool allInBase = true;
+  for (int i = 0; i < 4; i++) {
+    int idx = -1;
+    for (int j = 0; j < 4; j++) {
+      if (minuteLedOrder[i] == minuteCornerBase[j]) { idx = j; break; }
+    }
+    if (idx < 0) { allInBase = false; break; }
+    perm[i] = idx + 1;
+  }
+  String s = "";
+  for (int i = 0; i < 4; i++) {
+    if (i) s += ",";
+    s += allInBase ? String(perm[i]) : String(minuteLedOrder[i]);
+  }
+  return s;
+}
 
 // ###########################################################################################################################################
 // # Setup function that runs once at startup of the ESP:
@@ -160,6 +275,7 @@ void setup() {
   dunkel();                         // Switch display black
   pixels.begin();                   // Init the NeoPixel library
   readEEPROM();                     // get persistent data from EEPROM
+  if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();    // Set default minute corner LED order based on switchLEDOrder setting
   pixels.setBrightness(intensity);  // Set LED brightness
   DisplayTest();                    // Perform the LED test
   SetWLAN();                        // Show SET WLAN text
@@ -353,6 +469,21 @@ void readEEPROM() {
     switchRainBow = parameter.pswitchRainBow;
     switchLangWeb = parameter.pswitchLangWeb;
     switchLEDOrder = parameter.pswitchLEDOrder;
+    
+     useCustomMinuteOrder = parameter.puseCustomMinuteOrder;
+    // Load custom minute order if enabled and valid; otherwise fall back to default mapping
+    int tmpOrder[4] = {parameter.pMinuteOrder1, parameter.pMinuteOrder2, parameter.pMinuteOrder3, parameter.pMinuteOrder4};
+    bool tmpOk = true;
+    for (int k = 0; k < 4; k++) {
+      if (tmpOrder[k] < 0 || tmpOrder[k] >= NUMPIXELS) { tmpOk = false; break; }
+    }
+    if (useCustomMinuteOrder && tmpOk && isUnique4(tmpOrder)) {
+      for (int k = 0; k < 4; k++) minuteLedOrder[k] = tmpOrder[k];
+    } else {
+      useCustomMinuteOrder = 0;
+      setDefaultMinuteLedOrderFromSwitch();
+    }
+        
     blinkTime = parameter.pBlinkTime;
     DEspecial1 = parameter.pDEspecial1;
     dcwFlag = parameter.pDCWFlag;
@@ -427,6 +558,11 @@ void writeEEPROM() {
   parameter.pswitchRainBow = switchRainBow;
   parameter.pswitchLangWeb = switchLangWeb;
   parameter.pswitchLEDOrder = switchLEDOrder;
+  parameter.puseCustomMinuteOrder = useCustomMinuteOrder;
+  parameter.pMinuteOrder1 = minuteLedOrder[0];
+  parameter.pMinuteOrder2 = minuteLedOrder[1];
+  parameter.pMinuteOrder3 = minuteLedOrder[2];
+  parameter.pMinuteOrder4 = minuteLedOrder[3];
   parameter.pPING_IP_ADDR1_O1 = PING_IP_ADDR1_O1;
   parameter.pPING_IP_ADDR1_O2 = PING_IP_ADDR1_O2;
   parameter.pPING_IP_ADDR1_O3 = PING_IP_ADDR1_O3;
@@ -757,20 +893,30 @@ void checkClient() {
             }
             client.println("<label for='id2'>" + txtRainbow4 + "</label>");
             client.println("</div>");
-            client.println("</fieldset>");
-
-            // Minute direction:
+            client.println("</fieldset>");            // Minute direction:
+            
             client.println("<br><br><label for=\"switchLEDOrder\">" + txtMinDir1 + "</label>");
             client.print("<input type=\"checkbox\" id=\"switchLEDOrder\" name=\"switchLEDOrder\"");
             if (switchLEDOrder) {
-              client.print(" checked");
-              client.print(">");
+               client.print(" checked");
+               client.print(">");
             } else {
-              client.print(">");
+               client.print(">");
             }
             client.println("<br><br>" + txtMinDir2 + "<br>");
             client.println(txtMinDir3 + "<br><hr>");
 
+            // Custom minute LED order:
+            client.println("<label for=\"useCustomMinuteOrder\"><b>" + txtCornerLED1 + "</b></label>");
+            client.print("<input type=\"checkbox\" id=\"useCustomMinuteOrder\" name=\"useCustomMinuteOrder\"");
+            if (useCustomMinuteOrder) {
+				client.print(" checked");
+		    }
+            client.println("><br>");
+            client.println("Format: <code>3,1,4,2</code> " + txtCornerLED2 + "<br>");
+            client.print("<input type=\"text\" id=\"minuteOrder\" name=\"minuteOrder\" value=\"");
+            client.print(minuteOrderToDisplayString());
+            client.println("\" size=\"20\"><br><hr>");
 
             // Language selection:
             // ###################
@@ -1381,7 +1527,28 @@ void checkClient() {
                 switchLEDOrder = 0;
               }
 
-
+              // Custom minute LEDs order:
+              // #########################
+              if (currentLine.indexOf("&useCustomMinuteOrder=on&") >= 0) {
+                useCustomMinuteOrder = 1;
+              } else {
+                useCustomMinuteOrder = 0;
+              }
+              pos = currentLine.indexOf("&minuteOrder=");
+              if (pos >= 0) {
+                String moStr = currentLine.substring(pos + 13);
+                int p2 = moStr.indexOf("&");
+                if (p2 > 0) moStr = moStr.substring(0, p2);
+                int tmp[4];
+                if (parseMinuteOrder(moStr, tmp)) {
+                  for (int k = 0; k < 4; k++) minuteLedOrder[k] = tmp[k];
+                } else {
+                  // invalid input -> disable custom to avoid confusing behavior
+                  useCustomMinuteOrder = 0;
+                }
+              }
+              if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();
+              
               // Check for DCW flag:
               // ###################
               if (currentLine.indexOf("DCW=ON") >= 0) {
@@ -1389,7 +1556,6 @@ void checkClient() {
               } else if (currentLine.indexOf("DCW=OFF") >= 0) {
                 dcwFlag = 0;
               }
-
 
               // Get intensity DAY:
               // ##################
@@ -1886,23 +2052,13 @@ void printAt(int ziffer, int x, int y) {
 // ###########################################################################################################################################
 void showMinutes(int minutes) {
   int minMod = (minutes % 5);
+
+  // If custom is disabled, ensure the default mapping matches the selected direction
+  if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();
+
   for (int i = 1; i < 5; i++) {
-    int ledNr = 0;
-    if (switchLEDOrder) {  // clockwise
-      switch (i) {
-        case 1: ledNr = 110; break;
-        case 2: ledNr = 111; break;
-        case 3: ledNr = 112; break;
-        case 4: ledNr = 113; break;
-      }
-    } else {  // anti clockwise
-      switch (i) {
-        case 1: ledNr = 113; break;
-        case 2: ledNr = 112; break;
-        case 3: ledNr = 111; break;
-        case 4: ledNr = 110; break;
-      }
-    }
+    int ledNr = minuteLedOrder[i - 1];
+
     if (minMod < i)
       pixels.setPixelColor(ledNr, pixels.Color(0, 0, 0));
     else
