@@ -54,7 +54,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.7";
+const char* WORD_CLOCK_VERSION = "V5.10.2";
 
 
 // ###########################################################################################################################################
@@ -83,6 +83,7 @@ bool LEDsON = true;                                                             
 bool RESTmanLEDsON = true;                                                           // Global flag to turn LEDs manually on or off - Used for the REST function
 bool UpdateAvailable = false;                                                        // Global flag to check for avaiable updates
 String AvailableVersion = "-";                                                       // Global string to check for avaiable updates
+bool NightModeActive = false;                                                        // Global flag to track if Night Mode is currently active - used for PING function
 
 
 // ###########################################################################################################################################
@@ -120,6 +121,11 @@ struct parmRec {
   int pswitchRainBow;
   int pswitchLangWeb;
   int pswitchLEDOrder;
+  int puseCustomMinuteOrder;
+  int pMinuteOrder1;
+  int pMinuteOrder2;
+  int pMinuteOrder3;
+  int pMinuteOrder4;
   int pwchostnamenum;
   int pDCWFlag;
   int puseRTC;
@@ -139,11 +145,122 @@ struct parmRec {
   int pPING_TIMEOUTNUM;
   int pPING_DEBUG_MODE;
   int pPING_USEMONITOR;
+  int pDEspecial1;
   char pTimeZone[50];
   char pNTPServer[50];
   int pCheckSum;  // This checkSum is used to find out whether we have valid parameters
 } parameter;
 
+// ###########################################################################################################################################
+// # Minute corner LEDs order (1 LED per minute):
+// # - Default behavior is kept via switchLEDOrder (clockwise / anti clockwise)
+// # - Optional: fully custom order via web interface (saved to EEPROM)
+// #
+// # minuteLedOrder[] stores the LED indices (0..NUMPIXELS-1) in the order for minute 1..4.
+// # You can enter either:
+// #   - a permutation of 1..4 (e.g. "3,1,4,2") which will be mapped to the base corner LEDs {110,111,112,113}
+// #   - OR the real LED numbers directly (e.g. "112,113,110,111")
+// ###########################################################################################################################################
+int useCustomMinuteOrder = 0;                  // 0 = use switchLEDOrder mapping, 1 = use minuteLedOrder[]
+int minuteLedOrder[4] = {112, 113, 110, 111}; // default (clockwise, "new wiring")
+const int minuteCornerBase[4] = {110, 111, 112, 113};
+
+void setDefaultMinuteLedOrderFromSwitch() {
+  if (switchLEDOrder) {  // clockwise
+    minuteLedOrder[0] = 112;
+    minuteLedOrder[1] = 113;
+    minuteLedOrder[2] = 110;
+    minuteLedOrder[3] = 111;
+  } else {  // anti clockwise
+    minuteLedOrder[0] = 113;
+    minuteLedOrder[1] = 112;
+    minuteLedOrder[2] = 111;
+    minuteLedOrder[3] = 110;
+  }
+}
+
+static String urlDecodeMinimal(String s) {
+  s.replace("+", " ");
+  s.replace("%2C", ",");
+  s.replace("%2c", ",");
+  s.replace("%3B", ";");
+  s.replace("%3b", ";");
+  return s;
+}
+
+static bool isUnique4(const int a[4]) {
+  for (int i = 0; i < 4; i++) {
+    for (int j = i + 1; j < 4; j++) {
+      if (a[i] == a[j]) return false;
+    }
+  }
+  return true;
+}
+
+// Parse "3,1,4,2" (perm 1..4) or "112,113,110,111" (LED indices)
+static bool parseMinuteOrder(String raw, int outOrder[4]) {
+  raw = urlDecodeMinimal(raw);
+  raw.trim();
+  if (raw.length() == 0) return false;
+
+  raw.replace(";", ",");
+  raw.replace(" ", ",");
+  while (raw.indexOf(",,") >= 0) raw.replace(",,", ",");
+
+  int vals[4] = {-1, -1, -1, -1};
+  int found = 0;
+
+  int start = 0;
+  while (found < 4) {
+    int comma = raw.indexOf(',', start);
+    String token = (comma >= 0) ? raw.substring(start, comma) : raw.substring(start);
+    token.trim();
+    if (token.length() == 0) break;
+    vals[found++] = token.toInt();
+    if (comma < 0) break;
+    start = comma + 1;
+  }
+  if (found != 4) return false;
+
+  // Case A: permutation of 1..4 -> map to base {110,111,112,113}
+  bool perm = true;
+  for (int i = 0; i < 4; i++) {
+    if (vals[i] < 1 || vals[i] > 4) { perm = false; break; }
+  }
+  if (perm) {
+    if (!isUnique4(vals)) return false;
+    for (int i = 0; i < 4; i++) outOrder[i] = minuteCornerBase[vals[i] - 1];
+    return true;
+  }
+
+  // Case B: direct LED indices (e.g. 110..113)
+  for (int i = 0; i < 4; i++) {
+    if (vals[i] < 0 || vals[i] >= NUMPIXELS) return false;
+    outOrder[i] = vals[i];
+  }
+  if (!isUnique4(outOrder)) return false;
+  return true;
+}
+
+static String minuteOrderToDisplayString() {
+  // Prefer showing as 1..4 if possible (matches base corner set)
+  int perm[4] = {-1, -1, -1, -1};
+  bool allInBase = true;
+  for (int i = 0; i < 4; i++) {
+    int idx = -1;
+    for (int j = 0; j < 4; j++) {
+      if (minuteLedOrder[i] == minuteCornerBase[j]) { idx = j; break; }
+    }
+    if (idx < 0) { allInBase = false; break; }
+    perm[i] = idx + 1;
+  }
+  String s = "";
+  for (int i = 0; i < 4; i++) {
+    if (i) s += ",";
+    s += allInBase ? String(perm[i]) : String(minuteLedOrder[i]);
+  }
+  return s;
+}
 
 // ###########################################################################################################################################
 // # Setup function that runs once at startup of the ESP:
@@ -158,6 +275,7 @@ void setup() {
   dunkel();                         // Switch display black
   pixels.begin();                   // Init the NeoPixel library
   readEEPROM();                     // get persistent data from EEPROM
+  if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();    // Set default minute corner LED order based on switchLEDOrder setting
   pixels.setBrightness(intensity);  // Set LED brightness
   DisplayTest();                    // Perform the LED test
   SetWLAN();                        // Show SET WLAN text
@@ -351,7 +469,23 @@ void readEEPROM() {
     switchRainBow = parameter.pswitchRainBow;
     switchLangWeb = parameter.pswitchLangWeb;
     switchLEDOrder = parameter.pswitchLEDOrder;
+    
+     useCustomMinuteOrder = parameter.puseCustomMinuteOrder;
+    // Load custom minute order if enabled and valid; otherwise fall back to default mapping
+    int tmpOrder[4] = {parameter.pMinuteOrder1, parameter.pMinuteOrder2, parameter.pMinuteOrder3, parameter.pMinuteOrder4};
+    bool tmpOk = true;
+    for (int k = 0; k < 4; k++) {
+      if (tmpOrder[k] < 0 || tmpOrder[k] >= NUMPIXELS) { tmpOk = false; break; }
+    }
+    if (useCustomMinuteOrder && tmpOk && isUnique4(tmpOrder)) {
+      for (int k = 0; k < 4; k++) minuteLedOrder[k] = tmpOrder[k];
+    } else {
+      useCustomMinuteOrder = 0;
+      setDefaultMinuteLedOrderFromSwitch();
+    }
+        
     blinkTime = parameter.pBlinkTime;
+    DEspecial1 = parameter.pDEspecial1;
     dcwFlag = parameter.pDCWFlag;
     useRTC = parameter.puseRTC;
     intensity = parameter.pIntensity;
@@ -394,6 +528,7 @@ void writeEEPROM() {
   parameter.pDCWFlag = dcwFlag;
   parameter.puseRTC = useRTC;
   parameter.pBlinkTime = blinkTime;
+  parameter.pDEspecial1 = DEspecial1;
   ntpServer.toCharArray(parameter.pNTPServer, sizeof(parameter.pNTPServer));
   timeZone.toCharArray(parameter.pTimeZone, sizeof(parameter.pTimeZone));
   parameter.pShowDate = showDate;
@@ -423,6 +558,11 @@ void writeEEPROM() {
   parameter.pswitchRainBow = switchRainBow;
   parameter.pswitchLangWeb = switchLangWeb;
   parameter.pswitchLEDOrder = switchLEDOrder;
+  parameter.puseCustomMinuteOrder = useCustomMinuteOrder;
+  parameter.pMinuteOrder1 = minuteLedOrder[0];
+  parameter.pMinuteOrder2 = minuteLedOrder[1];
+  parameter.pMinuteOrder3 = minuteLedOrder[2];
+  parameter.pMinuteOrder4 = minuteLedOrder[3];
   parameter.pPING_IP_ADDR1_O1 = PING_IP_ADDR1_O1;
   parameter.pPING_IP_ADDR1_O2 = PING_IP_ADDR1_O2;
   parameter.pPING_IP_ADDR1_O3 = PING_IP_ADDR1_O3;
@@ -753,20 +893,30 @@ void checkClient() {
             }
             client.println("<label for='id2'>" + txtRainbow4 + "</label>");
             client.println("</div>");
-            client.println("</fieldset>");
-
-            // Minute direction:
+            client.println("</fieldset>");            // Minute direction:
+            
             client.println("<br><br><label for=\"switchLEDOrder\">" + txtMinDir1 + "</label>");
             client.print("<input type=\"checkbox\" id=\"switchLEDOrder\" name=\"switchLEDOrder\"");
             if (switchLEDOrder) {
-              client.print(" checked");
-              client.print(">");
+               client.print(" checked");
+               client.print(">");
             } else {
-              client.print(">");
+               client.print(">");
             }
             client.println("<br><br>" + txtMinDir2 + "<br>");
             client.println(txtMinDir3 + "<br><hr>");
 
+            // Custom minute LED order:
+            client.println("<label for=\"useCustomMinuteOrder\"><b>" + txtCornerLED1 + "</b></label>");
+            client.print("<input type=\"checkbox\" id=\"useCustomMinuteOrder\" name=\"useCustomMinuteOrder\"");
+            if (useCustomMinuteOrder) {
+				client.print(" checked");
+		    }
+            client.println("><br>");
+            client.println("Format: <code>3,1,4,2</code> " + txtCornerLED2 + "<br>");
+            client.print("<input type=\"text\" id=\"minuteOrder\" name=\"minuteOrder\" value=\"");
+            client.print(minuteOrderToDisplayString());
+            client.println("\" size=\"20\"><br><hr>");
 
             // Language selection:
             // ###################
@@ -794,6 +944,40 @@ void checkClient() {
             client.println("</div>");
             client.println("</fieldset>");
             client.println("<br><br><hr>");
+
+
+
+            // DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
+            // ###########################################################
+            if (switchLangWeb == 0) {
+              client.println("<br><label for=\"DEspecial1\"><h2>" + DEspecial1Text1 + ":</h2></label>");
+              client.println("<fieldset>");
+              client.println("<div>");
+
+              client.println("<input type='radio' id='iddespecial0' name='DEspecial1' value='0'");
+              if (DEspecial1 == 0) {
+                client.print(" checked");
+                client.print(">");
+              } else {
+                client.print(">");
+              }
+              client.println("<label for='iddespecial0'>" + DEspecial1Text2 + "</label>");
+              client.println("</div>");
+              client.println("<div>");
+
+              client.println("<input type='radio' id='iddespecial1' name='DEspecial1' value='1'");
+              if (DEspecial1 == 1) {
+                client.print(" checked");
+                client.print(">");
+              } else {
+                client.print(">");
+              }
+              client.println("<label for='iddespecial1'>" + DEspecial1Text3 + "</label>");
+              client.println("</div>");
+              client.println("</fieldset>");
+              client.println("<br><br><hr>");
+            }
+
 
 
             // PING IP-address:
@@ -1070,6 +1254,7 @@ void checkClient() {
                 displayoff = -1;
               } else {
                 displayoff = 0;
+                NightModeActive = false;
               }
 
 
@@ -1079,6 +1264,7 @@ void checkClient() {
                 useNightLEDs = -1;
               } else {
                 useNightLEDs = 0;
+                NightModeActive = false;
               }
 
 
@@ -1319,6 +1505,20 @@ void checkClient() {
               }
 
 
+              // DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
+              // ###########################################################
+              pos = currentLine.indexOf("&DEspecial1=");
+              if (pos >= 0) {
+                String DEspecial = currentLine.substring(pos + 12);
+                pos = DEspecial.indexOf("&");
+                if (pos > 0)
+                  DEspecial = DEspecial.substring(0, pos);
+                DEspecial1 = DEspecial.toInt();
+                // Serial.print("DEspecial1: ");
+                // Serial.println(DEspecial1);
+              }
+
+
               // Check for Minute LEDs order switch:
               // ###################################
               if (currentLine.indexOf("&switchLEDOrder=on&") >= 0) {
@@ -1327,7 +1527,28 @@ void checkClient() {
                 switchLEDOrder = 0;
               }
 
-
+              // Custom minute LEDs order:
+              // #########################
+              if (currentLine.indexOf("&useCustomMinuteOrder=on&") >= 0) {
+                useCustomMinuteOrder = 1;
+              } else {
+                useCustomMinuteOrder = 0;
+              }
+              pos = currentLine.indexOf("&minuteOrder=");
+              if (pos >= 0) {
+                String moStr = currentLine.substring(pos + 13);
+                int p2 = moStr.indexOf("&");
+                if (p2 > 0) moStr = moStr.substring(0, p2);
+                int tmp[4];
+                if (parseMinuteOrder(moStr, tmp)) {
+                  for (int k = 0; k < 4; k++) minuteLedOrder[k] = tmp[k];
+                } else {
+                  // invalid input -> disable custom to avoid confusing behavior
+                  useCustomMinuteOrder = 0;
+                }
+              }
+              if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();
+              
               // Check for DCW flag:
               // ###################
               if (currentLine.indexOf("DCW=ON") >= 0) {
@@ -1335,7 +1556,6 @@ void checkClient() {
               } else if (currentLine.indexOf("DCW=OFF") >= 0) {
                 dcwFlag = 0;
               }
-
 
               // Get intensity DAY:
               // ##################
@@ -1832,23 +2052,13 @@ void printAt(int ziffer, int x, int y) {
 // ###########################################################################################################################################
 void showMinutes(int minutes) {
   int minMod = (minutes % 5);
+
+  // If custom is disabled, ensure the default mapping matches the selected direction
+  if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();
+
   for (int i = 1; i < 5; i++) {
-    int ledNr = 0;
-    if (switchLEDOrder) {  // clockwise
-      switch (i) {
-        case 1: ledNr = 110; break;
-        case 2: ledNr = 111; break;
-        case 3: ledNr = 112; break;
-        case 4: ledNr = 113; break;
-      }
-    } else {  // anti clockwise
-      switch (i) {
-        case 1: ledNr = 113; break;
-        case 2: ledNr = 112; break;
-        case 3: ledNr = 111; break;
-        case 4: ledNr = 110; break;
-      }
-    }
+    int ledNr = minuteLedOrder[i - 1];
+
     if (minMod < i)
       pixels.setPixelColor(ledNr, pixels.Color(0, 0, 0));
     else
@@ -1892,7 +2102,7 @@ void showCurrentTime() {
 
   // TEST TIMES:
   // iHour = 9;
-  // iMinute = 55;
+  // iMinute = 15;
 
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
@@ -1903,15 +2113,23 @@ void showCurrentTime() {
         // Fuenf: (Minuten)
         setLED(0, 3, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
         // Viertel:
-        setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
+        if (DEspecial1 == 0) setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
+        if (DEspecial1 == 1) setLED(22, 28, ((minDiv == 3)));
+        // DREIVIERTEL:
+        if (DEspecial1 == 1) setLED(22, 32, ((minDiv == 9)));
         // Zehn: (Minuten)
         setLED(11, 14, ((minDiv == 2) || (minDiv == 10)));
         // Zwanzig:
         setLED(15, 21, ((minDiv == 4) || (minDiv == 8)));
         // Nach:
-        setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
+        if (DEspecial1 == 0) setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
+        if (DEspecial1 == 1) {
+          setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 4) || (minDiv == 7)));
+          if (minDiv == 3) iHour = iHour + 1;
+        }
         // Vor:
-        setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
+        if (DEspecial1 == 0) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
+        if (DEspecial1 == 1) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 10) || (minDiv == 11)));
         // Halb:
         setLED(51, 54, ((minDiv == 5) || (minDiv == 6) || (minDiv == 7)));
         // Eck-LEDs: 1 pro Minute
@@ -1963,17 +2181,17 @@ void showCurrentTime() {
     case 1:  // EN
       {
         // FIVE: (Minutes)            // x:05 + x:25 + x:35 + x:55
-        setLED(23, 26, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));  
+        setLED(23, 26, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
         // QUARTER:                   // x:15 + X:45
-        setLED(13, 19, ((minDiv == 3) || (minDiv == 9)));  
+        setLED(13, 19, ((minDiv == 3) || (minDiv == 9)));
         // TEN: (Minutes)             // x:10 + x:50
-        setLED(38, 40, ((minDiv == 2) || (minDiv == 10))); 
+        setLED(38, 40, ((minDiv == 2) || (minDiv == 10)));
         // TWENTY:                    // x:20 + x:25 + x:35 + x:40
         setLED(27, 32, ((minDiv == 4) || (minDiv == 5) || (minDiv == 7) || (minDiv == 8)));
         // PAST:                      // x:05 + x:10 + x:15 + x:20 + x:25 + x:30
         setLED(51, 54, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 5) || (minDiv == 6)));
         // TO:                        // x:35 + x:40 + x:45 + x:50 + x:55
-        setLED(42, 43, ((minDiv == 7) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11))); 
+        setLED(42, 43, ((minDiv == 7) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
         // HALF:                      // x:30
         setLED(33, 36, ((minDiv == 6)));
         // A:                         // x:15 + X:45
@@ -2136,7 +2354,7 @@ void showDCW() {
 // # Display the time:
 // ###########################################################################################################################################
 void ShowTheTime() {
-  if (iSecond == 30) {
+  if ((iMinute == 30) && (iSecond == 0)) {
     if (showDate)
       showCurrentDate();
   }
@@ -2148,12 +2366,16 @@ void ShowTheTime() {
 // ###########################################################################################################################################
 // # Handle day and night time mode:
 // ###########################################################################################################################################
+
 void DayNightMode(int displayonMin, int displayonMax) {
   if (iHour > displayonMin && iHour < displayonMax) {
+    pixels.setBrightness(intensity);  // Day brightness
+    NightModeActive = false;
     ShowTheTime();
   } else {
     if (useNightLEDs == -1) {
       pixels.setBrightness(intensityNight);  // Night brightness
+      NightModeActive = true;
       ShowTheTime();
     } else {
       dunkel();
@@ -2604,7 +2826,8 @@ void PingIP() {
 
     // PING status check:
     if (PingStatusIP1 == true || PingStatusIP2 == true || PingStatusIP3 == true) {
-      pixels.setBrightness(intensity);
+      if (NightModeActive == false) pixels.setBrightness(intensity);
+      if (NightModeActive == true) pixels.setBrightness(intensityNight);
       if (RESTmanLEDsON == true) LEDsON = true;
     }
     if (PingStatusIP1 == false && PingStatusIP2 == false && PingStatusIP3 == false) {

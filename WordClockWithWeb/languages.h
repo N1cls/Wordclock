@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.7
+// # Compatible with WordClock version: V5.10.2
 // #
 // ###########################################################################################################################################
 /*
@@ -37,6 +37,8 @@ String txtMO, txtTU, txtWE, txtTH, txtFR, txtSA, txtSU;
 String txtContentStartup, txtUseLEDtest, txtUSEsetWLAN, txtShowIP, txtRainbow1, txtRainbow2, txtRainbow3, txtRainbow4, txtMinDir1, txtMinDir2, txtMinDir3;
 // PING monitor IP-adresses:
 String txtPing0, txtPing1, txtPing2, txtPing3, txtPing4, txtPing5, txtPing6, txtPing7, txtPing8, txtPing9;
+// LED corner sequence:
+String txtCornerLED1, txtCornerLED2;
 // Hostname:
 String txtHostName1, txtHostName2;
 // REST functions:
@@ -49,19 +51,24 @@ String txtWiFi0, txtWiFi1, txtWiFi2;
 String txtRestart0, txtRestart1, txtRestart2;
 // Time zone and NTP server:
 String txtTZNTP0, txtTZNTP1, txtTZNTP2;
+// DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
+String DEspecial1Text1, DEspecial1Text2, DEspecial1Text3;
 
 
 void setLanguage(int lang) {
   // ###########################################################################################################################################
   // # Translations for: DE
   // ###########################################################################################################################################
-  if (lang == 0) {         // DEUTSCH
+  if (lang == 0) {  // DEUTSCH
     // Allgemeine Texte:
     WordClockName = "WordClock";
     languageSelect = "Sprache für das WordClock Layout und die Web Konfiguration";
     languageInt0 = "Deutsch";
     languageInt1 = "Englisch";
     txtSaveSettings = "Einstellungen speichern";
+    DEspecial1Text1 = "Schreibweise für x:15 und x:45";
+    DEspecial1Text2 = "VIERTEL VOR / VIERTEL NACH";
+    DEspecial1Text3 = "DREIVIERTEL / VIERTEL";
 
     // LED Einstellungen:
     txtSettings = "Einstellungen";
@@ -76,7 +83,7 @@ void setLanguage(int lang) {
     txtFlashFullHour1 = "Volle Stunde blinken";
     txtFlashFullHour2 = "Stundenangabe soll zur vollen Stunde blinken?";
     txtShowDate1 = "Datumsanzeige als Lauftext";
-    txtShowDate2 = "Alle 30 Sekunden anzeigen?";
+    txtShowDate2 = "Alle 30 Minuten anzeigen?";
     txtNightMode1 = "Display abschalten oder dunkler schalten?";
     txtNightMode2 = "Display komplett abschalten ...";
     txtNightMode3 = "... oder nur dunkler schalten auf Wert der Helligkeit bei Nacht?";
@@ -116,6 +123,10 @@ void setLanguage(int lang) {
     txtPing8 = "Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen.";
     txtPing9 = "DEBUG PING Monitor Funktion verwenden?";
 
+    // Corner LEDs
+    txtCornerLED1 = "Benutzerdefinierte Minuten-LED-Reihenfolge";
+    txtCornerLED2 = "(Reihenfolge 1–4 wird auf die LEDs 110–113 abgebildet) oder <code>112,113,110,111</code> (direkte LED-Nummern angeben)";
+    
     // Hostname:
     txtHostName1 = "WordClock Hostname anpassen";
     txtHostName2 = "Hostname";
@@ -165,7 +176,7 @@ void setLanguage(int lang) {
   // ###########################################################################################################################################
   // # Translations for: EN
   // ###########################################################################################################################################
-  if (lang == 1) {         // ENGLISH
+  if (lang == 1) {  // ENGLISH
     // General texts:
     WordClockName = "WordClock";
     languageSelect = "Language for the WordClock layout and web configuration";
@@ -186,7 +197,7 @@ void setLanguage(int lang) {
     txtFlashFullHour1 = "Flash full hour";
     txtFlashFullHour2 = "Flash the hour value every new hour?";
     txtShowDate1 = "Show date as scolling text";
-    txtShowDate2 = "Display the date every 30 seconds?";
+    txtShowDate2 = "Display the date every 30 minutes?";
     txtNightMode1 = "Switch off or darken the display?";
     txtNightMode2 = "Switch off the display completely ...";
     txtNightMode3 = "... or only switch it darker to the value of the intensity in night mode?";
@@ -225,6 +236,10 @@ void setLanguage(int lang) {
     txtPing7 = "Number of PING attempts until the LEDs are switched off";
     txtPing8 = "Note: Count = 10 means a 5 minute timeout as there are 2 PING attempts per minute.";
     txtPing9 = "Use DEBUG PING monitor function?";
+
+    // Corner LEDs
+    txtCornerLED1 = "Custom minute LED order";
+    txtCornerLED2 = "(Order 1–4 is mapped to LEDs 110–113) or <code>112,113,110,111</code> (specify direct LED numbers)";
 
     // Hostname:
     txtHostName1 = "Customize WordClock hostname";
@@ -270,8 +285,6 @@ void setLanguage(int lang) {
     txtTZNTP1 = "Default values";
     txtTZNTP2 = "Explanation of setting the time zone";
   }
-
-
 }
 // ###########################################################################################################################################
 // # EOF - You have successfully reached the end of the code - well done ;-)
