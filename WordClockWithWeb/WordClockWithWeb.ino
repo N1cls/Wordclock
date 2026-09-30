@@ -32,6 +32,7 @@
 // # - RTClib                         // by Adafruit:                     https://github.com/adafruit/RTClib
 // # - WiFiManager                    // by tablatronix / tzapu:          https://github.com/tzapu/WiFiManager
 // # - ESP8266Ping                    // by dancol90                      https://github.com/dancol90/ESP8266Ping
+// # - Adafruit HTU21DF Library       // by Adafruit:                     https://github.com/adafruit/Adafruit_HTU21DF_Library
 // #
 // ###########################################################################################################################################
 #include <ESP8266WiFi.h>              // Used to connect the ESP8266 NODE MCU to your WiFi
@@ -47,6 +48,7 @@
 #include <ESP8266HTTPUpdateServer.h>  // Used for the internal update function
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 #include <ESP8266Ping.h>              // Used to send ping requests to a IP-address (of your smart phone) to detect if you have left your home
+#include "Adafruit_HTU21DF.h"         // Used to read temperature and humidity from the GY-21 / HTU21D sensor board (I2C, shares the bus with the RTC)
 #include "settings.h"                 // Settings are stored in a seperate file to make to code better readable and to be able to switch to other settings faster
 #include "languages.h"                // Translation for texts for the HTML page
 
@@ -54,7 +56,7 @@
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V5.10.2";
+const char* WORD_CLOCK_VERSION = "V5.8";
 
 
 // ###########################################################################################################################################
@@ -65,10 +67,14 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ80
 RTC_DS3231 rtc;                                                                      // rtc communication object
 int lastRequest = 0;                                                                 // Variable to control RTC requests
 int rtcStarted = 0;                                                                  // Variable to control whether RTC has been initialized
+Adafruit_HTU21DF htu = Adafruit_HTU21DF();                                           // GY-21 / HTU21D communication object (temperature & humidity)
+int htuStarted = 0;                                                                  // Variable to control whether the HTU21D has been initialized
 int delayval = 250;                                                                  // delay in milliseconds
 int iYear, iMonth, iDay, iHour, iMinute, iSecond, iWeekDay;                          // variables for RTC-module read time:
 String timeZone = DEFAULT_TIMEZONE;                                                  // Time server settings
 String ntpServer = DEFAULT_NTP_SERVER;                                               // Time server settings
+String bootText1 = DEFAULT_BOOTTEXT1;                                                // 1st scrolling text shown at boot (configurable via web page)
+String bootText2 = DEFAULT_BOOTTEXT2;                                                // 2nd scrolling text shown at boot (configurable via web page)
 String UpdatePath = "-";                                                             // Update via Hostname
 String UpdatePathIP = "-";                                                           // Update via IP-address
 ESP8266HTTPUpdateServer httpUpdater;                                                 // Update server
@@ -83,7 +89,9 @@ bool LEDsON = true;                                                             
 bool RESTmanLEDsON = true;                                                           // Global flag to turn LEDs manually on or off - Used for the REST function
 bool UpdateAvailable = false;                                                        // Global flag to check for avaiable updates
 String AvailableVersion = "-";                                                       // Global string to check for avaiable updates
-bool NightModeActive = false;                                                        // Global flag to track if Night Mode is currently active - used for PING function
+bool triggerShowDateNow = false;                                                     // Flag set by the "Show now" button on the web page - Date
+bool triggerShowTempNow = false;                                                     // Flag set by the "Show now" button on the web page - Temperature
+bool triggerShowHumidityNow = false;                                                 // Flag set by the "Show now" button on the web page - Humidity
 
 
 // ###########################################################################################################################################
@@ -96,6 +104,12 @@ struct parmRec {
   int pIntensity;
   int pIntensityNight;
   int pShowDate;
+  int pShowDateIntervalSec;
+  int pUseHTU21;
+  int pShowTemp;
+  int pShowTempIntervalSec;
+  int pShowHumidity;
+  int pShowHumidityIntervalSec;
   char pdisplayonmaxMO;
   char pdisplayonminMO;
   char pdisplayonmaxTU;
@@ -116,16 +130,12 @@ struct parmRec {
   int puseresturl;
   int ppowersupply;
   int puseledtest;
+  int pUseBootText;
   int pusesetwlan;
   int puseshowip;
   int pswitchRainBow;
   int pswitchLangWeb;
   int pswitchLEDOrder;
-  int puseCustomMinuteOrder;
-  int pMinuteOrder1;
-  int pMinuteOrder2;
-  int pMinuteOrder3;
-  int pMinuteOrder4;
   int pwchostnamenum;
   int pDCWFlag;
   int puseRTC;
@@ -145,122 +155,13 @@ struct parmRec {
   int pPING_TIMEOUTNUM;
   int pPING_DEBUG_MODE;
   int pPING_USEMONITOR;
-  int pDEspecial1;
   char pTimeZone[50];
   char pNTPServer[50];
+  char pBootText1[21];
+  char pBootText2[21];
   int pCheckSum;  // This checkSum is used to find out whether we have valid parameters
 } parameter;
 
-// ###########################################################################################################################################
-// # Minute corner LEDs order (1 LED per minute):
-// # - Default behavior is kept via switchLEDOrder (clockwise / anti clockwise)
-// # - Optional: fully custom order via web interface (saved to EEPROM)
-// #
-// # minuteLedOrder[] stores the LED indices (0..NUMPIXELS-1) in the order for minute 1..4.
-// # You can enter either:
-// #   - a permutation of 1..4 (e.g. "3,1,4,2") which will be mapped to the base corner LEDs {110,111,112,113}
-// #   - OR the real LED numbers directly (e.g. "112,113,110,111")
-// ###########################################################################################################################################
-int useCustomMinuteOrder = 0;                  // 0 = use switchLEDOrder mapping, 1 = use minuteLedOrder[]
-int minuteLedOrder[4] = {112, 113, 110, 111}; // default (clockwise, "new wiring")
-const int minuteCornerBase[4] = {110, 111, 112, 113};
-
-void setDefaultMinuteLedOrderFromSwitch() {
-  if (switchLEDOrder) {  // clockwise
-    minuteLedOrder[0] = 112;
-    minuteLedOrder[1] = 113;
-    minuteLedOrder[2] = 110;
-    minuteLedOrder[3] = 111;
-  } else {  // anti clockwise
-    minuteLedOrder[0] = 113;
-    minuteLedOrder[1] = 112;
-    minuteLedOrder[2] = 111;
-    minuteLedOrder[3] = 110;
-  }
-}
-
-static String urlDecodeMinimal(String s) {
-  s.replace("+", " ");
-  s.replace("%2C", ",");
-  s.replace("%2c", ",");
-  s.replace("%3B", ";");
-  s.replace("%3b", ";");
-  return s;
-}
-
-static bool isUnique4(const int a[4]) {
-  for (int i = 0; i < 4; i++) {
-    for (int j = i + 1; j < 4; j++) {
-      if (a[i] == a[j]) return false;
-    }
-  }
-  return true;
-}
-
-// Parse "3,1,4,2" (perm 1..4) or "112,113,110,111" (LED indices)
-static bool parseMinuteOrder(String raw, int outOrder[4]) {
-  raw = urlDecodeMinimal(raw);
-  raw.trim();
-  if (raw.length() == 0) return false;
-
-  raw.replace(";", ",");
-  raw.replace(" ", ",");
-  while (raw.indexOf(",,") >= 0) raw.replace(",,", ",");
-
-  int vals[4] = {-1, -1, -1, -1};
-  int found = 0;
-
-  int start = 0;
-  while (found < 4) {
-    int comma = raw.indexOf(',', start);
-    String token = (comma >= 0) ? raw.substring(start, comma) : raw.substring(start);
-    token.trim();
-    if (token.length() == 0) break;
-    vals[found++] = token.toInt();
-    if (comma < 0) break;
-    start = comma + 1;
-  }
-  if (found != 4) return false;
-
-  // Case A: permutation of 1..4 -> map to base {110,111,112,113}
-  bool perm = true;
-  for (int i = 0; i < 4; i++) {
-    if (vals[i] < 1 || vals[i] > 4) { perm = false; break; }
-  }
-  if (perm) {
-    if (!isUnique4(vals)) return false;
-    for (int i = 0; i < 4; i++) outOrder[i] = minuteCornerBase[vals[i] - 1];
-    return true;
-  }
-
-  // Case B: direct LED indices (e.g. 110..113)
-  for (int i = 0; i < 4; i++) {
-    if (vals[i] < 0 || vals[i] >= NUMPIXELS) return false;
-    outOrder[i] = vals[i];
-  }
-  if (!isUnique4(outOrder)) return false;
-  return true;
-}
-
-static String minuteOrderToDisplayString() {
-  // Prefer showing as 1..4 if possible (matches base corner set)
-  int perm[4] = {-1, -1, -1, -1};
-  bool allInBase = true;
-  for (int i = 0; i < 4; i++) {
-    int idx = -1;
-    for (int j = 0; j < 4; j++) {
-      if (minuteLedOrder[i] == minuteCornerBase[j]) { idx = j; break; }
-    }
-    if (idx < 0) { allInBase = false; break; }
-    perm[i] = idx + 1;
-  }
-  String s = "";
-  for (int i = 0; i < 4; i++) {
-    if (i) s += ",";
-    s += allInBase ? String(perm[i]) : String(minuteLedOrder[i]);
-  }
-  return s;
-}
 
 // ###########################################################################################################################################
 // # Setup function that runs once at startup of the ESP:
@@ -275,9 +176,9 @@ void setup() {
   dunkel();                         // Switch display black
   pixels.begin();                   // Init the NeoPixel library
   readEEPROM();                     // get persistent data from EEPROM
-  if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();    // Set default minute corner LED order based on switchLEDOrder setting
   pixels.setBrightness(intensity);  // Set LED brightness
   DisplayTest();                    // Perform the LED test
+  showBootTexts();                // Show the two configurable scrolling boot texts
   SetWLAN();                        // Show SET WLAN text
   WIFI_login();                     // WiFiManager
   if (useshowip) showIP();          // Show IP-address on display
@@ -443,6 +344,12 @@ void readEEPROM() {
     greenVal = parameter.pGreen;
     blueVal = parameter.pBlue;
     showDate = parameter.pShowDate;
+    showDateIntervalSec = parameter.pShowDateIntervalSec;
+    useHTU21 = parameter.pUseHTU21;
+    showTemp = parameter.pShowTemp;
+    showTempIntervalSec = parameter.pShowTempIntervalSec;
+    showHumidity = parameter.pShowHumidity;
+    showHumidityIntervalSec = parameter.pShowHumidityIntervalSec;
     displayoff = parameter.pdisplayoff;
     useNightLEDs = parameter.puseNightLEDs;
     displayonmaxMO = parameter.pdisplayonmaxMO;
@@ -464,28 +371,13 @@ void readEEPROM() {
     useresturl = parameter.puseresturl;
     powersupply = parameter.ppowersupply;
     useledtest = parameter.puseledtest;
+    useBootText = parameter.pUseBootText;
     usesetwlan = parameter.pusesetwlan;
     useshowip = parameter.puseshowip;
     switchRainBow = parameter.pswitchRainBow;
     switchLangWeb = parameter.pswitchLangWeb;
     switchLEDOrder = parameter.pswitchLEDOrder;
-    
-     useCustomMinuteOrder = parameter.puseCustomMinuteOrder;
-    // Load custom minute order if enabled and valid; otherwise fall back to default mapping
-    int tmpOrder[4] = {parameter.pMinuteOrder1, parameter.pMinuteOrder2, parameter.pMinuteOrder3, parameter.pMinuteOrder4};
-    bool tmpOk = true;
-    for (int k = 0; k < 4; k++) {
-      if (tmpOrder[k] < 0 || tmpOrder[k] >= NUMPIXELS) { tmpOk = false; break; }
-    }
-    if (useCustomMinuteOrder && tmpOk && isUnique4(tmpOrder)) {
-      for (int k = 0; k < 4; k++) minuteLedOrder[k] = tmpOrder[k];
-    } else {
-      useCustomMinuteOrder = 0;
-      setDefaultMinuteLedOrderFromSwitch();
-    }
-        
     blinkTime = parameter.pBlinkTime;
-    DEspecial1 = parameter.pDEspecial1;
     dcwFlag = parameter.pDCWFlag;
     useRTC = parameter.puseRTC;
     intensity = parameter.pIntensity;
@@ -509,6 +401,10 @@ void readEEPROM() {
     ntpServer = ntp;
     String tz(parameter.pTimeZone);
     timeZone = tz;
+    String bt1(parameter.pBootText1);
+    bootText1 = bt1;
+    String bt2(parameter.pBootText2);
+    bootText2 = bt2;
   } else {
     Serial.println("Checksum does not match. New program version or new installed ESP detected...");
   }
@@ -528,10 +424,17 @@ void writeEEPROM() {
   parameter.pDCWFlag = dcwFlag;
   parameter.puseRTC = useRTC;
   parameter.pBlinkTime = blinkTime;
-  parameter.pDEspecial1 = DEspecial1;
   ntpServer.toCharArray(parameter.pNTPServer, sizeof(parameter.pNTPServer));
   timeZone.toCharArray(parameter.pTimeZone, sizeof(parameter.pTimeZone));
+  bootText1.toCharArray(parameter.pBootText1, sizeof(parameter.pBootText1));
+  bootText2.toCharArray(parameter.pBootText2, sizeof(parameter.pBootText2));
   parameter.pShowDate = showDate;
+  parameter.pShowDateIntervalSec = showDateIntervalSec;
+  parameter.pUseHTU21 = useHTU21;
+  parameter.pShowTemp = showTemp;
+  parameter.pShowTempIntervalSec = showTempIntervalSec;
+  parameter.pShowHumidity = showHumidity;
+  parameter.pShowHumidityIntervalSec = showHumidityIntervalSec;
   parameter.pdisplayoff = displayoff;
   parameter.puseNightLEDs = useNightLEDs;
   parameter.pdisplayonmaxMO = displayonmaxMO;
@@ -553,16 +456,12 @@ void writeEEPROM() {
   parameter.puseresturl = useresturl;
   parameter.ppowersupply = powersupply;
   parameter.puseledtest = useledtest;
+  parameter.pUseBootText = useBootText;
   parameter.pusesetwlan = usesetwlan;
   parameter.puseshowip = useshowip;
   parameter.pswitchRainBow = switchRainBow;
   parameter.pswitchLangWeb = switchLangWeb;
   parameter.pswitchLEDOrder = switchLEDOrder;
-  parameter.puseCustomMinuteOrder = useCustomMinuteOrder;
-  parameter.pMinuteOrder1 = minuteLedOrder[0];
-  parameter.pMinuteOrder2 = minuteLedOrder[1];
-  parameter.pMinuteOrder3 = minuteLedOrder[2];
-  parameter.pMinuteOrder4 = minuteLedOrder[3];
   parameter.pPING_IP_ADDR1_O1 = PING_IP_ADDR1_O1;
   parameter.pPING_IP_ADDR1_O2 = PING_IP_ADDR1_O2;
   parameter.pPING_IP_ADDR1_O3 = PING_IP_ADDR1_O3;
@@ -720,14 +619,16 @@ void checkClient() {
             client.print("><br><hr>");
 
 
-            // Show date value as scrolling text every minute after 30s:
+            // Show date value as scrolling text, interval configurable:
             // #########################################################
             client.println("<h2>" + txtShowDate1 + ":</h2><br>");
             client.println("<label for=\"showdate\">" + txtShowDate2 + ": </label>");
             client.print("<input type=\"checkbox\" id=\"showdate\" name=\"showdate\"");
             if (showDate)
               client.print(" checked");
-            client.print(">");
+            client.print("><br><br>");
+            client.println("<label for=\"showDateIntervalSec\">" + txtIntervalLabel + ": </label><select id=\"showDateIntervalSec\" name=\"showDateIntervalSec\">" + buildIntervalOptions(showDateIntervalSec) + "</select>");
+            client.println("<br><br><a href=\"/showDateNow.php\" class=\"button button2\">" + txtShowNow + "</a>");
             if (checkRTC() && useRTC == 0) {
               client.println("<br><h2 style=\"text-decoration:blink;color:green\">RTC found. RTC usage will be enabled after saving this page.</h2>");
               useRTC = 1;
@@ -738,6 +639,42 @@ void checkClient() {
               useRTC = 0;
               Serial.println("No RTC found. RTC usage will be disabled after saving the configuration page!");
             }
+            client.print("<br><hr>");
+
+
+            // Show temperature value as scrolling text (GY-21 / HTU21D sensor), interval configurable:
+            // ############################################################################################
+            client.println("<h2>" + txtShowTemp1 + ":</h2><br>");
+            client.println("<label for=\"showtemp\">" + txtShowTemp2 + ": </label>");
+            client.print("<input type=\"checkbox\" id=\"showtemp\" name=\"showtemp\"");
+            if (showTemp)
+              client.print(" checked");
+            client.print("><br><br>");
+            client.println("<label for=\"showTempIntervalSec\">" + txtIntervalLabel + ": </label><select id=\"showTempIntervalSec\" name=\"showTempIntervalSec\">" + buildIntervalOptions(showTempIntervalSec) + "</select>");
+            client.println("<br><br><a href=\"/showTempNow.php\" class=\"button button2\">" + txtShowNow + "</a>");
+            int prevUseHTU21 = useHTU21;  // remember state before checkHTU() re-evaluates/retries it below
+            if (checkHTU()) {
+              if (prevUseHTU21 == 0) {
+                client.println("<br><h2 style=\"text-decoration:blink;color:green\">" + txtSensorFound + "</h2>");
+              }
+            } else {
+              if (prevUseHTU21 == 1) {
+                client.println("<br><h2 style=\"text-decoration:blink;color:red\">" + txtSensorNotFound + "</h2>");
+              }
+            }
+            client.print("<br><hr>");
+
+
+            // Show humidity value as scrolling text (GY-21 / HTU21D sensor), interval configurable:
+            // ##########################################################################################
+            client.println("<h2>" + txtShowHumidity1 + ":</h2><br>");
+            client.println("<label for=\"showhumidity\">" + txtShowHumidity2 + ": </label>");
+            client.print("<input type=\"checkbox\" id=\"showhumidity\" name=\"showhumidity\"");
+            if (showHumidity)
+              client.print(" checked");
+            client.print("><br><br>");
+            client.println("<label for=\"showHumidityIntervalSec\">" + txtIntervalLabel + ": </label><select id=\"showHumidityIntervalSec\" name=\"showHumidityIntervalSec\">" + buildIntervalOptions(showHumidityIntervalSec) + "</select>");
+            client.println("<br><br><a href=\"/showHumidityNow.php\" class=\"button button2\">" + txtShowNow + "</a>");
             client.print("<br><hr>");
 
 
@@ -840,6 +777,25 @@ void checkClient() {
               client.print("><br><br>");
             }
 
+            // Custom boot texts (scrolling text shown at power-on):
+            client.println("<label for=\"useBootText\">" + txtUseBootText + " </label>");
+            client.print("<input type=\"checkbox\" id=\"useBootText\" name=\"useBootText\"");
+            if (useBootText) {
+              client.print(" checked");
+              client.print("><br><br>");
+            } else {
+              client.print("><br><br>");
+            }
+            client.println("<label for=\"boottext1\">" + txtBootText1 + "</label>");
+            client.print("<input type=\"text\" id=\"boottext1\" name=\"boottext1\" size=\"20\" maxlength=\"20\" value=\"");
+            client.print(bootText1);
+            client.println("\"><br><br>");
+            client.println("<label for=\"boottext2\">" + txtBootText2 + "</label>");
+            client.print("<input type=\"text\" id=\"boottext2\" name=\"boottext2\" size=\"20\" maxlength=\"20\" value=\"");
+            client.print(bootText2);
+            client.println("\"><br><br>");
+            client.println("<label>" + txtBootTextHint + "</label><br><br>");
+
             // SET WLAN text:
             client.println("<label for=\"usesetwlan\">" + txtUSEsetWLAN + " </label>");
             client.print("<input type=\"checkbox\" id=\"usesetwlan\" name=\"usesetwlan\"");
@@ -893,30 +849,20 @@ void checkClient() {
             }
             client.println("<label for='id2'>" + txtRainbow4 + "</label>");
             client.println("</div>");
-            client.println("</fieldset>");            // Minute direction:
-            
+            client.println("</fieldset>");
+
+            // Minute direction:
             client.println("<br><br><label for=\"switchLEDOrder\">" + txtMinDir1 + "</label>");
             client.print("<input type=\"checkbox\" id=\"switchLEDOrder\" name=\"switchLEDOrder\"");
             if (switchLEDOrder) {
-               client.print(" checked");
-               client.print(">");
+              client.print(" checked");
+              client.print(">");
             } else {
-               client.print(">");
+              client.print(">");
             }
             client.println("<br><br>" + txtMinDir2 + "<br>");
             client.println(txtMinDir3 + "<br><hr>");
 
-            // Custom minute LED order:
-            client.println("<label for=\"useCustomMinuteOrder\"><b>" + txtCornerLED1 + "</b></label>");
-            client.print("<input type=\"checkbox\" id=\"useCustomMinuteOrder\" name=\"useCustomMinuteOrder\"");
-            if (useCustomMinuteOrder) {
-				client.print(" checked");
-		    }
-            client.println("><br>");
-            client.println("Format: <code>3,1,4,2</code> " + txtCornerLED2 + "<br>");
-            client.print("<input type=\"text\" id=\"minuteOrder\" name=\"minuteOrder\" value=\"");
-            client.print(minuteOrderToDisplayString());
-            client.println("\" size=\"20\"><br><hr>");
 
             // Language selection:
             // ###################
@@ -942,42 +888,18 @@ void checkClient() {
             }
             client.println("<label for='idlang1'>" + languageInt1 + "</label>");
             client.println("</div>");
+            client.println("<div>");
+            client.println("<input type='radio' id='idlang2' name='switchLangWeb' value='2'");
+            if (switchLangWeb == 2) {
+              client.print(" checked");
+              client.print(">");
+            } else {
+              client.print(">");
+            }
+            client.println("<label for='idlang2'>" + languageInt2 + "</label>");
+            client.println("</div>");
             client.println("</fieldset>");
             client.println("<br><br><hr>");
-
-
-
-            // DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
-            // ###########################################################
-            if (switchLangWeb == 0) {
-              client.println("<br><label for=\"DEspecial1\"><h2>" + DEspecial1Text1 + ":</h2></label>");
-              client.println("<fieldset>");
-              client.println("<div>");
-
-              client.println("<input type='radio' id='iddespecial0' name='DEspecial1' value='0'");
-              if (DEspecial1 == 0) {
-                client.print(" checked");
-                client.print(">");
-              } else {
-                client.print(">");
-              }
-              client.println("<label for='iddespecial0'>" + DEspecial1Text2 + "</label>");
-              client.println("</div>");
-              client.println("<div>");
-
-              client.println("<input type='radio' id='iddespecial1' name='DEspecial1' value='1'");
-              if (DEspecial1 == 1) {
-                client.print(" checked");
-                client.print(">");
-              } else {
-                client.print(">");
-              }
-              client.println("<label for='iddespecial1'>" + DEspecial1Text3 + "</label>");
-              client.println("</div>");
-              client.println("</fieldset>");
-              client.println("<br><br><hr>");
-            }
-
 
 
             // PING IP-address:
@@ -1239,6 +1161,63 @@ void checkClient() {
               }
 
 
+              // Get date display interval (seconds):
+              // ###################################
+              pos = currentLine.indexOf("&showDateIntervalSec=");
+              if (pos >= 0) {
+                String intervalStr = currentLine.substring(pos + 21);
+                pos = intervalStr.indexOf("&");
+                if (pos >= 0)
+                  intervalStr = intervalStr.substring(0, pos);
+                showDateIntervalSec = intervalStr.toInt();
+                if (showDateIntervalSec < 30) showDateIntervalSec = 30;
+              }
+
+
+              // Check for temperature display:
+              // ###############################
+              if (currentLine.indexOf("&showtemp=on&") >= 0) {
+                showTemp = -1;
+              } else {
+                showTemp = 0;
+              }
+
+
+              // Get temperature display interval (seconds):
+              // ###########################################
+              pos = currentLine.indexOf("&showTempIntervalSec=");
+              if (pos >= 0) {
+                String intervalStr = currentLine.substring(pos + 21);
+                pos = intervalStr.indexOf("&");
+                if (pos >= 0)
+                  intervalStr = intervalStr.substring(0, pos);
+                showTempIntervalSec = intervalStr.toInt();
+                if (showTempIntervalSec < 30) showTempIntervalSec = 30;
+              }
+
+
+              // Check for humidity display:
+              // ############################
+              if (currentLine.indexOf("&showhumidity=on&") >= 0) {
+                showHumidity = -1;
+              } else {
+                showHumidity = 0;
+              }
+
+
+              // Get humidity display interval (seconds):
+              // ########################################
+              pos = currentLine.indexOf("&showHumidityIntervalSec=");
+              if (pos >= 0) {
+                String intervalStr = currentLine.substring(pos + 25);
+                pos = intervalStr.indexOf("&");
+                if (pos >= 0)
+                  intervalStr = intervalStr.substring(0, pos);
+                showHumidityIntervalSec = intervalStr.toInt();
+                if (showHumidityIntervalSec < 30) showHumidityIntervalSec = 30;
+              }
+
+
               // Check for power supply note:
               // ############################
               if (currentLine.indexOf("&powersupply=on&") >= 0) {
@@ -1254,7 +1233,6 @@ void checkClient() {
                 displayoff = -1;
               } else {
                 displayoff = 0;
-                NightModeActive = false;
               }
 
 
@@ -1264,7 +1242,6 @@ void checkClient() {
                 useNightLEDs = -1;
               } else {
                 useNightLEDs = 0;
-                NightModeActive = false;
               }
 
 
@@ -1274,7 +1251,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 displayonmaxMO = maxStr.toInt();
               }
@@ -1282,7 +1259,7 @@ void checkClient() {
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   minStr = minStr.substring(0, pos);
                 displayonminMO = minStr.toInt();
               }
@@ -1294,7 +1271,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 displayonmaxTU = maxStr.toInt();
               }
@@ -1302,7 +1279,7 @@ void checkClient() {
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   minStr = minStr.substring(0, pos);
                 displayonminTU = minStr.toInt();
               }
@@ -1314,7 +1291,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 displayonmaxWE = maxStr.toInt();
               }
@@ -1322,7 +1299,7 @@ void checkClient() {
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   minStr = minStr.substring(0, pos);
                 displayonminWE = minStr.toInt();
               }
@@ -1334,7 +1311,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 displayonmaxTH = maxStr.toInt();
               }
@@ -1342,7 +1319,7 @@ void checkClient() {
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   minStr = minStr.substring(0, pos);
                 displayonminTH = minStr.toInt();
               }
@@ -1354,7 +1331,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 displayonmaxFR = maxStr.toInt();
               }
@@ -1362,7 +1339,7 @@ void checkClient() {
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   minStr = minStr.substring(0, pos);
                 displayonminFR = minStr.toInt();
               }
@@ -1374,7 +1351,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 displayonmaxSA = maxStr.toInt();
               }
@@ -1382,7 +1359,7 @@ void checkClient() {
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   minStr = minStr.substring(0, pos);
                 displayonminSA = minStr.toInt();
               }
@@ -1394,7 +1371,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 16);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 displayonmaxSU = maxStr.toInt();
               }
@@ -1402,7 +1379,7 @@ void checkClient() {
               if (pos >= 0) {
                 String minStr = currentLine.substring(pos + 16);
                 pos = minStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   minStr = minStr.substring(0, pos);
                 displayonminSU = minStr.toInt();
               }
@@ -1414,7 +1391,7 @@ void checkClient() {
               if (pos >= 0) {
                 String hostStr = currentLine.substring(pos + 15);
                 pos = hostStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   hostStr = hostStr.substring(0, pos);
                 wchostnamenum = hostStr.toInt();
               }
@@ -1426,7 +1403,7 @@ void checkClient() {
               if (pos >= 0) {
                 String updateStr = currentLine.substring(pos + 11);
                 pos = updateStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   updateStr = updateStr.substring(0, pos);
                 useupdate = updateStr.toInt();
               }
@@ -1462,6 +1439,15 @@ void checkClient() {
               }
 
 
+              // Check for Use boot text switch:
+              // ###############################
+              if (currentLine.indexOf("&useBootText=on&") >= 0) {
+                useBootText = -1;
+              } else {
+                useBootText = 0;
+              }
+
+
               // Check for Use SET WLAN switch:
               // ##############################
               if (currentLine.indexOf("&usesetwlan=on&") >= 0) {
@@ -1486,7 +1472,7 @@ void checkClient() {
               if (pos >= 0) {
                 String rainbowStr = currentLine.substring(pos + 15);
                 pos = rainbowStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   rainbowStr = rainbowStr.substring(0, pos);
                 switchRainBow = rainbowStr.toInt();
               }
@@ -1498,24 +1484,10 @@ void checkClient() {
               if (pos >= 0) {
                 String LangWebStr = currentLine.substring(pos + 15);
                 pos = LangWebStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   LangWebStr = LangWebStr.substring(0, pos);
                 switchLangWeb = LangWebStr.toInt();
                 setLanguage(switchLangWeb);
-              }
-
-
-              // DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
-              // ###########################################################
-              pos = currentLine.indexOf("&DEspecial1=");
-              if (pos >= 0) {
-                String DEspecial = currentLine.substring(pos + 12);
-                pos = DEspecial.indexOf("&");
-                if (pos > 0)
-                  DEspecial = DEspecial.substring(0, pos);
-                DEspecial1 = DEspecial.toInt();
-                // Serial.print("DEspecial1: ");
-                // Serial.println(DEspecial1);
               }
 
 
@@ -1527,28 +1499,7 @@ void checkClient() {
                 switchLEDOrder = 0;
               }
 
-              // Custom minute LEDs order:
-              // #########################
-              if (currentLine.indexOf("&useCustomMinuteOrder=on&") >= 0) {
-                useCustomMinuteOrder = 1;
-              } else {
-                useCustomMinuteOrder = 0;
-              }
-              pos = currentLine.indexOf("&minuteOrder=");
-              if (pos >= 0) {
-                String moStr = currentLine.substring(pos + 13);
-                int p2 = moStr.indexOf("&");
-                if (p2 > 0) moStr = moStr.substring(0, p2);
-                int tmp[4];
-                if (parseMinuteOrder(moStr, tmp)) {
-                  for (int k = 0; k < 4; k++) minuteLedOrder[k] = tmp[k];
-                } else {
-                  // invalid input -> disable custom to avoid confusing behavior
-                  useCustomMinuteOrder = 0;
-                }
-              }
-              if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();
-              
+
               // Check for DCW flag:
               // ###################
               if (currentLine.indexOf("DCW=ON") >= 0) {
@@ -1557,13 +1508,14 @@ void checkClient() {
                 dcwFlag = 0;
               }
 
+
               // Get intensity DAY:
               // ##################
               pos = currentLine.indexOf("&intensity=");
               if (pos >= 0) {
                 String intStr = currentLine.substring(pos + 11, pos + 14);
                 pos = intStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   intStr = intStr.substring(0, pos);
                 intensity = intStr.toInt();
               }
@@ -1575,7 +1527,7 @@ void checkClient() {
               if (pos >= 0) {
                 String intStr = currentLine.substring(pos + 16, pos + 19);
                 pos = intStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   intStr = intStr.substring(0, pos);
                 intensityNight = intStr.toInt();
               }
@@ -1605,7 +1557,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR1_O1 = maxStr.toInt();
               }
@@ -1617,7 +1569,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR1_O2 = maxStr.toInt();
               }
@@ -1629,7 +1581,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR1_O3 = maxStr.toInt();
               }
@@ -1641,7 +1593,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR1_O4 = maxStr.toInt();
               }
@@ -1653,7 +1605,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR2_O1 = maxStr.toInt();
               }
@@ -1665,7 +1617,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR2_O2 = maxStr.toInt();
               }
@@ -1677,7 +1629,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR2_O3 = maxStr.toInt();
               }
@@ -1689,7 +1641,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR2_O4 = maxStr.toInt();
               }
@@ -1701,7 +1653,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR3_O1 = maxStr.toInt();
               }
@@ -1713,7 +1665,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR3_O2 = maxStr.toInt();
               }
@@ -1725,7 +1677,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR3_O3 = maxStr.toInt();
               }
@@ -1737,7 +1689,7 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 18);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_IP_ADDR3_O4 = maxStr.toInt();
               }
@@ -1749,9 +1701,33 @@ void checkClient() {
               if (pos >= 0) {
                 String maxStr = currentLine.substring(pos + 17);
                 pos = maxStr.indexOf("&");
-                if (pos > 0)
+                if (pos >= 0)
                   maxStr = maxStr.substring(0, pos);
                 PING_TIMEOUTNUM = maxStr.toInt();
+              }
+
+
+              // Get boot text 1:
+              // ################
+              pos = currentLine.indexOf("&boottext1=");
+              if (pos >= 0) {
+                String bt1 = currentLine.substring(pos + 11);
+                pos = bt1.indexOf("&");
+                if (pos >= 0)
+                  bt1 = bt1.substring(0, pos);
+                bootText1 = urldecode(bt1);
+              }
+
+
+              // Get boot text 2:
+              // ################
+              pos = currentLine.indexOf("&boottext2=");
+              if (pos >= 0) {
+                String bt2 = currentLine.substring(pos + 11);
+                pos = bt2.indexOf("&");
+                if (pos >= 0)
+                  bt2 = bt2.substring(0, pos);
+                bootText2 = urldecode(bt2);
               }
 
 
@@ -1761,7 +1737,7 @@ void checkClient() {
               if (pos >= 0) {
                 String ntpStr = currentLine.substring(pos + 11);
                 pos = ntpStr.indexOf("&");  // "&" !!!
-                if (pos > 0)
+                if (pos >= 0)
                   ntpStr = ntpStr.substring(0, pos);
                 ntpServer = ntpStr;
               }
@@ -1785,6 +1761,18 @@ void checkClient() {
               // ####################
               writeEEPROM();    // save DATA to EEPROM
               configNTPTime();  // Reset NTP
+            } else if (currentLine.startsWith("GET /showDateNow.php")) {
+              // "Show now" button pressed for the date - flag is checked and executed in the main loop:
+              // #########################################################################################
+              triggerShowDateNow = true;
+            } else if (currentLine.startsWith("GET /showTempNow.php")) {
+              // "Show now" button pressed for the temperature - flag is checked and executed in the main loop:
+              // ################################################################################################
+              triggerShowTempNow = true;
+            } else if (currentLine.startsWith("GET /showHumidityNow.php")) {
+              // "Show now" button pressed for the humidity - flag is checked and executed in the main loop:
+              // #############################################################################################
+              triggerShowHumidityNow = true;
             }
             currentLine = "";  // Clear the current command line
           }
@@ -2048,17 +2036,159 @@ void printAt(int ziffer, int x, int y) {
 
 
 // ###########################################################################################################################################
+// # 5x7 pixel font (classic column-major GLCD font layout), one entry per supported letter - each letter is 5 columns wide,
+// # bit 0 of a column byte is the TOP pixel of the letter and bit 6 is the BOTTOM pixel (matching the y+6=top / y=bottom
+// # convention already used by printAt() above). Only the letters actually needed for the boot texts are defined; add more
+// # rows here (and in getGlyph() below) if you want to scroll other letters:
+// ###########################################################################################################################################
+const byte fontA[5] = { 0x7E, 0x11, 0x11, 0x11, 0x7E };
+const byte fontB[5] = { 0x7F, 0x49, 0x49, 0x49, 0x36 };
+const byte fontC[5] = { 0x3E, 0x41, 0x41, 0x41, 0x22 };
+const byte fontD[5] = { 0x7F, 0x41, 0x41, 0x41, 0x3E };
+const byte fontE[5] = { 0x7F, 0x49, 0x49, 0x49, 0x41 };
+const byte fontF[5] = { 0x7F, 0x09, 0x09, 0x09, 0x01 };
+const byte fontG[5] = { 0x3E, 0x41, 0x49, 0x49, 0x7A };
+const byte fontH[5] = { 0x7F, 0x08, 0x08, 0x08, 0x7F };
+const byte fontI[5] = { 0x00, 0x41, 0x7F, 0x41, 0x00 };
+const byte fontJ[5] = { 0x20, 0x40, 0x41, 0x3F, 0x01 };
+const byte fontK[5] = { 0x7F, 0x08, 0x14, 0x22, 0x41 };
+const byte fontL[5] = { 0x7F, 0x40, 0x40, 0x40, 0x40 };
+const byte fontM[5] = { 0x7F, 0x02, 0x0C, 0x02, 0x7F };
+const byte fontN[5] = { 0x7F, 0x04, 0x08, 0x10, 0x7F };
+const byte fontO[5] = { 0x3E, 0x41, 0x41, 0x41, 0x3E };
+const byte fontP[5] = { 0x7F, 0x09, 0x09, 0x09, 0x06 };
+const byte fontQ[5] = { 0x3E, 0x41, 0x51, 0x21, 0x5E };
+const byte fontR[5] = { 0x7F, 0x09, 0x19, 0x29, 0x46 };
+const byte fontS[5] = { 0x46, 0x49, 0x49, 0x49, 0x31 };
+const byte fontT[5] = { 0x01, 0x01, 0x7F, 0x01, 0x01 };
+const byte fontU[5] = { 0x3F, 0x40, 0x40, 0x40, 0x3F };
+const byte fontV[5] = { 0x1F, 0x20, 0x40, 0x20, 0x1F };
+const byte fontW[5] = { 0x3F, 0x40, 0x38, 0x40, 0x3F };
+const byte fontX[5] = { 0x63, 0x14, 0x08, 0x14, 0x63 };
+const byte fontY[5] = { 0x07, 0x08, 0x70, 0x08, 0x07 };
+const byte fontZ[5] = { 0x43, 0x45, 0x49, 0x51, 0x61 };
+const byte fontPercent[5] = { 0x23, 0x13, 0x08, 0x64, 0x62 };  // '%' symbol, used for the humidity display
+
+
+// ###########################################################################################################################################
+// # Looks up the 5x7 glyph for a letter. Returns nullptr for a space (or any letter that is not defined above), which simply
+// # leaves that character's column blank when scrolling:
+// ###########################################################################################################################################
+const byte* getGlyph(char c) {
+  switch (c) {
+    case 'A': return fontA;
+    case 'B': return fontB;
+    case 'C': return fontC;
+    case 'D': return fontD;
+    case 'E': return fontE;
+    case 'F': return fontF;
+    case 'G': return fontG;
+    case 'H': return fontH;
+    case 'I': return fontI;
+    case 'J': return fontJ;
+    case 'K': return fontK;
+    case 'L': return fontL;
+    case 'M': return fontM;
+    case 'N': return fontN;
+    case 'O': return fontO;
+    case 'P': return fontP;
+    case 'Q': return fontQ;
+    case 'R': return fontR;
+    case 'S': return fontS;
+    case 'T': return fontT;
+    case 'U': return fontU;
+    case 'V': return fontV;
+    case 'W': return fontW;
+    case 'X': return fontX;
+    case 'Y': return fontY;
+    case 'Z': return fontZ;
+    default: return nullptr;  // space / unsupported character (accents, digits, punctuation, ...) -> blank column
+  }
+}
+
+
+// ###########################################################################################################################################
+// # Draws one 5x7 font letter with its bottom-left corner at (x, y):
+// ###########################################################################################################################################
+void printLetterAt(const byte* colData, int x, int y) {
+  if (colData == nullptr) return;  // space -> nothing to draw
+  for (int col = 0; col < 5; col++) {
+    byte bits = colData[col];
+    for (int row = 0; row < 7; row++) {
+      if (bits & (1 << row)) {
+        setLED(ledXY(x + col, y + 6 - row), ledXY(x + col, y + 6 - row), -1);
+      }
+    }
+  }
+}
+
+
+// ###########################################################################################################################################
+// # Scrolls an arbitrary uppercase text (letters A-Z and spaces) across the display once, using the same scrolling technique
+// # as showIP() / showCurrentDate(). Unsupported characters are simply shown as a blank column - see getGlyph() above:
+// ###########################################################################################################################################
+void showScrollText(const char* text) {
+  const int charWidth = 6;  // 5 pixel wide letter + 1 pixel gap
+  const int numChars = strlen(text);
+  const int totalWidth = numChars * charWidth;
+
+  for (int x = 11; x > -(totalWidth + 11); x--) {
+    dunkel();
+    for (int i = 0; i < numChars; i++) {
+      printLetterAt(getGlyph(text[i]), x + i * charWidth, 2);
+    }
+    pixels.show();
+    delay(80);  // set speed of timeshift
+  }
+  dunkel();
+  pixels.show();
+}
+
+
+// ###########################################################################################################################################
+// # Shows the two configurable scrolling boot texts (bootText1 and bootText2 - settable on the web configuration page) once at startup:
+// ###########################################################################################################################################
+void showBootTexts() {
+  if (!useBootText) return;
+
+  if (bootText1.length() > 0) {
+    String bt1 = bootText1;
+    bt1.toUpperCase();  // font only supports uppercase letters
+    Serial.println("Show boot text 1: " + bt1);
+    showScrollText(bt1.c_str());
+  }
+
+  if (bootText2.length() > 0) {
+    String bt2 = bootText2;
+    bt2.toUpperCase();  // font only supports uppercase letters
+    Serial.println("Show boot text 2: " + bt2);
+    showScrollText(bt2.c_str());
+  }
+}
+
+
+// ###########################################################################################################################################
 // # Turns on the outer four LEDs (one per minute):
 // ###########################################################################################################################################
 void showMinutes(int minutes) {
   int minMod = (minutes % 5);
-
-  // If custom is disabled, ensure the default mapping matches the selected direction
-  if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();
-
   for (int i = 1; i < 5; i++) {
-    int ledNr = minuteLedOrder[i - 1];
-
+    int ledNr = 0;
+    if (switchLEDOrder) {  // clockwise
+      switch (i) {
+        case 1: ledNr = 110; break;
+        case 2: ledNr = 111; break;
+        case 3: ledNr = 112; break;
+        case 4: ledNr = 113; break;
+      }
+    } else {  // anti clockwise
+      switch (i) {
+        case 1: ledNr = 113; break;
+        case 2: ledNr = 112; break;
+        case 3: ledNr = 111; break;
+        case 4: ledNr = 110; break;
+      }
+    }
     if (minMod < i)
       pixels.setPixelColor(ledNr, pixels.Color(0, 0, 0));
     else
@@ -2070,7 +2200,44 @@ void showMinutes(int minutes) {
 // ###########################################################################################################################################
 // # Show current date on clock with moving digits:
 // ###########################################################################################################################################
+// ###########################################################################################################################################
+// # Build the <option> list for the "show every ..." dropdowns (values in seconds):
+// #
+// # Always renders from one fixed list, and simply marks whichever entry matches the current
+// # value as selected - this is what avoids the old bug where the current value got inserted
+// # a second time on top of the static list (showing up as a duplicate entry in the dropdown).
+// # If a stored value doesn't match any fixed option (e.g. left over from an older firmware
+// # version that used whole minutes only), it's added once as an extra selected option so nothing
+// # silently changes until the page is saved again.
+// ###########################################################################################################################################
+String buildIntervalOptions(int currentValueSec) {
+  const int fixedValues[] = { 30, 60, 120, 180, 300, 600, 900, 1200, 1800, 3600 };
+  const char* fixedLabels[] = { "30 sec", "1 min", "2 min", "3 min", "5 min", "10 min", "15 min", "20 min", "30 min", "60 min" };
+  String options = "";
+  bool matched = false;
+  for (int i = 0; i < 10; i++) {
+    options += "<option value=\"" + String(fixedValues[i]) + "\"";
+    if (fixedValues[i] == currentValueSec) {
+      options += " selected=\"selected\"";
+      matched = true;
+    }
+    options += ">" + String(fixedLabels[i]) + "</option>";
+  }
+  if (!matched) {
+    options += "<option value=\"" + String(currentValueSec) + "\" selected=\"selected\">" + String(currentValueSec) + " sec</option>";
+  }
+  return options;
+}
+
+
 void showCurrentDate() {
+  Serial.print("Showing current date: ");
+  Serial.print(iDay);
+  Serial.print(".");
+  Serial.print(iMonth);
+  Serial.print(".");
+  Serial.println(iYear);
+
   for (int x = 11; x > -50; x--) {
     dunkel();
     printAt(iDay / 10, x, 2);
@@ -2094,6 +2261,114 @@ void showCurrentDate() {
 
 
 // ###########################################################################################################################################
+// # Sets, where the special symbols (C, H, minus sign, decimal point) for the sensor display are printed - same 5x7 grid as printAt():
+// ###########################################################################################################################################
+void printSymbolAt(char symbol, int x, int y) {
+  switch (symbol) {
+    case 'C':  // Celsius - like a "0" digit but open on the right side
+      setLEDLine(x + 1, x + 3, y + 6, -1);
+      for (int yd = 1; yd <= 5; yd++) {
+        setLED(ledXY(x, y + yd), ledXY(x, y + yd), -1);
+      }
+      setLEDLine(x + 1, x + 3, y, -1);
+      break;
+
+    case '%':  // Percent (humidity)
+      printLetterAt(fontPercent, x, y);
+      break;
+
+    case '-':  // Minus sign (negative temperature)
+      setLEDLine(x, x + 4, y + 3, -1);
+      break;
+
+    case '.':  // Decimal point
+      setLED(ledXY(x, y), ledXY(x, y), -1);
+      break;
+  }
+}
+
+
+// ###########################################################################################################################################
+// # Show current temperature on clock with moving digits - reads the GY-21 / HTU21D sensor once before scrolling:
+// ###########################################################################################################################################
+void showCurrentTemp() {
+  if (!checkHTU()) return;  // Sensor not available - skip silently
+
+  float t = htu.readTemperature();
+  if (isnan(t)) return;  // Faulty reading - skip this cycle, will retry next interval
+
+  Serial.print("Showing current temperature: ");
+  Serial.print(t);
+  Serial.println(" C");
+
+  bool negative = (t < 0);
+  if (negative) t = -t;
+  int tempX10 = (int)(t * 10.0 + 0.5);  // e.g. 21.5 C -> 215, rounded to 1 decimal
+  int tensDigit = (tempX10 / 100) % 10;
+  int onesDigit = (tempX10 / 10) % 10;
+  int tenthDigit = tempX10 % 10;
+
+  // Content is at most ~29 pixel-columns wide (minus sign + 2 digits + dot + decimal + "C"), so the scroll can stop
+  // as soon as it has left the visible area instead of continuing all the way to -50 - this removes several seconds
+  // of the display sitting blank after the text has already scrolled off:
+  for (int x = 11; x > -32; x--) {
+    dunkel();
+    int xpos = x;
+    if (negative) {
+      printSymbolAt('-', xpos, 2);
+      xpos += 6;
+    }
+    printAt(tensDigit, xpos, 2);
+    printAt(onesDigit, xpos + 6, 2);
+    printSymbolAt('.', xpos + 11, 2);  // sits right after the ones digit, like the date's separator dots
+    printAt(tenthDigit, xpos + 13, 2);
+    printSymbolAt('C', xpos + 19, 2);
+    pixels.show();
+    delay(150);  // set speed of timeshift - same speed as the date display
+  }
+}
+
+
+// ###########################################################################################################################################
+// # Show current humidity on clock with moving digits - reads the GY-21 / HTU21D sensor once before scrolling:
+// ###########################################################################################################################################
+void showCurrentHumidity() {
+  if (!checkHTU()) return;  // Sensor not available - skip silently
+
+  float h = htu.readHumidity();
+  if (isnan(h)) return;  // Faulty reading - skip this cycle, will retry next interval
+
+  Serial.print("Showing current humidity: ");
+  Serial.print(h);
+  Serial.println(" %");
+
+  int humInt = (int)(h + 0.5);
+  if (humInt > 100) humInt = 100;
+  if (humInt < 0) humInt = 0;
+  int hundredsDigit = humInt / 100;
+  int tensDigit = (humInt / 10) % 10;
+  int onesDigit = humInt % 10;
+
+  // Content is at most ~23 pixel-columns wide (up to 3 digits + "%"), so the scroll can stop as soon as it has left
+  // the visible area instead of continuing all the way to -50 - this removes several seconds of the display sitting
+  // blank after the text has already scrolled off:
+  for (int x = 11; x > -26; x--) {
+    dunkel();
+    int xpos = x;
+    if (hundredsDigit > 0) {
+      printAt(hundredsDigit, xpos, 2);
+      xpos += 6;
+    }
+    printAt(tensDigit, xpos, 2);
+    printAt(onesDigit, xpos + 6, 2);
+    printSymbolAt('%', xpos + 13, 2);
+    pixels.show();
+    delay(150);  // set speed of timeshift - same speed as the date display
+  }
+}
+
+
+// ###########################################################################################################################################
 // # Display current time: (DE or EN depending on the set web configuration language)
 // ###########################################################################################################################################
 void showCurrentTime() {
@@ -2102,34 +2377,27 @@ void showCurrentTime() {
 
   // TEST TIMES:
   // iHour = 9;
-  // iMinute = 15;
+  // iMinute = 55;
 
   // divide minute by 5 to get value for display control
   int minDiv = iMinute / 5;
 
   switch (switchLangWeb) {
     case 0:  // DE
+    default:  // fallback for languages without dedicated clock-face LEDs (e.g. Spanish)
       {
         // Fuenf: (Minuten)
         setLED(0, 3, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
         // Viertel:
-        if (DEspecial1 == 0) setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
-        if (DEspecial1 == 1) setLED(22, 28, ((minDiv == 3)));
-        // DREIVIERTEL:
-        if (DEspecial1 == 1) setLED(22, 32, ((minDiv == 9)));
+        setLED(22, 28, ((minDiv == 3) || (minDiv == 9)));
         // Zehn: (Minuten)
         setLED(11, 14, ((minDiv == 2) || (minDiv == 10)));
         // Zwanzig:
         setLED(15, 21, ((minDiv == 4) || (minDiv == 8)));
         // Nach:
-        if (DEspecial1 == 0) setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
-        if (DEspecial1 == 1) {
-          setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 4) || (minDiv == 7)));
-          if (minDiv == 3) iHour = iHour + 1;
-        }
+        setLED(40, 43, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 7)));
         // Vor:
-        if (DEspecial1 == 0) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
-        if (DEspecial1 == 1) setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 10) || (minDiv == 11)));
+        setLED(33, 35, ((minDiv == 5) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
         // Halb:
         setLED(51, 54, ((minDiv == 5) || (minDiv == 6) || (minDiv == 7)));
         // Eck-LEDs: 1 pro Minute
@@ -2181,17 +2449,17 @@ void showCurrentTime() {
     case 1:  // EN
       {
         // FIVE: (Minutes)            // x:05 + x:25 + x:35 + x:55
-        setLED(23, 26, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));
+        setLED(23, 26, ((minDiv == 1) || (minDiv == 5) || (minDiv == 7) || (minDiv == 11)));  
         // QUARTER:                   // x:15 + X:45
-        setLED(13, 19, ((minDiv == 3) || (minDiv == 9)));
+        setLED(13, 19, ((minDiv == 3) || (minDiv == 9)));  
         // TEN: (Minutes)             // x:10 + x:50
-        setLED(38, 40, ((minDiv == 2) || (minDiv == 10)));
+        setLED(38, 40, ((minDiv == 2) || (minDiv == 10))); 
         // TWENTY:                    // x:20 + x:25 + x:35 + x:40
         setLED(27, 32, ((minDiv == 4) || (minDiv == 5) || (minDiv == 7) || (minDiv == 8)));
         // PAST:                      // x:05 + x:10 + x:15 + x:20 + x:25 + x:30
         setLED(51, 54, ((minDiv == 1) || (minDiv == 2) || (minDiv == 3) || (minDiv == 4) || (minDiv == 5) || (minDiv == 6)));
         // TO:                        // x:35 + x:40 + x:45 + x:50 + x:55
-        setLED(42, 43, ((minDiv == 7) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11)));
+        setLED(42, 43, ((minDiv == 7) || (minDiv == 8) || (minDiv == 9) || (minDiv == 10) || (minDiv == 11))); 
         // HALF:                      // x:30
         setLED(33, 36, ((minDiv == 6)));
         // A:                         // x:15 + X:45
@@ -2354,10 +2622,55 @@ void showDCW() {
 // # Display the time:
 // ###########################################################################################################################################
 void ShowTheTime() {
-  if ((iMinute == 30) && (iSecond == 0)) {
-    if (showDate)
-      showCurrentDate();
+  // Each info screen (date/temperature/humidity) is shown on its own timer, based on millis()
+  // rather than on the RTC seconds value. This matters because each animation blocks the loop
+  // for several seconds - a scheduler based on "does iSecond currently equal exactly 30/40/50"
+  // could miss its own trigger point while another animation was still running, so a screen
+  // configured to appear "every minute" could silently get skipped. Comparing millis() with
+  // ">=" instead of "==" means a screen always fires as soon as the loop notices its time is up,
+  // even if that happens a bit late.
+  static bool autoShowInit = false;
+  static unsigned long nextDateShowMillis = 0;
+  static unsigned long nextTempShowMillis = 0;
+  static unsigned long nextHumidityShowMillis = 0;
+  if (!autoShowInit) {
+    autoShowInit = true;
+    nextDateShowMillis = millis() + (unsigned long)max(showDateIntervalSec, 5) * 1000UL;
+    nextTempShowMillis = millis() + (unsigned long)max(showTempIntervalSec, 5) * 1000UL;
+    nextHumidityShowMillis = millis() + (unsigned long)max(showHumidityIntervalSec, 5) * 1000UL;
   }
+
+  if (showDate && (long)(millis() - nextDateShowMillis) >= 0) {
+    showCurrentDate();
+    nextDateShowMillis = millis() + (unsigned long)max(showDateIntervalSec, 5) * 1000UL;
+  }
+  if (showTemp && (long)(millis() - nextTempShowMillis) >= 0) {
+    showCurrentTemp();
+    nextTempShowMillis = millis() + (unsigned long)max(showTempIntervalSec, 5) * 1000UL;
+  }
+  if (showHumidity && (long)(millis() - nextHumidityShowMillis) >= 0) {
+    showCurrentHumidity();
+    nextHumidityShowMillis = millis() + (unsigned long)max(showHumidityIntervalSec, 5) * 1000UL;
+  }
+
+  // Manual "Show now" buttons on the web configuration page:
+  // ##########################################################
+  if (triggerShowDateNow) {
+    triggerShowDateNow = false;
+    showCurrentDate();
+    nextDateShowMillis = millis() + (unsigned long)max(showDateIntervalSec, 5) * 1000UL;
+  }
+  if (triggerShowTempNow) {
+    triggerShowTempNow = false;
+    showCurrentTemp();
+    nextTempShowMillis = millis() + (unsigned long)max(showTempIntervalSec, 5) * 1000UL;
+  }
+  if (triggerShowHumidityNow) {
+    triggerShowHumidityNow = false;
+    showCurrentHumidity();
+    nextHumidityShowMillis = millis() + (unsigned long)max(showHumidityIntervalSec, 5) * 1000UL;
+  }
+
   showCurrentTime();
   showDCW();
 }
@@ -2366,16 +2679,12 @@ void ShowTheTime() {
 // ###########################################################################################################################################
 // # Handle day and night time mode:
 // ###########################################################################################################################################
-
 void DayNightMode(int displayonMin, int displayonMax) {
   if (iHour > displayonMin && iHour < displayonMax) {
-    pixels.setBrightness(intensity);  // Day brightness
-    NightModeActive = false;
     ShowTheTime();
   } else {
     if (useNightLEDs == -1) {
       pixels.setBrightness(intensityNight);  // Night brightness
-      NightModeActive = true;
       ShowTheTime();
     } else {
       dunkel();
@@ -2430,6 +2739,29 @@ int checkRTC() {
     }
   }
   return rtcStarted;
+}
+
+
+// ###########################################################################################################################################
+// # Initialize & check the GY-21 / HTU21D temperature and humidity sensor (I2C, shares the bus with the RTC):
+// ###########################################################################################################################################
+// ###########################################################################################################################################
+// # Initialize & check the GY-21 / HTU21D temperature and humidity sensor (I2C, shares the bus with the RTC). Unlike the original
+// # version, this keeps retrying htu.begin() on every call until it succeeds once - so fixing the wiring/soldering takes effect
+// # immediately (next "Show now" press or settings page reload) without needing to reflash or power-cycle the ESP:
+// ###########################################################################################################################################
+int checkHTU() {
+  if (!htuStarted) {
+    if (htu.begin()) {
+      htuStarted = -1;
+      useHTU21 = 1;
+      // Serial.println("Start HTU21D communication");
+    } else {
+      useHTU21 = 0;
+      Serial.println("Couldn't find GY-21 / HTU21D sensor! Will retry automatically next time it is checked.");
+    }
+  }
+  return htuStarted;
 }
 
 
@@ -2550,6 +2882,7 @@ void SetWLAN() {
   if (usesetwlan) {
     switch (switchLangWeb) {
       case 0:
+      default:  // fallback for languages without dedicated clock-face LEDs (e.g. Spanish)
         {  // DE:
           Serial.println("Show SET WLAN...");
           setLED(6, 6, 1);      // S
@@ -2595,6 +2928,7 @@ void ClockRestart() {
   Serial.println("Show RESET before board reset...");
   switch (switchLangWeb) {
     case 0:  // DE:
+    default:  // fallback for languages without dedicated clock-face LEDs (e.g. Spanish)
       {
         setLED(30, 31, 1);  // RE
         setLED(58, 58, 1);  // S
@@ -2632,6 +2966,7 @@ void ClockWifiReset() {
   dunkel();
   switch (switchLangWeb) {
     case 0:
+    default:  // fallback for languages without dedicated clock-face LEDs (e.g. Spanish)
       {  // DE:
         Serial.println("Show SET WLAN...");
         setLED(6, 6, 1);      // S
@@ -2826,8 +3161,7 @@ void PingIP() {
 
     // PING status check:
     if (PingStatusIP1 == true || PingStatusIP2 == true || PingStatusIP3 == true) {
-      if (NightModeActive == false) pixels.setBrightness(intensity);
-      if (NightModeActive == true) pixels.setBrightness(intensityNight);
+      pixels.setBrightness(intensity);
       if (RESTmanLEDsON == true) LEDsON = true;
     }
     if (PingStatusIP1 == false && PingStatusIP2 == false && PingStatusIP3 == false) {
@@ -2970,6 +3304,7 @@ void update_finished() {  // Callback update success finish function
   Serial.println("Show RESET before board reset...");
   switch (switchLangWeb) {
     case 0:  // DE:
+    default:  // fallback for languages without dedicated clock-face LEDs (e.g. Spanish)
       {
         setLED(30, 31, 1);  // RE
         setLED(58, 58, 1);  // S
@@ -3011,6 +3346,7 @@ void update_error(int err) {  // Callback update error finish function
   Serial.println("Show RESET before board reset...");
   switch (switchLangWeb) {
     case 0:  // DE:
+    default:  // fallback for languages without dedicated clock-face LEDs (e.g. Spanish)
       {
         setLED(30, 31, 1);  // RE
         setLED(58, 58, 1);  // S

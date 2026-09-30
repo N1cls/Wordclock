@@ -6,7 +6,7 @@
 // #
 // # Released under license: GNU General Public License v3.0 https://github.com/N1cls/Wordclock/blob/master/LICENSE.md
 // #
-// # Compatible with WordClock version: V5.10.2
+// # Compatible with WordClock version: V5.8
 // #
 // ###########################################################################################################################################
 /*
@@ -28,17 +28,16 @@
 // # Default texts in german language:
 // ###########################################################################################################################################
 // General texts:
-String WordClockName, languageSelect, languageInt0, languageInt1, txtSaveSettings;
+String WordClockName, languageSelect, languageInt0, languageInt1, languageInt2, txtSaveSettings;
 // LED settings:
 String txtSettings, txtLEDsettings, txtLEDcolor, txtIntensityDay, txtIntensityNight, txtPowerSupplyNote1, txtPowerSupplyNote2, txtPowerSupplyNote3, txtPowerSupplyNote4;
 String txtFlashFullHour1, txtFlashFullHour2, txtShowDate1, txtShowDate2, txtNightMode1, txtNightMode2, txtNightMode3, txtNightModeOff, txtNightModeTo, txtNightModeClock;
+String txtShowTemp1, txtShowTemp2, txtShowHumidity1, txtShowHumidity2, txtIntervalLabel, txtMinutesSuffix, txtSensorFound, txtSensorNotFound, txtShowNow;
 String txtMO, txtTU, txtWE, txtTH, txtFR, txtSA, txtSU;
 // Content and startup:
-String txtContentStartup, txtUseLEDtest, txtUSEsetWLAN, txtShowIP, txtRainbow1, txtRainbow2, txtRainbow3, txtRainbow4, txtMinDir1, txtMinDir2, txtMinDir3;
+String txtContentStartup, txtUseLEDtest, txtUseBootText, txtBootText1, txtBootText2, txtBootTextHint, txtUSEsetWLAN, txtShowIP, txtRainbow1, txtRainbow2, txtRainbow3, txtRainbow4, txtMinDir1, txtMinDir2, txtMinDir3;
 // PING monitor IP-adresses:
 String txtPing0, txtPing1, txtPing2, txtPing3, txtPing4, txtPing5, txtPing6, txtPing7, txtPing8, txtPing9;
-// LED corner sequence:
-String txtCornerLED1, txtCornerLED2;
 // Hostname:
 String txtHostName1, txtHostName2;
 // REST functions:
@@ -51,24 +50,20 @@ String txtWiFi0, txtWiFi1, txtWiFi2;
 String txtRestart0, txtRestart1, txtRestart2;
 // Time zone and NTP server:
 String txtTZNTP0, txtTZNTP1, txtTZNTP2;
-// DE special parameter VIERTEL VOR vs. DREIVIERTEL selection:
-String DEspecial1Text1, DEspecial1Text2, DEspecial1Text3;
 
 
 void setLanguage(int lang) {
   // ###########################################################################################################################################
   // # Translations for: DE
   // ###########################################################################################################################################
-  if (lang == 0) {  // DEUTSCH
+  if (lang == 0) {         // DEUTSCH
     // Allgemeine Texte:
     WordClockName = "WordClock";
     languageSelect = "Sprache für das WordClock Layout und die Web Konfiguration";
     languageInt0 = "Deutsch";
     languageInt1 = "Englisch";
+    languageInt2 = "Spanisch";
     txtSaveSettings = "Einstellungen speichern";
-    DEspecial1Text1 = "Schreibweise für x:15 und x:45";
-    DEspecial1Text2 = "VIERTEL VOR / VIERTEL NACH";
-    DEspecial1Text3 = "DREIVIERTEL / VIERTEL";
 
     // LED Einstellungen:
     txtSettings = "Einstellungen";
@@ -83,7 +78,7 @@ void setLanguage(int lang) {
     txtFlashFullHour1 = "Volle Stunde blinken";
     txtFlashFullHour2 = "Stundenangabe soll zur vollen Stunde blinken?";
     txtShowDate1 = "Datumsanzeige als Lauftext";
-    txtShowDate2 = "Alle 30 Minuten anzeigen?";
+    txtShowDate2 = "Datum anzeigen?";
     txtNightMode1 = "Display abschalten oder dunkler schalten?";
     txtNightMode2 = "Display komplett abschalten ...";
     txtNightMode3 = "... oder nur dunkler schalten auf Wert der Helligkeit bei Nacht?";
@@ -98,9 +93,23 @@ void setLanguage(int lang) {
     txtSA = "Samstag";
     txtSU = "Sonntag";
 
+    txtShowTemp1 = "Temperaturanzeige als Lauftext (GY-21 / HTU21D Sensor)";
+    txtShowTemp2 = "Temperatur anzeigen?";
+    txtShowHumidity1 = "Luftfeuchtigkeitsanzeige als Lauftext (GY-21 / HTU21D Sensor)";
+    txtShowHumidity2 = "Luftfeuchtigkeit anzeigen?";
+    txtIntervalLabel = "Anzeigen alle";
+    txtMinutesSuffix = "Minute(n)";
+    txtShowNow = "Jetzt anzeigen";
+    txtSensorFound = "GY-21 / HTU21D Sensor gefunden.";
+    txtSensorNotFound = "Kein GY-21 / HTU21D Sensor gefunden. Die Temperatur-/Feuchtigkeitsanzeige wird deaktiviert.";
+
     // Anzeigen und Startverhalten:
     txtContentStartup = "Anzeigen und Startverhalten";
     txtUseLEDtest = "LED Start Test anzeigen?";
+    txtUseBootText = "Eigene Lauftexte beim Start anzeigen?";
+    txtBootText1 = "Lauftext 1 (z.B. Firmenname): ";
+    txtBootText2 = "Lauftext 2 (z.B. Name): ";
+    txtBootTextHint = "Nur Großbuchstaben A-Z und Leerzeichen, max. 20 Zeichen. Leer lassen, um einen Text zu überspringen.";
     txtUSEsetWLAN = "SET WLAN beim Start anzeigen?";
     txtShowIP = "IP-Addresse beim Start anzeigen?";
     txtRainbow1 = "Wähle den Regenbogen Farbeffekt Modus";
@@ -123,10 +132,6 @@ void setLanguage(int lang) {
     txtPing8 = "Hinweis: Anzahl = 10 bedeutet einen 5 Minuten Timeout, da 2 PING Versuche pro Minute erfolgen.";
     txtPing9 = "DEBUG PING Monitor Funktion verwenden?";
 
-    // Corner LEDs
-    txtCornerLED1 = "Benutzerdefinierte Minuten-LED-Reihenfolge";
-    txtCornerLED2 = "(Reihenfolge 1–4 wird auf die LEDs 110–113 abgebildet) oder <code>112,113,110,111</code> (direkte LED-Nummern angeben)";
-    
     // Hostname:
     txtHostName1 = "WordClock Hostname anpassen";
     txtHostName2 = "Hostname";
@@ -176,12 +181,13 @@ void setLanguage(int lang) {
   // ###########################################################################################################################################
   // # Translations for: EN
   // ###########################################################################################################################################
-  if (lang == 1) {  // ENGLISH
+  if (lang == 1) {         // ENGLISH
     // General texts:
     WordClockName = "WordClock";
     languageSelect = "Language for the WordClock layout and web configuration";
     languageInt0 = "German";
     languageInt1 = "English";
+    languageInt2 = "Spanish";
     txtSaveSettings = "Save settings";
 
     // LED settings:
@@ -197,7 +203,7 @@ void setLanguage(int lang) {
     txtFlashFullHour1 = "Flash full hour";
     txtFlashFullHour2 = "Flash the hour value every new hour?";
     txtShowDate1 = "Show date as scolling text";
-    txtShowDate2 = "Display the date every 30 minutes?";
+    txtShowDate2 = "Show date?";
     txtNightMode1 = "Switch off or darken the display?";
     txtNightMode2 = "Switch off the display completely ...";
     txtNightMode3 = "... or only switch it darker to the value of the intensity in night mode?";
@@ -212,9 +218,23 @@ void setLanguage(int lang) {
     txtSA = "Saturday";
     txtSU = "Sunday";
 
+    txtShowTemp1 = "Show temperature as scrolling text (GY-21 / HTU21D sensor)";
+    txtShowTemp2 = "Show temperature?";
+    txtShowHumidity1 = "Show humidity as scrolling text (GY-21 / HTU21D sensor)";
+    txtShowHumidity2 = "Show humidity?";
+    txtIntervalLabel = "Display every";
+    txtMinutesSuffix = "minute(s)";
+    txtShowNow = "Show now";
+    txtSensorFound = "GY-21 / HTU21D sensor found.";
+    txtSensorNotFound = "No GY-21 / HTU21D sensor found. Temperature/humidity display will be disabled.";
+
     // Content and startup:
     txtContentStartup = "Content and startup";
     txtUseLEDtest = "Run LED test on startup?";
+    txtUseBootText = "Show custom scrolling texts on startup?";
+    txtBootText1 = "Boot text 1 (e.g. company name): ";
+    txtBootText2 = "Boot text 2 (e.g. name): ";
+    txtBootTextHint = "Only uppercase letters A-Z and spaces, max. 20 characters. Leave empty to skip a text.";
     txtUSEsetWLAN = "Show WIFI text on startup?";
     txtShowIP = "Show IP-address on startup?";
     txtRainbow1 = "Choose the rainbow color effect mode";
@@ -236,10 +256,6 @@ void setLanguage(int lang) {
     txtPing7 = "Number of PING attempts until the LEDs are switched off";
     txtPing8 = "Note: Count = 10 means a 5 minute timeout as there are 2 PING attempts per minute.";
     txtPing9 = "Use DEBUG PING monitor function?";
-
-    // Corner LEDs
-    txtCornerLED1 = "Custom minute LED order";
-    txtCornerLED2 = "(Order 1–4 is mapped to LEDs 110–113) or <code>112,113,110,111</code> (specify direct LED numbers)";
 
     // Hostname:
     txtHostName1 = "Customize WordClock hostname";
@@ -285,6 +301,133 @@ void setLanguage(int lang) {
     txtTZNTP1 = "Default values";
     txtTZNTP2 = "Explanation of setting the time zone";
   }
+
+
+  // ###########################################################################################################################################
+  // # Translations for: ES
+  // ###########################################################################################################################################
+  if (lang == 2) {         // ESPAÑOL
+    // Textos generales:
+    WordClockName = "WordClock";
+    languageSelect = "Idioma para el diseño de WordClock y la configuración web";
+    languageInt0 = "Alemán";
+    languageInt1 = "Inglés";
+    languageInt2 = "Español";
+    txtSaveSettings = "Guardar configuración";
+
+    // Configuración de los LED:
+    txtSettings = "Configuración";
+    txtLEDsettings = "Configuración de los LED";
+    txtLEDcolor = "Color";
+    txtIntensityDay = "Intensidad durante el día";
+    txtIntensityNight = "Intensidad durante la noche";
+    txtPowerSupplyNote1 = "Importante: Ambos valores están limitados a 128 de un máximo de 255. ¡Asegúrate de usar una fuente de alimentación adecuada!";
+    txtPowerSupplyNote2 = "Según la cantidad de LEDs, el color seleccionado y la intensidad, se recomienda una fuente de alimentación de 5V/3A!";
+    txtPowerSupplyNote3 = "Acepto y tengo en cuenta la nota sobre la fuente de alimentación. Quiero poder volver a establecer los valores hasta un máximo de 255";
+    txtPowerSupplyNote4 = "No volver a mostrar la nota importante sobre la fuente de alimentación";
+    txtFlashFullHour1 = "Parpadeo en hora en punto";
+    txtFlashFullHour2 = "¿Parpadear el valor de la hora cada hora en punto?";
+    txtShowDate1 = "Mostrar fecha como texto desplazante";
+    txtShowDate2 = "¿Mostrar fecha?";
+    txtNightMode1 = "¿Apagar o atenuar la pantalla?";
+    txtNightMode2 = "Apagar la pantalla por completo...";
+    txtNightMode3 = "...o solo atenuarla al valor de intensidad nocturna?";
+    txtNightModeOff = "Apagar pantalla desde";
+    txtNightModeTo = "hasta";
+    txtNightModeClock = "en punto";
+    txtMO = "Lunes";
+    txtTU = "Martes";
+    txtWE = "Miércoles";
+    txtTH = "Jueves";
+    txtFR = "Viernes";
+    txtSA = "Sábado";
+    txtSU = "Domingo";
+
+    txtShowTemp1 = "Mostrar temperatura como texto desplazante (sensor GY-21 / HTU21D)";
+    txtShowTemp2 = "¿Mostrar temperatura?";
+    txtShowHumidity1 = "Mostrar humedad como texto desplazante (sensor GY-21 / HTU21D)";
+    txtShowHumidity2 = "¿Mostrar humedad?";
+    txtIntervalLabel = "Mostrar cada";
+    txtMinutesSuffix = "minuto(s)";
+    txtShowNow = "Mostrar ahora";
+    txtSensorFound = "Sensor GY-21 / HTU21D encontrado.";
+    txtSensorNotFound = "No se encontró ningún sensor GY-21 / HTU21D. La visualización de temperatura/humedad se desactivará.";
+
+    // Contenido y comportamiento de inicio:
+    txtContentStartup = "Contenido y comportamiento de inicio";
+    txtUseLEDtest = "¿Ejecutar prueba de LED al iniciar?";
+    txtUseBootText = "¿Mostrar textos personalizados al iniciar?";
+    txtBootText1 = "Texto 1 (p. ej. nombre de la empresa): ";
+    txtBootText2 = "Texto 2 (p. ej. nombre): ";
+    txtBootTextHint = "Solo letras mayúsculas A-Z y espacios, máx. 20 caracteres. Deja vacío para omitir un texto.";
+    txtUSEsetWLAN = "¿Mostrar texto WIFI al iniciar?";
+    txtShowIP = "¿Mostrar dirección IP al iniciar?";
+    txtRainbow1 = "Elige el modo de efecto de color arcoíris";
+    txtRainbow2 = "Apagado";
+    txtRainbow3 = "Variante 1 (palabras en diferentes colores)";
+    txtRainbow4 = "Variante 2 (todas las palabras coloreadas al azar)";
+    txtMinDir1 = "¿Orden de las esquinas de los LEDs de minutos en sentido horario?";
+    txtMinDir2 = "Si se activa esta opción, los LEDs de minutos en las 4 esquinas se mostrarán";
+    txtMinDir3 = "en sentido horario; de lo contrario, en sentido antihorario.";
+
+    // Monitor PING de direcciones IP:
+    txtPing0 = "Monitor PING para dirección(es) IP -> Apagar LEDs si la(s) IP(s) están fuera de línea durante un tiempo";
+    txtPing1 = "¿Usar la función de monitor PING?";
+    txtPing2 = "Introduce aquí la(s) dirección(es) IP a monitorizar";
+    txtPing3 = "1ª dirección IP";
+    txtPing4 = "2ª dirección IP";
+    txtPing5 = "3ª dirección IP";
+    txtPing6 = "Nota: Una dirección IP con el valor 0.0.0.0 se omitirá en la consulta.";
+    txtPing7 = "Número de intentos de PING hasta que se apaguen los LEDs";
+    txtPing8 = "Nota: Un valor de 10 significa un tiempo de espera de 5 minutos, ya que se realizan 2 intentos de PING por minuto.";
+    txtPing9 = "¿Usar la función de monitor PING de DEPURACIÓN?";
+
+    // Nombre de host:
+    txtHostName1 = "Personalizar el nombre de host de WordClock";
+    txtHostName2 = "Nombre de host";
+
+    // Funciones REST:
+    txtREST0 = "Funciones REST";
+    txtREST1 = "Las funciones de WordClock se pueden controlar externamente mediante los siguientes enlaces.";
+    txtREST2 = "¿Usar la función REST?";
+    txtREST3 = "WordClock se puede encender y apagar manualmente desde el navegador mediante uno de los siguientes enlaces";
+    txtREST4 = "Apagar LEDs";
+    txtREST5 = "Encender LEDs";
+    txtREST6 = "Estado de los LED";
+    txtRESTX = "La función REST está actualmente desactivada.";
+
+    // Función de actualización:
+    txtUpdate0 = "Actualización";
+    txtUpdateE1 = "No usar la función de actualización";
+    txtUpdateE2 = "Usar función de actualización local";
+    txtUpdateE3 = "Usar función de actualización automática vía Internet";
+    txtUpdate2 = "Usando uno de los siguientes enlaces, WordClock se puede actualizar desde el navegador sin el IDE de Arduino";
+    txtUpdate3 = "Nota: Se requiere un archivo .BIN del sketch creado previamente en el IDE de Arduino con Ctrl+Alt+S,";
+    txtUpdate4 = "que se puede cargar mediante la opción 'Update Firmware'.";
+    txtUpdate5 = "El archivo de actualización necesario se puede descargar aquí";
+    txtUpdate6 = "Repositorio de WordClock en GitHub";
+    txtUpdate7 = "La versión instalada es la misma que la versión disponible";
+    txtUpdate8 = "Actualización disponible a la versión";
+    txtUpdate9 = "Usa el siguiente enlace para iniciar la actualización";
+    txtUpdateX = "La función de actualización está actualmente desactivada.";
+
+    // WiFi:
+    txtWiFi0 = "Restablecer configuración WiFi";
+    txtWiFi1 = "¿Restablecer configuración WiFi y reiniciar el reloj?";
+    txtWiFi2 = "Si se usa esta opción, se eliminará la configuración WiFi";
+
+    // Reinicio:
+    txtRestart0 = "Reiniciar WordClock";
+    txtRestart1 = "¿Reiniciar WordClock?";
+    txtRestart2 = "Si se usa esta opción, el reloj se reiniciará";
+
+    // Zona horaria y servidor NTP:
+    txtTZNTP0 = "Zona horaria y servidor NTP";
+    txtTZNTP1 = "Valores predeterminados";
+    txtTZNTP2 = "Explicación sobre la configuración de la zona horaria";
+  }
+
+
 }
 // ###########################################################################################################################################
 // # EOF - You have successfully reached the end of the code - well done ;-)
