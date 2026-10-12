@@ -8,7 +8,7 @@
 // #
 // # Please set the default settings here only:
 // #
-// # Compatible with WordClock version: V5.10.2
+// # Compatible with WordClock version: V6.1.0
 // #
 // ###########################################################################################################################################
 /*
@@ -29,10 +29,42 @@
 // ###########################################################################################################################################
 // # Hardware settings:
 // ###########################################################################################################################################
-int RTC_I2C_ADDRESS = 0x68;  // I2C adress of the RTC  DS3231 (Chip on ZS-042 Board)
 #define AP_TIMEOUT 240       // Timeout in seconds for AP / WLAN config
-#define PIN D6               // Arduino-Pin connected to the NeoPixels
 #define NUMPIXELS 114        // How many NeoPixels are attached to the Arduino?
+
+// Pins: PIN = NeoPixel data, SDA_PIN / SCL_PIN = RTC DS3231 (f.e. on a ZS-042 board) connected via I2C.
+// These are the defaults. They can be changed on the configuration page (System -> Hardware) and are kept during updates.
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#define CHIP_NAME "ESP32-S3"
+#define CHIP_FILE_ID "ESP32S3"
+#define PIN 2
+#define SDA_PIN 8
+#define SCL_PIN 9
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+#define CHIP_NAME "ESP32-C3"
+#define CHIP_FILE_ID "ESP32C3"
+#define PIN 10
+#define SDA_PIN 8
+#define SCL_PIN 9
+#elif defined(CONFIG_IDF_TARGET_ESP32)
+#define CHIP_NAME "ESP32"
+#define CHIP_FILE_ID "ESP32"
+#define PIN 16
+#define SDA_PIN 21
+#define SCL_PIN 22
+#elif defined(ESP32)  // Other ESP32 variants: no ready-made update file in the releases
+#define CHIP_NAME CONFIG_IDF_TARGET
+#define CHIP_FILE_ID CONFIG_IDF_TARGET
+#define PIN 2
+#define SDA_PIN SDA
+#define SCL_PIN SCL
+#else  // ESP8266: NodeMCU or D1 mini
+#define CHIP_NAME "ESP8266"
+#define CHIP_FILE_ID "ESP8266"
+#define PIN D6               // Arduino-Pin connected to the NeoPixels
+#define SDA_PIN D2
+#define SCL_PIN D1
+#endif
 
 
 // ###########################################################################################################################################
@@ -63,7 +95,7 @@ int dcwFlag = 0;          // Flag for highlighting DCW every Hour
 int useresturl = 1;       // Use the REST function web server
 int server1port = 55555;  // REST function web server port
 int powersupply = 0;      // Flag for the power supply note text and to raise the limit for the intensity from 128 to 255
-int useRTC = 1;           // Flag to disable the RTC board (No configuration needed. Set automatically after entering and saving the web config once)
+int useRTC = 1;           // RTC found at startup (set automatically, kept for compatibility of the settings record)
 int DEspecial1 = 0;       // DE special function only: Change between "VIERTEL VOR" = "0" and "DREIVIERTEL" = "1"
 
 
@@ -91,7 +123,7 @@ int displayonminSU = 6;   // Display on after 06:59 o'clock Sunday
 // ###########################################################################################################################################
 // # Variables declaration:
 // ###########################################################################################################################################
-#define DEFAULT_AP_NAME "WordClock"  // WiFi access point name of the ESP8266
+#define DEFAULT_AP_NAME "WordClock"  // WiFi access point name of the ESP
 String wchostname = "WordClock";     // Hostname to be set in your router
 int wchostnamenum = 0;               // Hostname + Number used as suffix to the host name
 ESP8266WebServer httpServer(2022);   // Update server port
@@ -126,13 +158,20 @@ int PING_USEMONITOR = 0;     // Switch flag to turn the PING function on (1) or 
 // ###########################################################################################################################################
 #define DEFAULT_NTP_SERVER "de.pool.ntp.org"
 #define DEFAULT_TIMEZONE "CET-1CEST,M3.5.0/02,M10.5.0/03"
-#define TZ_WEB_SITE "http://www.hs-help.net/hshelp/gira/v4_7/de/proj_tz.html"
 
 
 // ###########################################################################################################################################
 // # Internal web server settings:
 // ###########################################################################################################################################
-WiFiServer server(80);  // Set web server port number to 80
+ESP8266WebServer server(80);  // Set web server port number to 80 (configuration page)
+
+
+// ###########################################################################################################################################
+// # Automatic update from GitHub releases:
+// # The clock looks up the newest release of UPDATE_REPO and installs the file UPDATE_BIN_NAME attached to it.
+// ###########################################################################################################################################
+#define UPDATE_REPO "N1cls/Wordclock"
+#define UPDATE_BIN_NAME "WordClockWithWeb.ino." CHIP_FILE_ID ".bin"  // f.e. WordClockWithWeb.ino.ESP8266.bin
 
 
 // ###########################################################################################################################################

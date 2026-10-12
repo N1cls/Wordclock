@@ -1,0 +1,14 @@
+# Text files are stored with LF line endings in the repository, no matter which editor or operating system is used.
+# Without this, a file saved on Windows (CRLF) shows up in a pull request as if every line had changed.
+* text=auto
+
+# Binary files: never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bin binary
+*.stl binary
+*.3mf binary
+*.pdf binary
+*.zip binary
