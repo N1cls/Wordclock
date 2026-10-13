@@ -1,0 +1,126 @@
+name: Build firmware
+
+# Builds the firmware for all supported chips on every push and pull request.
+#
+# web/index.html is the source of the web interface. WordClockWithWeb/webpage.h (gzipped byte array) is generated
+# from it: this workflow rebuilds it and commits it when it is out of date, so contributors only edit index.html.
+#
+# When a release is published, the binaries are attached to it:
+#   WordClockWithWeb.ino.<CHIP>.bin          update file the clocks download for the automatic update
+#   WordClockWithWeb.ino.<CHIP>.factory.bin  complete image for the first installation of an ESP32 (flash at 0x0)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  webpage:
+    name: Web interface (webpage.h)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Pull requests: check out the branch itself (not the merge commit), so a rebuilt webpage.h can be pushed to it
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+
+      - name: Rebuild webpage.h from web/index.html
+        run: python3 tools/build_webpage.py
+
+      - name: Commit the rebuilt webpage.h
+        if: github.event_name != 'release'
+        env:
+          FROM_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          if git diff --quiet -- WordClockWithWeb/webpage.h; then
+            echo "webpage.h is up to date."
+            exit 0
+          fi
+          if [ "$FROM_FORK" = "true" ]; then
+            # The workflow cannot push to branches of other repositories. The firmware build below uses the rebuilt
+            # file anyway, and after the merge the push to master commits it.
+            echo "::warning::webpage.h does not match web/index.html - it is rebuilt automatically after the merge."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add WordClockWithWeb/webpage.h
+          git commit -m "Rebuild webpage.h from web/index.html"
+          git push
+
+      - name: Check that the release tag matches the firmware version
+        if: github.event_name == 'release'
+        run: |
+          VERSION=$(grep -oP 'WORD_CLOCK_VERSION = "\K[^"]+' WordClockWithWeb/WordClockWithWeb.ino)
+          TAG="${{ github.event.release.tag_name }}"
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "::error::Release tag $TAG does not match WORD_CLOCK_VERSION $VERSION in WordClockWithWeb.ino"
+            exit 1
+          fi
+
+  build:
+    needs: webpage
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - chip: ESP8266
+            core: esp8266:esp8266@3.1.2
+            index: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+            fqbn: esp8266:esp8266:nodemcuv2
+          - chip: ESP32
+            core: esp32:esp32@3.0.7
+            index: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+            fqbn: esp32:esp32:esp32:PartitionScheme=min_spiffs
+          - chip: ESP32S3
+            core: esp32:esp32@3.0.7
+            index: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+            fqbn: esp32:esp32:esp32s3:CDCOnBoot=cdc,PartitionScheme=min_spiffs,FlashSize=4M
+          - chip: ESP32C3
+            core: esp32:esp32@3.0.7
+            index: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+            fqbn: esp32:esp32:esp32c3:CDCOnBoot=cdc,PartitionScheme=min_spiffs
+    env:
+      ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL: "true"   # allows installing ESPping from GitHub
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild webpage.h from web/index.html (the firmware always contains the current page)
+        run: python3 tools/build_webpage.py
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install core and libraries
+        run: |
+          arduino-cli core update-index --additional-urls "${{ matrix.index }}"
+          arduino-cli core install "${{ matrix.core }}" --additional-urls "${{ matrix.index }}"
+          arduino-cli lib install "Adafruit NeoPixel@1.12.3" "RTClib@2.1.4" "Adafruit BusIO@1.16.1" "WiFiManager@2.0.17" "ArduinoJson@7.2.1"
+          arduino-cli lib install --git-url https://github.com/dvarrel/ESPping.git#1.0.5
+
+      - name: Compile for ${{ matrix.chip }}
+        run: arduino-cli compile --fqbn "${{ matrix.fqbn }}" --output-dir build --warnings default WordClockWithWeb
+
+      - name: Name the binaries like the update function expects them
+        run: |
+          cp build/WordClockWithWeb.ino.bin "WordClockWithWeb.ino.${{ matrix.chip }}.bin"
+          if [ -f build/WordClockWithWeb.ino.merged.bin ]; then
+            cp build/WordClockWithWeb.ino.merged.bin "WordClockWithWeb.ino.${{ matrix.chip }}.factory.bin"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.chip }}
+          path: WordClockWithWeb.ino.${{ matrix.chip }}*.bin
+
+      - name: Attach the binaries to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" WordClockWithWeb.ino.${{ matrix.chip }}*.bin --clobber

@@ -1,0 +1,1261 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>WordClock Einstellungen</title>
+<!--
+  WordClock web interface.
+  This file is the source; the firmware serves a gzipped copy from WordClockWithWeb/webpage.h.
+  The GitHub Action rebuilds webpage.h on every push. To try a change on your own clock first:
+  python3 tools/build_webpage.py, then compile and upload as usual.
+  Opened directly from disk (file://) the page runs in demo mode with example values.
+-->
+<style>
+/* Layout: left rail = lit clock face + device status, right = tabbed settings; one column below 860px.
+   System fonts only: the page is served offline by the clock itself. */
+:root{
+  --bg:#edf0f3; --surface:#ffffff; --sunken:#f4f6f8; --fg:#161a1f; --muted:#59626d; --line:#d9dee5;
+  --accent:#ad5900; --accent-ink:#ffffff; --accent-soft:#fbeedd;
+  --ok:#1d7f46; --warn:#8a4f00; --warn-soft:#fdf1dc; --bad:#b52f29; --bad-soft:#fbe8e7;
+  --face:#0a0c0f; --face-edge:#262c34; --face-off:#262b32; --face-lit:#ffffff;
+  --bar-on:#f1c68f; --bar-off:#3a414b;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --r:12px; --r-s:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1014; --surface:#151a20; --sunken:#1b2128; --fg:#e6e9ed; --muted:#98a1ac; --line:#29313b;
+    --accent:#f0962a; --accent-ink:#1b1104; --accent-soft:#2d2112;
+    --ok:#4cc47f; --warn:#eaa547; --warn-soft:#2b2214; --bad:#f0716a; --bad-soft:#301a19;
+    --face:#06080a; --face-edge:#2d343e; --face-off:#20252b;
+    --bar-on:#8d5d22; --bar-off:#070a0d;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1014; --surface:#151a20; --sunken:#1b2128; --fg:#e6e9ed; --muted:#98a1ac; --line:#29313b;
+  --accent:#f0962a; --accent-ink:#1b1104; --accent-soft:#2d2112;
+  --ok:#4cc47f; --warn:#eaa547; --warn-soft:#2b2214; --bad:#f0716a; --bad-soft:#301a19;
+  --face:#06080a; --face-edge:#2d343e; --face-off:#20252b;
+  --bar-on:#8d5d22; --bar-off:#070a0d;
+  color-scheme:dark;
+}
+:root{color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--ui);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1140px;margin-inline:auto;padding-inline:16px;padding-block:0 110px}
+h2,h3{margin:0;text-wrap:balance}
+h3{font-size:15px;font-weight:650}
+p{margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* top */
+.mockbar{background:var(--sunken);border-bottom:1px solid var(--line);color:var(--muted);font-size:12.5px;padding:7px 16px;text-align:center}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:18px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{display:grid;grid-template-columns:repeat(3,6px);gap:3px;padding:7px;background:var(--face);border-radius:7px;flex:none}
+.logo i{width:6px;height:6px;border-radius:1.5px;background:var(--face-off)}
+.logo i:nth-child(1),.logo i:nth-child(2),.logo i:nth-child(5),.logo i:nth-child(9){background:var(--accent)}
+.brand strong{display:block;font-size:17px;letter-spacing:.01em}
+.host{display:block;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.seg.sm{flex:none;flex-wrap:nowrap}
+.seg.sm label{padding:5px 11px;font-size:13px;letter-spacing:.04em}
+
+/* layout */
+.layout{display:grid;grid-template-columns:minmax(290px,350px) minmax(0,1fr);gap:24px;align-items:start}
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);display:grid;gap:14px}
+@media (max-width:860px){
+  .layout{grid-template-columns:minmax(0,1fr);gap:16px}
+  .rail{position:static}
+}
+
+/* clock face */
+.facecard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:12px}
+.face{container-type:inline-size;position:relative;background:var(--face);border:1px solid var(--face-edge);border-radius:10px;padding:9% 8.5%;--lvl:.7}
+.grid{display:grid;grid-template-columns:repeat(11,1fr);row-gap:1.6cqw}
+.grid span{font-family:var(--mono);font-weight:600;font-size:13px;font-size:5.4cqw;line-height:1;text-align:center;color:var(--face-off);transition:color .35s,text-shadow .35s,opacity .35s}
+.grid span.on,.corner.on{color:var(--c);opacity:var(--lvl);text-shadow:0 0 .55em var(--c)}
+.corner{position:absolute;width:2.2cqw;height:2.2cqw;border-radius:50%;background:currentColor;color:var(--face-off);transition:color .35s,box-shadow .35s}
+.corner.on{box-shadow:0 0 1.6cqw var(--c)}
+.c112{top:3.6cqw;left:3.6cqw}.c113{top:3.6cqw;right:3.6cqw}.c110{bottom:3.6cqw;right:3.6cqw}.c111{bottom:3.6cqw;left:3.6cqw}
+.corner.num::after{content:attr(data-n);position:absolute;top:50%;left:180%;transform:translateY(-50%);font:700 3.6cqw/1 var(--mono);color:var(--face-lit)}
+.c113.num::after,.c110.num::after{left:auto;right:180%}
+.readout{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.clock{font-family:var(--mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.facestate{font-size:13px;font-weight:600;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:5px 9px;justify-self:start}
+.sim{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+.sim label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.simrow{display:flex;align-items:center;gap:10px}
+.simrow input{flex:1;min-width:0}
+.simrow output{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;min-width:3.2em;text-align:right}
+
+/* status */
+.statuscard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:6px 14px}
+dl.kv{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:0}
+dl.kv dd{padding-left:16px}
+dl.kv dt,dl.kv dd{padding-block:8px;border-top:1px solid var(--line);margin:0;font-size:13.5px}
+dl.kv dt:first-of-type,dl.kv dt:first-of-type+dd{border-top:0}
+dl.kv dt{color:var(--muted)}
+dl.kv dd{text-align:right;overflow-wrap:anywhere}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:.05em;background:var(--muted)}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+
+/* tabs */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);margin-bottom:16px}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;font:inherit;font-weight:600;color:var(--muted);background:none;border:0;border-bottom:2px solid transparent;padding:12px 12px 10px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+.tabs .tdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:.15em}
+
+/* panels & groups */
+.panel{display:grid;gap:14px}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;display:grid;gap:12px;min-width:0}
+.group.off{opacity:.5}
+.ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hint{font-size:13.5px;color:var(--muted);max-width:62ch}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer}
+.rows{display:grid}
+.rows>.row{padding-block:11px}
+.rows>.row+.row{border-top:1px solid var(--line)}
+.rows>.row:first-child{padding-top:2px}.rows>.row:last-child{padding-bottom:2px}
+.rt{display:grid;gap:2px;min-width:0}
+.rt b{font-weight:600}
+.row.stack{flex-wrap:wrap;cursor:default}
+.row.stack .rt{flex:1 1 16em}
+.rt small{font-size:13px;color:var(--muted)}
+
+/* controls */
+.sw{appearance:none;-webkit-appearance:none;flex:none;width:44px;height:26px;border-radius:13px;background:var(--line);position:relative;cursor:pointer;margin:0;transition:background .2s}
+.sw::before{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgb(0 0 0 / .25);transition:transform .2s}
+.sw:checked{background:var(--accent)}
+.sw:checked::before{transform:translateX(18px)}
+.sw:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:flex;flex-wrap:wrap;gap:3px;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-s);padding:3px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{flex:1 1 auto;text-align:center;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:550;color:var(--muted);white-space:nowrap}
+.seg input:checked+label{background:var(--surface);color:var(--fg);box-shadow:0 0 0 1px var(--line),0 1px 2px rgb(0 0 0 / .08)}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:1px}
+input[type=text],input[type=number],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s);padding:8px 10px;min-width:0}
+input[type=text].mono,input[type=number]{font-family:var(--mono)}
+input[type=range]{accent-color:var(--accent)}
+input:disabled,select:disabled{opacity:.55}
+.invalid{border-color:var(--bad)!important;background:var(--bad-soft)!important}
+.err{font-size:13px;color:var(--bad)}
+.btn{font:inherit;font-weight:600;padding:9px 14px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn.danger.solid{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:6px 10px;font-size:13px}
+.btn:disabled{opacity:.6;cursor:default}
+.field{display:grid;gap:6px}
+.field>label{font-size:13.5px;font-weight:600}
+
+/* LED panel */
+.colorrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.colorrow input[type=color]{width:52px;height:40px;padding:0;border:1px solid var(--line);border-radius:var(--r-s);background:none;cursor:pointer}
+#colorHex{width:7.5em;text-transform:uppercase}
+.swatches{display:flex;gap:6px;flex-wrap:wrap}
+.swatches button{width:28px;height:28px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line);cursor:pointer;background:var(--sw)}
+.swatches button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent)}
+.slider{display:grid;grid-template-columns:4.5em minmax(0,1fr) 3.4em;align-items:center;gap:12px}
+.slider label{font-weight:600}
+.slider output{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.callout{background:var(--warn-soft);border-radius:var(--r-s);padding:10px 12px;font-size:13.5px}
+.callout b{color:var(--warn)}
+
+/* night */
+.week{display:grid;gap:2px}
+.day{display:grid;grid-template-columns:7.5em auto minmax(80px,1fr);align-items:center;gap:14px;padding-block:7px}
+.day+.day{border-top:1px solid var(--line)}
+.dname{font-weight:600}
+.dsel{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.dsel select{padding:6px 8px}
+.bar{height:10px;border-radius:5px;background:var(--bar-on)}
+.axis{display:grid;grid-template-columns:7.5em auto minmax(80px,1fr);gap:14px;font-size:11.5px;color:var(--muted)}
+.axis .ticks{grid-column:3;display:flex;justify-content:space-between;font-family:var(--mono)}
+.axis .sp{visibility:hidden}
+.legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:8px;border-radius:3px;margin-right:6px;vertical-align:.05em}
+@media (max-width:560px){
+  .day{grid-template-columns:minmax(0,1fr) auto;row-gap:8px}
+  .day .bar{grid-column:1/-1}
+  .axis{display:none}
+}
+
+/* display panel */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.card{position:relative;display:grid;gap:6px;border:1px solid var(--line);border-radius:var(--r-s);padding:12px 14px;cursor:pointer;background:var(--surface)}
+.card input{position:absolute;opacity:0;pointer-events:none}
+.card:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.card:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.card b{font-family:var(--mono);font-size:13.5px;letter-spacing:.04em}
+.card small{font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+
+/* network / system */
+.ipgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.inline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.urls{display:grid;gap:8px}
+.url{display:grid;grid-template-columns:7em minmax(0,1fr) auto;align-items:center;gap:10px;font-size:13.5px}
+.url code{font-family:var(--mono);font-size:12.5px;background:var(--sunken);border:1px solid var(--line);border-radius:6px;padding:5px 8px;overflow-x:auto;white-space:nowrap}
+@media (max-width:560px){.url{grid-template-columns:minmax(0,1fr) auto}.url span{grid-column:1/-1}}
+a{color:var(--accent)}
+.confirm{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bad-soft);border-radius:var(--r-s);padding:10px 12px}
+.confirm p{flex:1 1 12em;font-weight:600}
+.actionrow{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+/* save bar + toast */
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 20px rgb(0 0 0 / .08)}
+.savebar .in{max-width:1140px;margin-inline:auto;display:flex;align-items:center;gap:10px}
+.savebar .in span{flex:1;font-weight:600}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);opacity:0;pointer-events:none;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;font-size:14px;max-width:calc(100% - 32px);text-align:center;transition:opacity .2s,transform .2s;z-index:30}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="mockbar" id="mockbar" data-t="mock" hidden>Demo: alle Werte sind Beispiele, Speichern wirkt nur auf dieser Seite.</div>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <div><strong>WordClock</strong><span class="host" id="hostLabel">–</span></div>
+    </div>
+    <div class="seg sm" role="radiogroup" aria-label="Sprache / Language">
+      <input type="radio" name="uiLang" id="ui-de" value="de"><label for="ui-de" lang="de">DE</label>
+      <input type="radio" name="uiLang" id="ui-en" value="en"><label for="ui-en" lang="en">EN</label>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="rail">
+      <section class="facecard">
+        <div class="face" id="face" role="img" aria-label="">
+          <div class="grid" id="grid"></div>
+          <span class="corner c112" data-led="112"></span><span class="corner c113" data-led="113"></span>
+          <span class="corner c110" data-led="110"></span><span class="corner c111" data-led="111"></span>
+        </div>
+        <div class="readout"><span class="clock" id="clock">--:--</span><span class="muted" id="dateLine"></span></div>
+        <p class="facestate" id="faceState" hidden></p>
+        <div class="sim">
+          <label for="simTime" data-t="simLabel">Uhrzeit ausprobieren</label>
+          <div class="simrow">
+            <input type="range" id="simTime" min="0" max="1439" step="1" value="0">
+            <output id="simOut" for="simTime">--:--</output>
+            <button type="button" class="btn sm" id="simNow" data-t="now">Jetzt</button>
+          </div>
+        </div>
+      </section>
+      <section class="statuscard"><dl class="kv" id="statusList"></dl></section>
+    </aside>
+
+    <main>
+      <nav class="tabs" role="tablist" id="tabs">
+        <button type="button" role="tab" id="t-led" aria-controls="p-led" data-tab="led"><span data-t="tabLed">LEDs</span></button>
+        <button type="button" role="tab" id="t-night" aria-controls="p-night" data-tab="night"><span data-t="tabNight">Nachtmodus</span></button>
+        <button type="button" role="tab" id="t-disp" aria-controls="p-disp" data-tab="disp"><span data-t="tabDisp">Anzeige</span></button>
+        <button type="button" role="tab" id="t-time" aria-controls="p-time" data-tab="time"><span data-t="tabTime">Zeit</span></button>
+        <button type="button" role="tab" id="t-net" aria-controls="p-net" data-tab="net"><span data-t="tabNet">Netzwerk</span></button>
+        <button type="button" role="tab" id="t-sys" aria-controls="p-sys" data-tab="sys"><span data-t="tabSys">System</span></button>
+      </nav>
+
+      <form id="form" novalidate autocomplete="off">
+        <!-- LEDs -->
+        <section class="panel" id="p-led" role="tabpanel" aria-labelledby="t-led">
+          <div class="group">
+            <div class="ghead"><h3 data-t="gColor">Farbe</h3></div>
+            <div class="colorrow">
+              <input type="color" id="color" data-k="color" aria-label="Farbe">
+              <input type="text" id="colorHex" class="mono" maxlength="7" spellcheck="false" aria-label="Hex">
+              <div class="swatches" id="swatches"></div>
+            </div>
+            <p class="hint" data-t="gColorHint">Gilt, solange der Farbmodus „Einfarbig“ ist.</p>
+          </div>
+          <div class="group">
+            <h3 data-t="gMode">Farbmodus</h3>
+            <div class="seg" role="radiogroup">
+              <input type="radio" name="rainbow" id="rb0" value="0" data-k="rainbow"><label for="rb0" data-t="rb0">Einfarbig</label>
+              <input type="radio" name="rainbow" id="rb1" value="1" data-k="rainbow"><label for="rb1" data-t="rb1">Regenbogen</label>
+              <input type="radio" name="rainbow" id="rb2" value="2" data-k="rainbow"><label for="rb2" data-t="rb2">Zufällig</label>
+            </div>
+            <p class="hint" id="rbHint"></p>
+          </div>
+          <div class="group">
+            <h3 data-t="gBright">Helligkeit</h3>
+            <div class="slider"><label for="bright" data-t="day">Tag</label><input type="range" id="bright" min="1" max="128" data-k="bright" data-type="num"><output id="brightOut" for="bright"></output></div>
+            <div class="slider"><label for="brightNight" data-t="night">Nacht</label><input type="range" id="brightNight" min="1" max="128" data-k="brightNight" data-type="num"><output id="brightNightOut" for="brightNight"></output></div>
+            <div class="callout" id="psuNote"><b data-t="noteLabel">Hinweis:</b> <span data-t="psuNote"></span></div>
+            <div class="rows">
+              <label class="row" for="psu"><span class="rt"><b data-t="psu"></b><small data-t="psuSub"></small></span><input type="checkbox" class="sw" id="psu" data-k="psu"></label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Night -->
+        <section class="panel" id="p-night" role="tabpanel" aria-labelledby="t-night" hidden>
+          <div class="group">
+            <h3 data-t="gNightMode">Verhalten in der Nacht</h3>
+            <div class="seg" role="radiogroup">
+              <input type="radio" name="night" id="nm0" value="0" data-k="night"><label for="nm0" data-t="n0">Unverändert</label>
+              <input type="radio" name="night" id="nm1" value="1" data-k="night"><label for="nm1" data-t="n1">Display aus</label>
+              <input type="radio" name="night" id="nm2" value="2" data-k="night"><label for="nm2" data-t="n2">Gedimmt</label>
+            </div>
+            <p class="hint" id="nightHint"></p>
+          </div>
+          <div class="group" id="nightWeek">
+            <div class="ghead"><h3 data-t="gWeek">Nachtzeiten</h3><button type="button" class="btn sm" id="copyMon" data-t="copyMon">Montag auf alle Tage übertragen</button></div>
+            <div class="week" id="week"></div>
+            <div class="axis" aria-hidden="true"><span class="sp">.</span><span class="sp">.</span><span class="ticks"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></span></div>
+            <div class="legend"><span><i style="background:var(--bar-on)"></i><span data-t="lgOn">Uhr leuchtet</span></span><span><i style="background:var(--bar-off)"></i><span id="lgOff"></span></span></div>
+          </div>
+        </section>
+
+        <!-- Display -->
+        <section class="panel" id="p-disp" role="tabpanel" aria-labelledby="t-disp" hidden>
+          <div class="group">
+            <h3 data-t="gLang">Sprache</h3>
+            <div class="seg" role="radiogroup">
+              <input type="radio" name="lang" id="lg0" value="0" data-k="lang"><label for="lg0">Deutsch</label>
+              <input type="radio" name="lang" id="lg1" value="1" data-k="lang"><label for="lg1">English</label>
+            </div>
+            <p class="hint" data-t="langHint"></p>
+          </div>
+          <div class="group" id="quarterGroup">
+            <h3 data-t="gQuarter">Schreibweise für :15 und :45</h3>
+            <div class="cards" role="radiogroup">
+              <label class="card" for="ds0"><input type="radio" name="deSpecial" id="ds0" value="0" data-k="deSpecial"><b>VIERTEL NACH · VIERTEL VOR</b><small>14:15 VIERTEL NACH ZWEI<br>14:45 VIERTEL VOR DREI</small></label>
+              <label class="card" for="ds1"><input type="radio" name="deSpecial" id="ds1" value="1" data-k="deSpecial"><b>VIERTEL · DREIVIERTEL</b><small>14:15 VIERTEL DREI<br>14:45 DREIVIERTEL DREI</small></label>
+            </div>
+          </div>
+          <div class="group">
+            <h3 data-t="gFx">Effekte</h3>
+            <div class="rows">
+              <label class="row" for="blink"><span class="rt"><b data-t="blink"></b><small data-t="blinkSub"></small></span><input type="checkbox" class="sw" id="blink" data-k="blink"></label>
+              <div class="row stack"><span class="rt"><b id="dateLbl" data-t="date"></b><small id="dateSub"></small></span>
+                <div class="seg" role="radiogroup" aria-labelledby="dateLbl">
+                  <input type="radio" name="date" id="dt0" value="0" data-k="date"><label for="dt0" data-t="dt0">Aus</label>
+                  <input type="radio" name="date" id="dt1" value="1" data-k="date"><label for="dt1" data-t="dt1">Stündlich</label>
+                  <input type="radio" name="date" id="dt2" value="2" data-k="date"><label for="dt2" data-t="dt2">Alle 30 Min.</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="group">
+            <h3 data-t="gMin">Minuten-LEDs</h3>
+            <div class="seg" role="radiogroup">
+              <input type="radio" name="minMode" id="mm0" value="0" data-k="minMode"><label for="mm0" data-t="m0"></label>
+              <input type="radio" name="minMode" id="mm1" value="1" data-k="minMode"><label for="mm1" data-t="m1"></label>
+              <input type="radio" name="minMode" id="mm2" value="2" data-k="minMode"><label for="mm2" data-t="m2"></label>
+            </div>
+            <p class="hint" data-t="minHint"></p>
+            <div class="inline"><button type="button" class="btn sm" id="cornerTest" data-t="cornerTest">Ecken testen</button><span class="hint" data-t="cornerTestHint"></span></div>
+            <div class="field" id="minOrderField">
+              <label for="minOrder" data-t="minOrderLabel">Reihenfolge</label>
+              <input type="text" id="minOrder" class="mono" data-k="minOrder" spellcheck="false" style="max-width:16em">
+              <p class="hint" data-t="minOrderHint"></p>
+              <p class="err" id="minOrderErr" hidden></p>
+            </div>
+          </div>
+          <div class="group">
+            <h3 data-t="gStart">Beim Einschalten</h3>
+            <div class="rows">
+              <label class="row" for="ledTest"><span class="rt"><b data-t="ledTest"></b><small data-t="ledTestSub"></small></span><input type="checkbox" class="sw" id="ledTest" data-k="ledTest"></label>
+              <label class="row" for="setWlan"><span class="rt"><b data-t="setWlan"></b><small id="setWlanSub"></small></span><input type="checkbox" class="sw" id="setWlan" data-k="setWlan"></label>
+              <label class="row" for="showIp"><span class="rt"><b data-t="showIp"></b><small data-t="showIpSub"></small></span><input type="checkbox" class="sw" id="showIp" data-k="showIp"></label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Time -->
+        <section class="panel" id="p-time" role="tabpanel" aria-labelledby="t-time" hidden>
+          <div class="group">
+            <h3 data-t="gSource">Zeitquelle</h3>
+            <dl class="kv" id="sourceList"></dl>
+            <p class="hint" data-t="srcHint"></p>
+          </div>
+          <div class="group">
+            <div class="field">
+              <label for="ntp" data-t="gNtp">NTP-Server</label>
+              <div class="inline"><input type="text" id="ntp" class="mono" data-k="ntp" spellcheck="false" style="flex:1 1 14em"><button type="button" class="btn sm" id="ntpReset" data-t="reset">Zurücksetzen</button></div>
+              <p class="hint" id="ntpDefault"></p>
+              <p class="err" id="ntpErr" hidden></p>
+            </div>
+          </div>
+          <div class="group">
+            <div class="field">
+              <label for="tzSel" data-t="gTz">Zeitzone</label>
+              <select id="tzSel"></select>
+            </div>
+            <div class="field" id="tzCustomField">
+              <label for="tz" data-t="tzCustomLabel">POSIX-Zeitzone</label>
+              <input type="text" id="tz" class="mono" data-k="tz" spellcheck="false">
+              <p class="hint"><a href="http://www.hs-help.net/hshelp/gira/v4_7/de/proj_tz.html" target="_blank" rel="noopener" data-t="tzHelp">Format erklärt</a></p>
+              <p class="err" id="tzErr" hidden></p>
+            </div>
+            <p class="hint mono" id="tzCode"></p>
+          </div>
+          <div class="group">
+            <h3 data-t="gManual">Uhrzeit manuell stellen</h3>
+            <p class="hint" data-t="manualHint"></p>
+            <div><button type="button" class="btn" id="setTime"></button></div>
+          </div>
+        </section>
+
+        <!-- Network -->
+        <section class="panel" id="p-net" role="tabpanel" aria-labelledby="t-net" hidden>
+          <div class="group">
+            <h3 data-t="gWifi">WLAN</h3>
+            <dl class="kv" id="wifiList"></dl>
+          </div>
+          <div class="group">
+            <div class="field">
+              <label for="hostNum" data-t="gHost">Hostname</label>
+              <div class="inline"><span class="mono">WordClock</span><select id="hostNum" data-k="hostNum" data-type="num"></select></div>
+              <p class="hint" id="hostHint"></p>
+            </div>
+          </div>
+          <div class="group" id="pingGroup">
+            <h3 data-t="gPing">Anwesenheit</h3>
+            <div class="rows">
+              <label class="row" for="pingOn"><span class="rt"><b data-t="ping"></b><small data-t="pingSub"></small></span><input type="checkbox" class="sw" id="pingOn" data-k="ping.on"></label>
+            </div>
+            <div class="ipgrid" id="pingFields">
+              <div class="field"><label for="ip0" data-t="ip1"></label><input type="text" id="ip0" class="mono" data-k="ping.ips.0" inputmode="decimal" spellcheck="false"></div>
+              <div class="field"><label for="ip1" data-t="ip2"></label><input type="text" id="ip1" class="mono" data-k="ping.ips.1" inputmode="decimal" spellcheck="false"></div>
+              <div class="field"><label for="ip2" data-t="ip3"></label><input type="text" id="ip2" class="mono" data-k="ping.ips.2" inputmode="decimal" spellcheck="false"></div>
+            </div>
+            <p class="err" id="ipErr" hidden></p>
+            <div class="field" id="triesField">
+              <label for="tries" data-t="tries"></label>
+              <div class="inline"><input type="number" id="tries" min="1" max="120" data-k="ping.tries" data-type="num" style="width:6em"><span class="hint" id="triesHint"></span></div>
+            </div>
+            <div class="rows">
+              <label class="row" for="pingDebug"><span class="rt"><b data-t="pingDebug"></b></span><input type="checkbox" class="sw" id="pingDebug" data-k="ping.debug"></label>
+            </div>
+          </div>
+          <div class="group">
+            <h3 data-t="gRest">REST-Schnittstelle</h3>
+            <div class="rows">
+              <label class="row" for="rest"><span class="rt"><b data-t="rest"></b><small id="restSub"></small></span><input type="checkbox" class="sw" id="rest" data-k="rest"></label>
+            </div>
+            <div class="urls" id="restUrls"></div>
+          </div>
+        </section>
+
+        <!-- System -->
+        <section class="panel" id="p-sys" role="tabpanel" aria-labelledby="t-sys" hidden>
+          <div class="group">
+            <h3 data-t="gFw">Firmware</h3>
+            <dl class="kv" id="fwList"></dl>
+          </div>
+          <div class="group">
+            <h3 data-t="gUpd">Update</h3>
+            <div class="seg" role="radiogroup">
+              <input type="radio" name="update" id="up0" value="0" data-k="update"><label for="up0" data-t="u0"></label>
+              <input type="radio" name="update" id="up1" value="1" data-k="update"><label for="up1" data-t="u1"></label>
+              <input type="radio" name="update" id="up2" value="2" data-k="update"><label for="up2" data-t="u2"></label>
+            </div>
+            <div id="updDetail" class="field"></div>
+          </div>
+          <div class="group">
+            <h3 data-t="gHw">Hardware</h3>
+            <div class="ipgrid">
+              <div class="field"><label for="pinLed" data-t="pinLed">LED-Daten</label><input type="number" id="pinLed" min="0" max="48" data-k="pins.led" data-type="num"></div>
+              <div class="field"><label for="pinSda" data-t="pinSda">RTC SDA</label><input type="number" id="pinSda" min="0" max="48" data-k="pins.sda" data-type="num"></div>
+              <div class="field"><label for="pinScl" data-t="pinScl">RTC SCL</label><input type="number" id="pinScl" min="0" max="48" data-k="pins.scl" data-type="num"></div>
+            </div>
+            <p class="err" id="pinErr" hidden></p>
+            <p class="hint" id="pinHint"></p>
+          </div>
+          <div class="group">
+            <div class="actionrow">
+              <span class="rt"><b data-t="gRestart">Neustart</b><small data-t="restartSub"></small></span>
+              <button type="button" class="btn" data-ask="restart" data-t="restartBtn">Neu starten</button>
+            </div>
+            <div class="confirm" id="ask-restart" hidden>
+              <p data-t="restartQ"></p>
+              <button type="button" class="btn sm" data-cancel="restart" data-t="cancel"></button>
+              <button type="button" class="btn sm danger solid" data-do="restart" data-t="restartBtn"></button>
+            </div>
+          </div>
+          <div class="group">
+            <div class="actionrow">
+              <span class="rt"><b data-t="gWreset">WLAN zurücksetzen</b><small data-t="wresetSub"></small></span>
+              <button type="button" class="btn danger" data-ask="wifireset" data-t="gWreset">WLAN zurücksetzen</button>
+            </div>
+            <div class="confirm" id="ask-wifireset" hidden>
+              <p data-t="wresetQ"></p>
+              <button type="button" class="btn sm" data-cancel="wifireset" data-t="cancel"></button>
+              <button type="button" class="btn sm danger solid" data-do="wifireset" data-t="wresetDo"></button>
+            </div>
+          </div>
+        </section>
+      </form>
+    </main>
+  </div>
+</div>
+
+<div class="savebar" id="savebar" hidden>
+  <div class="in"><span id="dirtyText"></span><button type="button" class="btn ghost" id="discard" data-t="discard">Verwerfen</button><button type="button" class="btn primary" id="save" data-t="save">Speichern</button></div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------------------------
+// API layer. Served by the clock, all calls go to the firmware's JSON endpoints:
+//   GET /api/state, POST /api/config, POST /api/<action>
+// Opened from disk (file://) the page uses the demo data below instead.
+// ---------------------------------------------------------------------------------------------
+const MOCK = location.protocol === "file:";
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clone = o => JSON.parse(JSON.stringify(o));
+
+const mock = {
+  cfg: {
+    color: "#00ff00", rainbow: 0, bright: 42, brightNight: 21, psu: false,
+    night: 0, nightDays: [[22,6],[22,6],[22,6],[22,6],[23,6],[23,7],[22,6]],
+    lang: 0, deSpecial: 0, blink: false, date: 0, minMode: 0, minOrder: "3,4,1,2",
+    ledTest: true, setWlan: true, showIp: true,
+    ntp: "de.pool.ntp.org", tz: "CET-1CEST,M3.5.0/02,M10.5.0/03",
+    hostNum: 0, ping: { on: false, ips: ["192.168.178.56","0.0.0.0","0.0.0.0"], tries: 10, debug: false },
+    rest: true, update: 1, pins: { led: 12, sda: 4, scl: 5 }
+  },
+  status: {
+    version: "V6.1.0", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
+    ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, timeOk: true,
+    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, ledsOn: true, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
+    pinDefaults: { led: 12, sda: 4, scl: 5 }
+  }
+};
+
+async function call(url, opts) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(url, { ...opts, signal: ctl.signal });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.ok === false) throw new Error(data.error || "HTTP " + r.status);
+    return data;
+  } finally { clearTimeout(timer); }
+}
+const post = (url, body) => call(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+
+const api = {
+  async load() {
+    if (MOCK) { await sleep(200); return clone(mock); }
+    return call("/api/state");
+  },
+  async save(cfg) {
+    if (MOCK) {
+      await sleep(450);
+      const restart = JSON.stringify(cfg.pins) !== JSON.stringify(mock.cfg.pins);
+      mock.cfg = clone(cfg); return { ok: true, restart };
+    }
+    return post("/api/config", cfg);
+  },
+  async action(name, body) {
+    if (MOCK) {
+      await sleep(name === "updatecheck" ? 1200 : 300);
+      if (name === "updatecheck") return { ok: true, latest: "V6.1.1", available: true };
+      return { ok: true };
+    }
+    return post("/api/" + name, body);
+  }
+};
+
+// ---------------------------------------------------------------------------------------------
+// Texts
+// ---------------------------------------------------------------------------------------------
+const T = {
+  de: {
+    mock: "Demo: alle Werte sind Beispiele, Speichern wirkt nur auf dieser Seite.",
+    leds: "LEDs", tabLed: "LEDs", tabNight: "Nachtmodus", tabDisp: "Anzeige", tabTime: "Zeit", tabNet: "Netzwerk", tabSys: "System",
+    simLabel: "Uhrzeit ausprobieren", now: "Jetzt",
+    stTime: "Zeit", stRtc: "RTC", stWifi: "WLAN", stIp: "IP-Adresse", stFw: "Firmware",
+    ntpAgo: "NTP, vor {n} Min.", ntpNone: "Kein NTP", rtcOk: "DS3231 erkannt", rtcNo: "Nicht gefunden",
+    faceOff: "LEDs ausgeschaltet", faceNightOff: "Nachtmodus: Display aus", faceNightDim: "Nachtmodus: gedimmt",
+    gColor: "Farbe", gColorHint: "Gilt, solange der Farbmodus „Einfarbig“ ist.",
+    gMode: "Farbmodus", rb0: "Einfarbig", rb1: "Regenbogen", rb2: "Zufällig",
+    rbHint0: "Alle Wörter leuchten in der gewählten Farbe.",
+    rbHint1: "Jedes Wort leuchtet in einer eigenen Zufallsfarbe, jede Minute neu.",
+    rbHint2: "Jede Minute wählt die Uhr eine neue Zufallsfarbe.",
+    gBright: "Helligkeit", day: "Tag", night: "Nacht", noteLabel: "Hinweis:",
+    psuNote: "Beide Werte sind auf 128 von 255 begrenzt. Je nach Farbe und Helligkeit braucht die Uhr ein Netzteil mit mindestens 5 V / 3 A.",
+    psu: "Volle Helligkeit freigeben", psuSub: "Erlaubt Werte bis 255. Nur mit ausreichend starkem Netzteil.",
+    gNightMode: "Verhalten in der Nacht", n0: "Unverändert", n1: "Display aus", n2: "Gedimmt",
+    nHint0: "Die Uhr leuchtet rund um die Uhr mit der Tag-Helligkeit.",
+    nHint1: "In den Nachtzeiten bleiben alle LEDs aus.",
+    nHint2: "In den Nachtzeiten leuchtet die Uhr mit der Nacht-Helligkeit ({v}).",
+    gWeek: "Nachtzeiten", copyMon: "Montag auf alle Tage übertragen", copied: "Zeiten von Montag übernommen",
+    offFrom: "aus ab", until: "bis", lgOn: "Uhr leuchtet", lgOff1: "Display aus", lgOff2: "Gedimmt",
+    days: ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"],
+    gLang: "Sprache der Uhr", langHint: "Legt die Wörter auf der Uhr und die Sprache dieser Seite fest, genau wie der Umschalter oben rechts. Muss zur Frontplatte passen.",
+    cornerTest: "Ecken testen", cornerTestHint: "Die Uhr lässt die Ecken nacheinander als 1, 2, 3 und 4 aufleuchten.",
+    gQuarter: "Schreibweise für :15 und :45",
+    gFx: "Effekte", blink: "Volle Stunde blinken", blinkSub: "Das Stundenwort blinkt zur vollen Stunde zehn Sekunden lang orange.",
+    date: "Datum als Lauftext", dt0: "Aus", dt1: "Stündlich", dt2: "Alle 30 Min.",
+    dateSub0: "Das Datum wird nicht angezeigt.", dateSub1: "Läuft jede Stunde um :30 einmal über die Uhr.",
+    dateSub2: "Läuft um :00 und :30 über die Uhr, zur vollen Stunde nach dem Stundenblinken.",
+    gMin: "Minuten-LEDs", m0: "Im Uhrzeigersinn", m1: "Gegen den Uhrzeigersinn", m2: "Eigene Reihenfolge",
+    minHint: "Die vier Eck-LEDs zählen die Minuten zwischen den 5-Minuten-Schritten.",
+    minOrderLabel: "Reihenfolge", minOrderHint: "1–4 für die Ecken, z. B. 3,1,4,2, oder LED-Nummern wie 112,113,110,111.",
+    minOrderErr: "Bitte vier verschiedene Werte angeben: 1–4 oder LED-Nummern von 0 bis 113.",
+    gStart: "Beim Einschalten", ledTest: "LED-Test", ledTestSub: "Alle LEDs leuchten einmal nacheinander auf.",
+    setWlan: "WLAN-Schriftzug", setWlanSub: "Zeigt „{v}“, bis die Uhr verbunden ist.",
+    showIp: "IP-Adresse anzeigen", showIpSub: "Läuft nach dem Verbinden einmal als Text über die Uhr.",
+    gSource: "Zeitquelle", srcNtp: "Internet (NTP)", srcRtc: "RTC-Modul",
+    ntpSynced: "Synchronisiert vor {n} Min.", ntpFail: "Nicht erreichbar", rtcRun: "DS3231, läuft", rtcMissing: "Nicht gefunden",
+    rtcBad: "DS3231, Zeit ungültig (Batterie prüfen)", rtcBadShort: "DS3231, Zeit ungültig",
+    srcHint: "Ohne WLAN zeigt die Uhr die Zeit der RTC an, auch direkt nach dem Einschalten. Sobald NTP wieder erreichbar ist, wird die RTC nachgestellt.",
+    gNtp: "NTP-Server", ntpDefault: "Standard: {v}", reset: "Zurücksetzen", ntpErr: "Bitte einen NTP-Server eingeben.",
+    gTz: "Zeitzone", tzCustom: "Eigene Zeitzone (POSIX-Format)", tzCustomLabel: "POSIX-Zeitzone", tzHelp: "Format erklärt", tzErr: "Bitte eine Zeitzone eingeben.",
+    gManual: "Uhrzeit manuell stellen", manualHint: "Ohne Internet kannst du die RTC auf die Uhrzeit dieses Geräts stellen.",
+    manualBtn: "Uhrzeit übernehmen ({v})", manualDone: "Uhr auf {v} gestellt",
+    gWifi: "WLAN", wNet: "Netzwerk", wSig: "Signal", wIp: "IP-Adresse", wMac: "MAC-Adresse",
+    sigGood: "gut", sigOk: "ausreichend", sigBad: "schwach",
+    gHost: "Hostname", hostHint: "Erreichbar unter {v}",
+    gPing: "Anwesenheit", ping: "LEDs aus, wenn niemand zu Hause ist", pingSub: "Pingt bis zu drei Geräte, z. B. Handys. 0.0.0.0 wird übersprungen.",
+    ip1: "Gerät 1", ip2: "Gerät 2", ip3: "Gerät 3", ipErr: "Bitte gültige IP-Adressen eingeben, z. B. 192.168.178.56.",
+    tries: "Fehlversuche bis die LEDs ausgehen", triesHint: "entspricht etwa {n} Min. (2 Pings pro Minute)",
+    pingDebug: "Debug-Ausgabe im seriellen Monitor",
+    gRest: "REST-Schnittstelle", rest: "REST-Schnittstelle aktiv", restSub: "Steuerung per URL, z. B. aus Home Assistant. Port {p}.",
+    rOff: "LEDs aus", rOn: "LEDs an", rStat: "LED-Status", copy: "Kopieren", copiedUrl: "URL kopiert",
+    gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Laufzeit", fHeap: "Freier Speicher", upFmt: "{d} T {h} Std {m} Min",
+    gUpd: "Update", u0: "Aus", u1: "Lokal", u2: "Automatisch",
+    uHint0: "Updates sind ausgeschaltet.", uHint1: "Lade eine .bin-Datei über die Update-Seite hoch:",
+    uHint2Ok: "Installiert ist die aktuelle Version {v}.", uHint2New: "Version {v} ist verfügbar.", uInstall: "Jetzt installieren", uStarted: "Update auf {v} läuft. Die Uhr zeigt den Fortschritt an und startet danach neu.",
+    uChecking: "Suche nach Updates auf GitHub …", uErr: "GitHub ist gerade nicht erreichbar.", uErrMem: "Zu wenig freier Speicher für die Verbindung zu GitHub. Nach einem Neustart erneut versuchen.", uRecheck: "Erneut prüfen", actionErr: "Die Uhr hat nicht geantwortet.",
+    gHw: "Hardware", pinLed: "LED-Daten (GPIO)", pinSda: "RTC SDA (GPIO)", pinScl: "RTC SCL (GPIO)",
+    pinHint: "GPIO-Nummern der Anschlüsse. Änderungen gelten nach einem Neustart. Standard beim {chip}: LED {l}, SDA {d}, SCL {c}.",
+    pinErr: "Bitte drei verschiedene GPIO-Nummern von 0 bis 48 angeben.", savedRestart: "Gespeichert. Die neuen Pins gelten nach einem Neustart.",
+    gRestart: "Neustart", restartSub: "Startet die Uhr neu. Einstellungen bleiben erhalten.", restartBtn: "Neu starten",
+    restartQ: "Uhr jetzt neu starten?", cancel: "Abbrechen", restartDone: "Neustart läuft, die Seite ist in etwa 15 Sekunden wieder da.",
+    gWreset: "WLAN zurücksetzen", wresetSub: "Löscht die gespeicherten WLAN-Daten. Danach öffnet die Uhr den Hotspot „WordClock“ zur Einrichtung.",
+    wresetQ: "WLAN-Daten wirklich löschen?", wresetDo: "Löschen und neu starten", wresetDone: "WLAN-Daten gelöscht. Verbinde dich mit dem Hotspot „WordClock“.",
+    dirty1: "1 ungespeicherte Änderung", dirtyN: "{n} ungespeicherte Änderungen", discard: "Verwerfen", save: "Speichern",
+    saving: "Speichert …", saved: "Gespeichert", invalid: "Bitte die markierten Felder prüfen.", saveErr: "Speichern fehlgeschlagen. Ist die Uhr erreichbar?",
+    loadErr: "Die Uhr antwortet nicht. Prüfe die WLAN-Verbindung und lade die Seite neu.",
+    ledsOnT: "LEDs eingeschaltet", ledsOffT: "LEDs ausgeschaltet", locale: "de-DE"
+  },
+  en: {
+    mock: "Demo: all values are examples, saving only affects this page.",
+    leds: "LEDs", tabLed: "LEDs", tabNight: "Night mode", tabDisp: "Display", tabTime: "Time", tabNet: "Network", tabSys: "System",
+    simLabel: "Try a time", now: "Now",
+    stTime: "Time", stRtc: "RTC", stWifi: "Wi-Fi", stIp: "IP address", stFw: "Firmware",
+    ntpAgo: "NTP, {n} min ago", ntpNone: "No NTP", rtcOk: "DS3231 found", rtcNo: "Not found",
+    faceOff: "LEDs switched off", faceNightOff: "Night mode: display off", faceNightDim: "Night mode: dimmed",
+    gColor: "Color", gColorHint: "Used while the color mode is “Single color”.",
+    gMode: "Color mode", rb0: "Single color", rb1: "Rainbow", rb2: "Random",
+    rbHint0: "All words light up in the selected color.",
+    rbHint1: "Every word lights up in its own random color, new every minute.",
+    rbHint2: "The clock picks a new random color every minute.",
+    gBright: "Brightness", day: "Day", night: "Night", noteLabel: "Note:",
+    psuNote: "Both values are limited to 128 of 255. Depending on color and brightness, the clock needs a power supply of at least 5 V / 3 A.",
+    psu: "Unlock full brightness", psuSub: "Allows values up to 255. Only with a strong enough power supply.",
+    gNightMode: "At night", n0: "Unchanged", n1: "Display off", n2: "Dimmed",
+    nHint0: "The clock stays at day brightness around the clock.",
+    nHint1: "All LEDs stay off during the night times.",
+    nHint2: "During the night times the clock uses the night brightness ({v}).",
+    gWeek: "Night times", copyMon: "Copy Monday to all days", copied: "Monday's times copied",
+    offFrom: "off from", until: "until", lgOn: "Clock lit", lgOff1: "Display off", lgOff2: "Dimmed",
+    days: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+    gLang: "Clock language", langHint: "Sets the words on the clock and the language of this page, same as the switch at the top right. Must match the front plate.",
+    cornerTest: "Test corners", cornerTestHint: "The clock lights the corners one after another as 1, 2, 3 and 4.",
+    gQuarter: "Wording for :15 and :45",
+    gFx: "Effects", blink: "Flash on the hour", blinkSub: "The hour word flashes orange for ten seconds on the hour.",
+    date: "Scrolling date", dt0: "Off", dt1: "Hourly", dt2: "Every 30 min",
+    dateSub0: "The date is not shown.", dateSub1: "Scrolls across the clock once every hour at :30.",
+    dateSub2: "Scrolls across at :00 and :30, on the hour after the hour flash.",
+    gMin: "Minute LEDs", m0: "Clockwise", m1: "Counter-clockwise", m2: "Custom order",
+    minHint: "The four corner LEDs count the minutes between the 5-minute steps.",
+    minOrderLabel: "Order", minOrderHint: "1–4 for the corners, e.g. 3,1,4,2, or LED numbers like 112,113,110,111.",
+    minOrderErr: "Enter four different values: 1–4 or LED numbers from 0 to 113.",
+    gStart: "At startup", ledTest: "LED test", ledTestSub: "All LEDs light up one after another.",
+    setWlan: "Wi-Fi lettering", setWlanSub: "Shows “{v}” until the clock is connected.",
+    showIp: "Show IP address", showIpSub: "Scrolls across the clock once after connecting.",
+    gSource: "Time source", srcNtp: "Internet (NTP)", srcRtc: "RTC module",
+    ntpSynced: "Synced {n} min ago", ntpFail: "Not reachable", rtcRun: "DS3231, running", rtcMissing: "Not found",
+    rtcBad: "DS3231, time invalid (check the battery)", rtcBadShort: "DS3231, time invalid",
+    srcHint: "Without Wi-Fi the clock shows the RTC time, also right after power-up. Once NTP is reachable again, the RTC is corrected.",
+    gNtp: "NTP server", ntpDefault: "Default: {v}", reset: "Reset", ntpErr: "Enter an NTP server.",
+    gTz: "Time zone", tzCustom: "Custom time zone (POSIX format)", tzCustomLabel: "POSIX time zone", tzHelp: "Format explained", tzErr: "Enter a time zone.",
+    gManual: "Set the time manually", manualHint: "Without internet, you can set the RTC to this device's time.",
+    manualBtn: "Use this time ({v})", manualDone: "Clock set to {v}",
+    gWifi: "Wi-Fi", wNet: "Network", wSig: "Signal", wIp: "IP address", wMac: "MAC address",
+    sigGood: "good", sigOk: "fair", sigBad: "weak",
+    gHost: "Hostname", hostHint: "Reachable at {v}",
+    gPing: "Presence", ping: "LEDs off when nobody is home", pingSub: "Pings up to three devices, e.g. phones. 0.0.0.0 is skipped.",
+    ip1: "Device 1", ip2: "Device 2", ip3: "Device 3", ipErr: "Enter valid IP addresses, e.g. 192.168.178.56.",
+    tries: "Missed pings until the LEDs go off", triesHint: "about {n} min (2 pings per minute)",
+    pingDebug: "Debug output on the serial monitor",
+    gRest: "REST interface", rest: "REST interface enabled", restSub: "Control via URL, e.g. from Home Assistant. Port {p}.",
+    rOff: "LEDs off", rOn: "LEDs on", rStat: "LED status", copy: "Copy", copiedUrl: "URL copied",
+    gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Uptime", fHeap: "Free memory", upFmt: "{d} d {h} h {m} min",
+    gUpd: "Update", u0: "Off", u1: "Local", u2: "Automatic",
+    uHint0: "Updates are turned off.", uHint1: "Upload a .bin file on the update page:",
+    uHint2Ok: "The latest version {v} is installed.", uHint2New: "Version {v} is available.", uInstall: "Install now", uStarted: "Updating to {v}. The clock shows the progress and restarts afterwards.",
+    uChecking: "Checking GitHub for updates…", uErr: "GitHub is not reachable right now.", uErrMem: "Not enough free memory for the connection to GitHub. Try again after a restart.", uRecheck: "Check again", actionErr: "The clock did not respond.",
+    gHw: "Hardware", pinLed: "LED data (GPIO)", pinSda: "RTC SDA (GPIO)", pinScl: "RTC SCL (GPIO)",
+    pinHint: "GPIO numbers of the connections. Changes apply after a restart. Default for the {chip}: LED {l}, SDA {d}, SCL {c}.",
+    pinErr: "Enter three different GPIO numbers from 0 to 48.", savedRestart: "Saved. The new pins apply after a restart.",
+    gRestart: "Restart", restartSub: "Restarts the clock. Settings are kept.", restartBtn: "Restart",
+    restartQ: "Restart the clock now?", cancel: "Cancel", restartDone: "Restarting. The page will be back in about 15 seconds.",
+    gWreset: "Reset Wi-Fi", wresetSub: "Deletes the stored Wi-Fi credentials. The clock then opens the “WordClock” hotspot for setup.",
+    wresetQ: "Really delete the Wi-Fi credentials?", wresetDo: "Delete and restart", wresetDone: "Wi-Fi credentials deleted. Connect to the “WordClock” hotspot.",
+    dirty1: "1 unsaved change", dirtyN: "{n} unsaved changes", discard: "Discard", save: "Save",
+    saving: "Saving…", saved: "Saved", invalid: "Please check the highlighted fields.", saveErr: "Saving failed. Is the clock reachable?",
+    loadErr: "The clock is not responding. Check the Wi-Fi connection and reload the page.",
+    ledsOnT: "LEDs switched on", ledsOffT: "LEDs switched off", locale: "en-GB"
+  }
+};
+let L = "de";
+const t = (k, v = {}) => String(T[L][k] ?? T.de[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? "");
+
+const TZ = [
+  ["CET-1CEST,M3.5.0/02,M10.5.0/03", "Mitteleuropa (Berlin, Wien, Zürich)", "Central Europe (Berlin, Vienna, Zurich)"],
+  ["GMT0BST,M3.5.0/1,M10.5.0", "Großbritannien (London)", "United Kingdom (London)"],
+  ["WET0WEST,M3.5.0/1,M10.5.0", "Westeuropa (Lissabon)", "Western Europe (Lisbon)"],
+  ["EET-2EEST,M3.5.0/3,M10.5.0/4", "Osteuropa (Helsinki, Athen)", "Eastern Europe (Helsinki, Athens)"],
+  ["EST5EDT,M3.2.0,M11.1.0", "USA Ost (New York)", "US Eastern (New York)"],
+  ["CST6CDT,M3.2.0,M11.1.0", "USA Mitte (Chicago)", "US Central (Chicago)"],
+  ["PST8PDT,M3.2.0,M11.1.0", "USA West (Los Angeles)", "US Pacific (Los Angeles)"],
+  ["UTC0", "UTC", "UTC"]
+];
+const DEFAULT_NTP = "de.pool.ntp.org";
+const SWATCHES = ["#00ff00", "#ffffff", "#ffb46b", "#ff8000", "#ff2a2a", "#2f6bff", "#b44bff"];
+
+// ---------------------------------------------------------------------------------------------
+// Clock face: same LED numbering and word logic as showCurrentTime() in the firmware
+// ---------------------------------------------------------------------------------------------
+const ROWS = {
+  de: ["ESKISTAFÜNF","ZEHNZWANZIG","DREIVIERTEL","VORFUNKNACH","HALBAELFÜNF","EINSDCWZWEI","DREIAUJVIER","SECHSNLACHT","SIEBENZWÖLF","ZEHNEUNKUHR"],
+  en: ["ITLISASAMPM","ACQUARTERDC","TWENTYFIVEX","HALFSTENFTO","PASTERUNINE","ONESIXTHREE","FOURFIVETWO","EIGHTELEVEN","SEVENTWELVE","TENSEOCLOCK"]
+};
+const ledAt = (r, x) => r * 11 + (r % 2 === 0 ? 10 - x : x);
+const HOURS = {
+  de: { 1:[55,57], 2:[62,65], 3:[73,76], 4:[66,69], 5:[44,47], 6:[77,81], 7:[93,98], 8:[84,87], 9:[102,105], 10:[99,102], 11:[47,49], 12:[88,92] },
+  en: { 1:[55,57], 2:[66,68], 3:[61,65], 4:[73,76], 5:[69,72], 6:[58,60], 7:[94,98], 8:[77,81], 9:[44,47], 10:[99,101], 11:[82,87], 12:[88,93] }
+};
+
+function lit(h, m, lang, deSp, order) {
+  // word: LED -> number of its word, in the order the firmware sets the words (rainbow colors)
+  const on = new Set(), hour = new Set(), word = new Map();
+  let words = 0;
+  const add = (a, b, s = on) => { if (s === on) words++; for (let i = Math.min(a, b); i <= Math.max(a, b); i++) { s.add(i); word.set(i, words - 1); } };
+  const d = Math.floor(m / 5), is = (...v) => v.includes(d);
+  if (lang === 0) {
+    add(9,10); add(5,7);
+    if (is(1,5,7,11)) add(0,3);
+    if (deSp === 0) { if (is(3,9)) add(22,28); } else { if (is(3)) add(22,28); if (is(9)) add(22,32); }
+    if (is(2,10)) add(11,14);
+    if (is(4,8)) add(15,21);
+    if (deSp === 0) { if (is(1,2,3,4,7)) add(40,43); } else { if (is(1,2,4,7)) add(40,43); if (is(3)) h += 1; }
+    if (deSp === 0) { if (is(5,8,9,10,11)) add(33,35); } else { if (is(5,8,10,11)) add(33,35); }
+    if (is(5,6,7)) add(51,54);
+    if (m < 5) add(107,109);
+  } else {
+    add(9,10); add(6,7);
+    if (is(1,5,7,11)) add(23,26);
+    if (is(3,9)) add(13,19);
+    if (is(2,10)) add(38,40);
+    if (is(4,5,7,8)) add(27,32);
+    if (is(1,2,3,4,5,6)) add(51,54);
+    if (is(7,8,9,10,11)) add(42,43);
+    if (is(6)) add(33,36);
+    if (is(3,9)) add(3,3);  // A
+    if (m < 5) add(104,109);
+  }
+  let xh = h % 12 || 12;
+  if (m >= (lang === 0 ? 25 : 35)) xh = xh === 12 ? 1 : xh + 1;
+  let [a, b] = HOURS[lang === 0 ? "de" : "en"][xh];
+  if (lang === 0 && xh === 1 && m > 4) b = 58;  // EINS
+  add(a, b, hour); add(a, b);
+  const mm = m % 5;
+  for (let i = 0; i < 4; i++) if (mm > i) on.add(order[i]);
+  return { on, hour, word };
+}
+
+function minuteOrder(c) {
+  if (c.minMode === 1) return [113,112,111,110];
+  if (c.minMode === 2) { const p = parseOrder(c.minOrder); if (p) return p; }
+  return [112,113,110,111];
+}
+function parseOrder(s) {
+  const v = String(s).split(/[\s,;]+/).filter(Boolean).map(Number);
+  if (v.length !== 4 || v.some(n => !Number.isInteger(n)) || new Set(v).size !== 4) return null;
+  if (v.every(n => n >= 1 && n <= 4)) return v.map(n => 109 + n);
+  if (v.every(n => n >= 0 && n <= 113)) return v;
+  return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------------------------
+let cfg = null, saved = null, st = null, simMin = null, gridLang = -1, cornerTestLed = null;
+const cells = [];
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const pad = n => String(n).padStart(2, "0");
+const getPath = (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o);
+const setPath = (o, p, v) => { const k = p.split("."), last = k.pop(); k.reduce((a, x) => a[x], o)[last] = v; };
+const flat = (o, p = "", out = {}) => { for (const [k, v] of Object.entries(o)) { const q = p ? p + "." + k : k; if (v && typeof v === "object") flat(v, q, out); else out[q] = v; } return out; };
+const hostName = () => "WordClock" + cfg.hostNum;
+
+function buildGrid() {
+  const g = $("#grid"); g.textContent = "";
+  const rows = ROWS[cfg.lang === 0 ? "de" : "en"];
+  for (let r = 0; r < 10; r++) for (let x = 0; x < 11; x++) {
+    const s = document.createElement("span"); s.textContent = rows[r][x];
+    cells[ledAt(r, x)] = s; g.appendChild(s);
+  }
+  $$(".corner").forEach(c => { cells[+c.dataset.led] = c; });
+  gridLang = cfg.lang;
+}
+
+function phrase(on) {
+  const rows = ROWS[cfg.lang === 0 ? "de" : "en"], words = [];
+  for (let r = 0; r < 10; r++) { let w = ""; for (let x = 0; x < 11; x++) { if (on.has(ledAt(r, x))) w += rows[r][x]; else if (w) { words.push(w); w = ""; } } if (w) words.push(w); }
+  return words.join(" ");
+}
+
+function seeded(n) { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); }
+
+// Rainbow mode: random color per word, same calculation as rainbowRandom() / rainbowHue() in the firmware
+function rbRandom(seed, n) {
+  let h = (seed ^ Math.imul(n, 0x9E3779B9)) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0; h = Math.imul(h, 0x85EBCA6B) >>> 0;
+  h = (h ^ (h >>> 13)) >>> 0; h = Math.imul(h, 0xC2B2AE35) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function rbHues(seed, count) {
+  const hues = [];
+  for (let w = 0; w < count; w++) {
+    let best = 0, bestDist = -1;
+    for (let a = 0; a < 8; a++) {
+      const hue = rbRandom(seed, w * 8 + a) & 0xFFFF;
+      let dist = 65536;
+      for (const prev of hues) { let d = Math.abs(hue - prev); if (d > 32768) d = 65536 - d; if (d < dist) dist = d; }
+      if (dist > bestDist) { bestDist = dist; best = hue; }
+    }
+    hues.push(best);
+  }
+  return hues.map(hue => `hsl(${Math.round(hue * 360 / 65536)} 100% 55%)`);
+}
+
+function renderFace() {
+  if (!cfg) return;
+  if (gridLang !== cfg.lang) buildGrid();
+  const now = new Date();
+  const total = simMin ?? now.getHours() * 60 + now.getMinutes();
+  const h = Math.floor(total / 60), m = total % 60;
+  const { on, hour, word } = lit(h, m, cfg.lang, cfg.deSpecial, minuteOrder(cfg));
+  const [offFrom, onAfter] = cfg.nightDays[(now.getDay() + 6) % 7];
+  const isNight = cfg.night !== 0 && !(h > onAfter && h < offFrom);
+  const dark = !st.ledsOn || (isNight && cfg.night === 1);
+  const level = isNight && cfg.night === 2 ? cfg.brightNight : cfg.bright;
+  $("#face").style.setProperty("--lvl", (0.32 + 0.68 * Math.sqrt(level / 255)).toFixed(3));
+  // Random color mode: show the color the clock uses right now (only known for the live time of a saved random mode)
+  const randomColor = (simMin === null && saved && saved.rainbow === 2 && st.curColor) ? st.curColor : `hsl(${Math.round(seeded(total + 1) * 360)} 95% 58%)`;
+  // Rainbow mode: the clock's random word colors of this minute (for other minutes of the time preview: an example)
+  const wordColors = cfg.rainbow === 1 ? rbHues(simMin === null && st.rainbowSeed != null ? st.rainbowSeed : Math.floor(seeded(total + 7) * 2147483647), 16) : [];
+  cells.forEach((el, i) => {
+    if (!el) return;
+    const show = !dark && on.has(i);
+    el.classList.toggle("on", show);
+    if (!show) return;
+    let c = cfg.color;
+    if (cfg.rainbow === 1 && word.has(i)) c = wordColors[word.get(i)];
+    if (cfg.rainbow === 2) c = randomColor;
+    if (cfg.blink && m === 0 && hour.has(i)) c = "#ff8000";
+    el.style.setProperty("--c", c);
+  });
+  if (cornerTestLed !== null) [110, 111, 112, 113].forEach((i, k) => {
+    const el = cells[i], hit = i === cornerTestLed;
+    el.classList.toggle("on", hit); el.classList.toggle("num", hit);
+    if (hit) { el.style.setProperty("--c", "var(--face-lit)"); el.dataset.n = k + 1; }
+  });
+  else $$(".corner.num").forEach(c => c.classList.remove("num"));
+  $("#face").setAttribute("aria-label", dark ? t("faceOff") : phrase(on));
+  $("#clock").textContent = pad(h) + ":" + pad(m);
+  $("#dateLine").textContent = now.toLocaleDateString(t("locale"), { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+  const fs = $("#faceState");
+  const msg = !st.ledsOn ? t("faceOff") : isNight ? t(cfg.night === 1 ? "faceNightOff" : "faceNightDim") : "";
+  fs.textContent = msg; fs.hidden = !msg;
+  if (simMin === null) { $("#simTime").value = total; }
+  $("#simOut").textContent = pad(h) + ":" + pad(m);
+  $("#simNow").hidden = simMin === null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Rendering of dependent UI
+// ---------------------------------------------------------------------------------------------
+function applyLang() {
+  document.documentElement.lang = L;
+  $("#ui-" + L).checked = true;
+  $$("[data-t]").forEach(el => { el.textContent = t(el.dataset.t); });
+  $("#tzSel").innerHTML = TZ.map(z => `<option value="${z[0]}">${L === "de" ? z[1] : z[2]}</option>`).join("") + `<option value="custom">${t("tzCustom")}</option>`;
+  buildWeek();
+  fillForm();
+}
+
+function buildWeek() {
+  const opt = (from, to, sel) => { let s = ""; for (let v = from; v <= to; v++) s += `<option value="${v}"${v === sel ? " selected" : ""}>${pad(v)}</option>`; return s; };
+  $("#week").innerHTML = T[L].days.map((name, i) => {
+    const [mx, mn] = cfg.nightDays[i];
+    return `<div class="day"><span class="dname">${name}</span>
+      <span class="dsel"><span class="muted">${t("offFrom")}</span>
+        <select id="n${i}max" data-k="nightDays.${i}.0" data-type="num" aria-label="${name} ${t("offFrom")}">${opt(15, 23, mx)}${mx < 15 || mx > 23 ? `<option value="${mx}" selected>${pad(mx)}</option>` : ""}</select><span>:00</span>
+        <span class="muted">${t("until")}</span>
+        <select id="n${i}min" data-k="nightDays.${i}.1" data-type="num" aria-label="${name} ${t("until")}">${opt(5, 9, mn)}${mn < 5 || mn > 9 ? `<option value="${mn}" selected>${pad(mn)}</option>` : ""}</select><span>:59</span></span>
+      <div class="bar" id="bar${i}"></div></div>`;
+  }).join("");
+}
+
+function renderDeps() {
+  // LEDs
+  const max = cfg.psu ? 255 : 128;
+  ["bright", "brightNight"].forEach(k => { $("#" + k).max = max; if (cfg[k] > max) cfg[k] = max; $("#" + k).value = cfg[k]; $("#" + k + "Out").textContent = cfg[k]; });
+  $("#psuNote").hidden = cfg.psu;
+  $("#colorHex").value = cfg.color.toUpperCase();
+  $$("#swatches button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.c === cfg.color.toLowerCase())));
+  $("#rbHint").textContent = t("rbHint" + cfg.rainbow);
+  // Night
+  $("#nightHint").textContent = t("nHint" + cfg.night, { v: cfg.brightNight });
+  $("#nightWeek").classList.toggle("off", cfg.night === 0);
+  $("#lgOff").textContent = t(cfg.night === 2 ? "lgOff2" : "lgOff1");
+  cfg.nightDays.forEach(([mx, mn], i) => {
+    const a = ((mn + 1) / 24 * 100).toFixed(2), b = (mx / 24 * 100).toFixed(2);
+    const bar = $("#bar" + i);
+    if (bar) bar.style.background = `linear-gradient(90deg,var(--bar-off) 0 ${a}%,var(--bar-on) ${a}% ${b}%,var(--bar-off) ${b}% 100%)`;
+  });
+  // Display
+  $("#quarterGroup").hidden = cfg.lang !== 0;
+  const pd = st.pinDefaults || {};
+  $("#pinHint").textContent = t("pinHint", { chip: st.chip, l: pd.led, d: pd.sda, c: pd.scl });
+  $("#dateSub").textContent = t("dateSub" + cfg.date);
+  $("#setWlanSub").textContent = t("setWlanSub", { v: cfg.lang === 0 ? "SET WLAN" : "WIFI" });
+  $("#minOrderField").hidden = cfg.minMode !== 2;
+  // Time
+  $("#ntpDefault").textContent = t("ntpDefault", { v: DEFAULT_NTP });
+  const preset = TZ.find(z => z[0] === cfg.tz);
+  if (document.activeElement !== $("#tzSel")) $("#tzSel").value = preset ? cfg.tz : "custom";
+  $("#tzCustomField").hidden = $("#tzSel").value !== "custom";
+  $("#tzCode").textContent = $("#tzSel").value !== "custom" ? cfg.tz : "";
+  $("#tzCode").hidden = $("#tzSel").value === "custom";
+  // Network
+  $("#hostLabel").textContent = hostName() + " · " + st.ip;
+  $("#hostHint").textContent = t("hostHint", { v: "http://" + hostName().toLowerCase() + ".local" });
+  $("#pingFields").querySelectorAll("input").forEach(i => i.disabled = !cfg.ping.on);
+  $("#tries").disabled = !cfg.ping.on; $("#pingDebug").disabled = !cfg.ping.on;
+  $("#triesHint").textContent = t("triesHint", { n: Math.max(1, Math.round(cfg.ping.tries / 2)) });
+  $("#restSub").textContent = t("restSub", { p: st.restPort });
+  const base = `http://${st.ip}:${st.restPort}/`;
+  $("#restUrls").hidden = !cfg.rest;
+  $("#restUrls").innerHTML = [["rOff", "ledsoff"], ["rOn", "ledson"], ["rStat", "ledstatus"]].map(([k, p]) =>
+    `<div class="url"><span>${t(k)}</span><code>${base + p}</code><button type="button" class="btn sm" data-copy="${base + p}">${t("copy")}</button></div>`).join("");
+  // System
+  const u = $("#updDetail");
+  if (cfg.update === 0) u.innerHTML = `<p class="hint">${t("uHint0")}</p>`;
+  if (cfg.update === 1) u.innerHTML = `<p class="hint">${t("uHint1")}</p><p><a href="http://${hostName().toLowerCase()}.local:2022/update" target="_blank" rel="noopener">http://${hostName().toLowerCase()}.local:2022/update</a><br><a href="http://${st.ip}:2022/update" target="_blank" rel="noopener">http://${st.ip}:2022/update</a></p>`;
+  if (cfg.update === 2) {
+    const again = `<button type="button" class="btn sm" id="recheckUpd">${t("uRecheck")}</button>`;
+    if (upd.state === "new") u.innerHTML = `<div class="inline"><p class="hint" style="color:var(--fg);font-weight:600">${t("uHint2New", { v: upd.latest })}</p><button type="button" class="btn primary sm" id="installUpd">${t("uInstall")}</button></div>`;
+    else if (upd.state === "ok") u.innerHTML = `<div class="inline"><p class="hint">${t("uHint2Ok", { v: st.version })}</p>${again}</div>`;
+    else if (upd.state === "error") u.innerHTML = `<div class="inline"><p class="hint">${t(upd.err === "memory" ? "uErrMem" : "uErr")}</p>${again}</div>`;
+    else u.innerHTML = `<p class="hint">${t("uChecking")}</p>`;
+  }
+}
+
+function renderStatus() {
+  const sig = st.rssi > -60 ? t("sigGood") : st.rssi > -72 ? t("sigOk") : t("sigBad");
+  const sigCls = st.rssi > -60 ? "ok" : st.rssi > -72 ? "warn" : "bad";
+  const row = (k, v, cls) => `<dt>${k}</dt><dd>${cls ? `<span class="dot ${cls}"></span>` : ""}${v}</dd>`;
+  $("#statusList").innerHTML =
+    row(t("stTime"), st.ntpOk ? t("ntpAgo", { n: st.ntpAgoMin }) : t("ntpNone"), st.ntpOk ? "ok" : "warn") +
+    row(t("stRtc"), !st.rtc ? t("rtcNo") : st.rtcOk === false ? t("rtcBadShort") : t("rtcOk"), !st.rtc ? "bad" : st.rtcOk === false ? "warn" : "ok") +
+    row(t("stWifi"), `${st.ssid}, ${sig}`, sigCls) +
+    row(t("stFw"), `<span class="mono">${st.version}</span> · ${st.chip}`);
+  $("#sourceList").innerHTML =
+    row(t("srcNtp"), st.ntpOk ? t("ntpSynced", { n: st.ntpAgoMin }) : t("ntpFail"), st.ntpOk ? "ok" : "warn") +
+    row(t("srcRtc"), !st.rtc ? t("rtcMissing") : st.rtcOk === false ? t("rtcBad") : t("rtcRun"), !st.rtc ? "bad" : st.rtcOk === false ? "warn" : "ok");
+  $("#wifiList").innerHTML =
+    row(t("wNet"), st.ssid) + row(t("wSig"), `<span class="mono">${st.rssi} dBm</span>, ${sig}`, sigCls) +
+    row(t("wIp"), `<span class="mono">${st.ip}</span>`) + row(t("wMac"), `<span class="mono">${st.mac}</span>`);
+  const up = st.uptime;
+  $("#fwList").innerHTML =
+    row(t("fVer"), `<span class="mono">${st.version}</span>`) + row(t("fChip"), st.chip) +
+    row(t("fUp"), t("upFmt", { d: Math.floor(up / 86400), h: Math.floor(up % 86400 / 3600), m: Math.floor(up % 3600 / 60) })) +
+    row(t("fHeap"), `<span class="mono">${(st.heap / 1024).toLocaleString(t("locale"), { maximumFractionDigits: 1 })} KB</span>`);
+  updateSetTimeLabel();
+}
+
+function updateSetTimeLabel() {
+  const n = new Date();
+  $("#setTime").textContent = t("manualBtn", { v: `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}` });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Form binding
+// ---------------------------------------------------------------------------------------------
+function fillForm() {
+  $$("[data-k]").forEach(el => {
+    const v = getPath(cfg, el.dataset.k);
+    if (el.type === "checkbox") el.checked = !!v;
+    else if (el.type === "radio") el.checked = Number(el.value) === v;
+    else el.value = v;
+  });
+  if (!$("#hostNum").options.length) $("#hostNum").innerHTML = Array.from({ length: 10 }, (_, i) => `<option value="${i}">${i}</option>`).join("");
+  $("#hostNum").value = cfg.hostNum;
+}
+
+function readEl(el) {
+  if (el.type === "checkbox") return el.checked;
+  if (el.type === "radio" || el.dataset.type === "num" || el.type === "range") return Number(el.value);
+  return el.value;
+}
+
+function onInput(e) {
+  const el = e.target;
+  if (el.id === "simTime") { simMin = Number(el.value); renderFace(); return; }
+  if (el.id === "colorHex") {
+    let v = el.value.trim(); if (v && v[0] !== "#") v = "#" + v;
+    if (/^#[0-9a-f]{6}$/i.test(v)) { cfg.color = v.toLowerCase(); $("#color").value = cfg.color; }
+    else return;
+  } else if (el.id === "tzSel") {
+    if (el.value !== "custom") cfg.tz = el.value;
+    $("#tz").value = cfg.tz;
+  } else if (el.dataset.k) {
+    setPath(cfg, el.dataset.k, readEl(el));
+    if (el.dataset.k === "color") cfg.color = cfg.color.toLowerCase();
+  } else return;
+  if (el.classList.contains("invalid")) validate(false);
+  after();
+}
+
+function syncLang() {
+  const nl = cfg.lang === 1 ? "en" : "de";
+  if (nl !== L) { L = nl; applyLang(); renderStatus(); }
+}
+function after() { syncLang(); renderDeps(); renderFace(); updateDirty(); maybeCheckUpdate(); }
+
+// Reload only the device status (not the settings, which may have unsaved changes)
+async function refreshStatus() {
+  if (MOCK) return;
+  try { const data = await api.load(); st = data.status; renderStatus(); renderFace(); } catch (e) {}
+}
+
+// Update check runs only on demand: when the System tab is open and the mode is "automatic".
+let upd = { state: "idle", latest: "" };
+function maybeCheckUpdate() {
+  if (cfg && cfg.update === 2 && upd.state === "idle" && !$("#p-sys").hidden) checkUpdate();
+}
+async function checkUpdate() {
+  if (upd.state === "checking") return;
+  upd.state = "checking"; renderDeps();
+  try { const r = await api.action("updatecheck"); upd.latest = r.latest || ""; upd.state = r.available ? "new" : "ok"; }
+  catch (e) { upd.state = "error"; upd.err = e.message; }
+  renderDeps();
+}
+
+function changedKeys() {
+  const a = flat(cfg), b = flat(saved);
+  return Object.keys(a).filter(k => a[k] !== b[k]);
+}
+
+function updateDirty() {
+  const ch = changedKeys();
+  $("#savebar").hidden = ch.length === 0;
+  $("#dirtyText").textContent = ch.length === 1 ? t("dirty1") : t("dirtyN", { n: ch.length });
+  const tabOf = { led: ["color","rainbow","bright","brightNight","psu"], night: ["night","nightDays"], disp: ["lang","deSpecial","blink","date","minMode","minOrder","ledTest","setWlan","showIp"], time: ["ntp","tz"], net: ["hostNum","ping","rest"], sys: ["update","pins"] };
+  $$("#tabs button").forEach(b => {
+    const has = ch.some(k => tabOf[b.dataset.tab].includes(k.split(".")[0]));
+    let d = b.querySelector(".tdot");
+    if (has && !d) { d = document.createElement("span"); d.className = "tdot"; d.setAttribute("aria-hidden", "true"); b.appendChild(d); }
+    if (!has && d) d.remove();
+  });
+}
+
+function validate() {
+  const bad = [];
+  const mark = (id, ok, errId) => {
+    $("#" + id).classList.toggle("invalid", !ok);
+    if (errId) { const e = $("#" + errId); e.textContent = t(errId); e.hidden = ok; }
+    if (!ok) bad.push(id);
+  };
+  mark("minOrder", cfg.minMode !== 2 || !!parseOrder(cfg.minOrder), "minOrderErr");
+  mark("ntp", cfg.ntp.trim().length > 0, "ntpErr");
+  mark("tz", cfg.tz.trim().length > 0, "tzErr");
+  const ipOk = s => /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(String(s).trim());
+  cfg.ping.ips.forEach((ip, i) => mark("ip" + i, !cfg.ping.on || ipOk(ip)));
+  const p = cfg.pins || {}, vals = [p.led, p.sda, p.scl];
+  const pinsOk = !cfg.pins || (vals.every(v => Number.isInteger(v) && v >= 0 && v <= 48) && new Set(vals).size === 3);
+  ["pinLed", "pinSda", "pinScl"].forEach(id => $("#" + id).classList.toggle("invalid", !pinsOk));
+  $("#pinErr").textContent = t("pinErr"); $("#pinErr").hidden = pinsOk;
+  if (!pinsOk) bad.push("pinLed");
+  const ipBad = bad.some(x => x.startsWith("ip"));
+  $("#ipErr").textContent = t("ipErr"); $("#ipErr").hidden = !ipBad;
+  return bad;
+}
+
+async function save() {
+  const bad = validate();
+  if (bad.length) {
+    toast(t("invalid"));
+    const panel = $("#" + bad[0]).closest(".panel");
+    selectTab(panel.id.slice(2)); $("#" + bad[0]).focus();
+    return;
+  }
+  const btn = $("#save"); btn.disabled = true; btn.textContent = t("saving");
+  try {
+    const res = await api.save(cfg);
+    saved = clone(cfg); updateDirty(); toast(t(res && res.restart ? "savedRestart" : "saved"));
+    refreshStatus();  // f.e. the color the clock shows after switching the color mode
+  } catch (e) { toast(t("saveErr")); }
+  btn.disabled = false; btn.textContent = t("save");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tabs, toasts, actions
+// ---------------------------------------------------------------------------------------------
+function selectTab(id) {
+  const bar = $("#tabs");
+  $$("#tabs button").forEach(b => {
+    const on = b.dataset.tab === id; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1;
+    if (on && (b.offsetLeft < bar.scrollLeft || b.offsetLeft + b.offsetWidth > bar.scrollLeft + bar.clientWidth)) bar.scrollLeft = b.offsetLeft - 16;
+  });
+  $$(".panel").forEach(p => { p.hidden = p.id !== "p-" + id; });
+  try { localStorage.setItem("wc-tab", id); } catch (e) {}
+  maybeCheckUpdate();
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = $("#toast"); el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); toast(t("copiedUrl")); }
+  catch (e) {
+    const code = btn.previousElementSibling; const r = document.createRange(); r.selectNodeContents(code);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+}
+
+function wire() {
+  const form = $("#form");
+  form.addEventListener("input", onInput);
+  form.addEventListener("change", onInput);
+  form.addEventListener("submit", e => e.preventDefault());
+  $("#simTime").addEventListener("input", onInput);
+  $("#simNow").addEventListener("click", () => { simMin = null; renderFace(); });
+
+  $("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) selectTab(b.dataset.tab); });
+  $("#tabs").addEventListener("keydown", e => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const bs = $$("#tabs button"), i = bs.findIndex(b => b.getAttribute("aria-selected") === "true");
+    const n = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length]; selectTab(n.dataset.tab); n.focus();
+  });
+
+  $("#swatches").innerHTML = SWATCHES.map(c => `<button type="button" data-c="${c}" style="--sw:${c}" aria-label="${c.toUpperCase()}"></button>`).join("");
+  $("#swatches").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    cfg.color = b.dataset.c; $("#color").value = cfg.color; after();
+  });
+
+  $("#copyMon").addEventListener("click", () => {
+    const mon = cfg.nightDays[0]; cfg.nightDays = cfg.nightDays.map(() => [...mon]);
+    buildWeek(); after(); toast(t("copied"));
+  });
+  $("#ntpReset").addEventListener("click", () => { cfg.ntp = DEFAULT_NTP; $("#ntp").value = DEFAULT_NTP; validate(false); after(); });
+
+  // Header DE/EN = the clock's language setting (layout + page language), saved like any other setting.
+  $$("[name=uiLang]").forEach(r => r.addEventListener("change", () => {
+    if (!cfg) return;
+    cfg.lang = r.value === "en" ? 1 : 0;
+    fillForm(); after();
+  }));
+
+  $("#cornerTest").addEventListener("click", async e => {
+    const b = e.currentTarget; b.disabled = true;
+    api.action("cornertest").catch(() => toast(t("actionErr")));
+    for (let k = 0; k < 4; k++) { cornerTestLed = 110 + k; renderFace(); await sleep(1000); }
+    cornerTestLed = null; renderFace(); b.disabled = false;
+  });
+
+  $("#setTime").addEventListener("click", async () => {
+    const n = new Date();
+    try { await api.action("time", { epoch: Math.floor(n.getTime() / 1000) }); }
+    catch (err) { toast(t("actionErr")); return; }
+    toast(t("manualDone", { v: `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}` }));
+  });
+
+  document.addEventListener("click", async e => {
+    const c = e.target.closest("[data-copy]"); if (c) { copyText(c.dataset.copy, c); return; }
+    const ask = e.target.closest("[data-ask]");
+    if (ask) { $("#ask-" + ask.dataset.ask).hidden = false; ask.hidden = true; return; }
+    const cancel = e.target.closest("[data-cancel]");
+    if (cancel) { $("#ask-" + cancel.dataset.cancel).hidden = true; $(`[data-ask="${cancel.dataset.cancel}"]`).hidden = false; return; }
+    const doIt = e.target.closest("[data-do]");
+    if (doIt) {
+      const name = doIt.dataset.do;
+      try { await api.action(name); } catch (err) { toast(t("actionErr")); return; }
+      $("#ask-" + name).hidden = true; $(`[data-ask="${name}"]`).hidden = false;
+      toast(t(name === "restart" ? "restartDone" : "wresetDone"));
+      if (name === "restart" && !MOCK) setTimeout(() => location.reload(), 15000);
+      return;
+    }
+    if (e.target.id === "recheckUpd") { checkUpdate(); return; }
+    if (e.target.id === "installUpd") {
+      const b = e.target; b.disabled = true;
+      try { await api.action("update"); toast(t("uStarted", { v: upd.latest })); if (!MOCK) setTimeout(() => location.reload(), 90000); }
+      catch (err) { toast(t("actionErr")); b.disabled = false; }
+    }
+  });
+
+  $("#discard").addEventListener("click", () => {
+    cfg = clone(saved); $$(".invalid").forEach(el => el.classList.remove("invalid")); $$(".err").forEach(el => el.hidden = true);
+    buildWeek(); fillForm(); after();
+  });
+  $("#save").addEventListener("click", save);
+}
+
+async function init() {
+  $("#mockbar").hidden = !MOCK;
+  // Page language is a per-browser choice; default follows the browser language.
+  // Until the clock answers, the page follows the browser language; after that the clock's language setting.
+  L = (navigator.language || "de").toLowerCase().startsWith("de") ? "de" : "en";
+  $("#ui-" + L).checked = true;
+  wire();
+  let start = "led";
+  try { const s = localStorage.getItem("wc-tab"); if (s) start = s; } catch (e) {}
+  const h = location.hash.slice(1); if (["led","night","disp","time","net","sys"].includes(h)) start = h;
+  selectTab(start);
+  try {
+    const data = await api.load();
+    cfg = data.cfg; st = data.status; saved = clone(cfg);
+  } catch (e) { toast(t("loadErr")); return; }
+  L = cfg.lang === 1 ? "en" : "de";
+  applyLang(); renderStatus(); after();
+  setInterval(() => {
+    renderFace(); updateSetTimeLabel();
+    // Random color mode: the clock picks a new color when the minute changes, fetch it right afterwards
+    if (saved && saved.rainbow !== 0 && new Date().getSeconds() === 2) refreshStatus();  // New random colors of the minute
+  }, 1000);
+  setInterval(refreshStatus, 60000);  // Time sync, uptime, WiFi signal
+}
+init();
+</script>
+</body>
+</html>
