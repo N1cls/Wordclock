@@ -477,6 +477,9 @@ a{color:var(--accent)}
             </div>
             <p class="err" id="pinErr" hidden></p>
             <p class="hint" id="pinHint"></p>
+            <h3 data-t="gWiring" style="margin-top:14px">Anschlussplan</h3>
+            <dl class="kv" id="wiringList"></dl>
+            <p class="hint" id="wiringHint"></p>
           </div>
           <div class="group">
             <div class="actionrow">
@@ -533,7 +536,7 @@ const mock = {
     rest: true, update: 1, pins: { led: 12, sda: 4, scl: 5 }
   },
   status: {
-    version: "V6.1.0", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
+    version: "V6.1.1", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
     ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, timeOk: true,
     uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, ledsOn: true, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
     pinDefaults: { led: 12, sda: 4, scl: 5 }
@@ -636,8 +639,13 @@ const T = {
     uHint0: "Updates sind ausgeschaltet.", uHint1: "Lade eine .bin-Datei über die Update-Seite hoch:",
     uHint2Ok: "Installiert ist die aktuelle Version {v}.", uHint2New: "Version {v} ist verfügbar.", uInstall: "Jetzt installieren", uStarted: "Update auf {v} läuft. Die Uhr zeigt den Fortschritt an und startet danach neu.",
     uChecking: "Suche nach Updates auf GitHub …", uErr: "GitHub ist gerade nicht erreichbar.", uErrMem: "Zu wenig freier Speicher für die Verbindung zu GitHub. Nach einem Neustart erneut versuchen.", uRecheck: "Erneut prüfen", actionErr: "Die Uhr hat nicht geantwortet.",
-    gHw: "Hardware", pinLed: "LED-Daten (GPIO)", pinSda: "RTC SDA (GPIO)", pinScl: "RTC SCL (GPIO)",
+    gHw: "Hardware", pinLed: "LED-Streifen DIN", pinSda: "RTC SDA („D“)", pinScl: "RTC SCL („C“)",
     pinHint: "GPIO-Nummern der Anschlüsse. Änderungen gelten nach einem Neustart. Standard beim {chip}: LED {l}, SDA {d}, SCL {c}.",
+    gWiring: "Anschlussplan", wModule: "Modul / Streifen", wBoard: "Board ({chip})",
+    wLed: "LED-Streifen: DIN", wLedPwr: "LED-Streifen: 5V und GND", wLedPwrTo: "Netzteil 5\u00a0V",
+    wRtcVcc: "RTC: VCC / „+“", wRtcSda: "RTC: SDA / „D“", wRtcScl: "RTC: SCL / „C“", wRtcGnd: "RTC: GND / „−“",
+    w33: "3,3\u00a0V", wGnd: "GND", wFree: "frei lassen",
+    wiringHint: "Die RTC-Module sind unterschiedlich beschriftet: SDA heißt manchmal „D“, SCL „C“, VCC „+“ und GND „−“. Die RTC an 3,3\u00a0V anschließen, nicht an 5\u00a0V – sonst liegen 5\u00a0V an den Datenleitungen des {chip}. GND von Netzteil, LED-Streifen, RTC und Board müssen verbunden sein.",
     pinErr: "Bitte drei verschiedene GPIO-Nummern von 0 bis 48 angeben.", savedRestart: "Gespeichert. Die neuen Pins gelten nach einem Neustart.",
     gRestart: "Neustart", restartSub: "Startet die Uhr neu. Einstellungen bleiben erhalten.", restartBtn: "Neu starten",
     restartQ: "Uhr jetzt neu starten?", cancel: "Abbrechen", restartDone: "Neustart läuft, die Seite ist in etwa 15 Sekunden wieder da.",
@@ -706,8 +714,13 @@ const T = {
     uHint0: "Updates are turned off.", uHint1: "Upload a .bin file on the update page:",
     uHint2Ok: "The latest version {v} is installed.", uHint2New: "Version {v} is available.", uInstall: "Install now", uStarted: "Updating to {v}. The clock shows the progress and restarts afterwards.",
     uChecking: "Checking GitHub for updates…", uErr: "GitHub is not reachable right now.", uErrMem: "Not enough free memory for the connection to GitHub. Try again after a restart.", uRecheck: "Check again", actionErr: "The clock did not respond.",
-    gHw: "Hardware", pinLed: "LED data (GPIO)", pinSda: "RTC SDA (GPIO)", pinScl: "RTC SCL (GPIO)",
+    gHw: "Hardware", pinLed: "LED strip DIN", pinSda: "RTC SDA (\"D\")", pinScl: "RTC SCL (\"C\")",
     pinHint: "GPIO numbers of the connections. Changes apply after a restart. Default for the {chip}: LED {l}, SDA {d}, SCL {c}.",
+    gWiring: "Wiring", wModule: "Module / strip", wBoard: "Board ({chip})",
+    wLed: "LED strip: DIN", wLedPwr: "LED strip: 5V and GND", wLedPwrTo: "5\u00a0V power supply",
+    wRtcVcc: "RTC: VCC / \"+\"", wRtcSda: "RTC: SDA / \"D\"", wRtcScl: "RTC: SCL / \"C\"", wRtcGnd: "RTC: GND / \"−\"",
+    w33: "3.3\u00a0V", wGnd: "GND", wFree: "leave unconnected",
+    wiringHint: "RTC modules are labeled differently: SDA is sometimes \"D\", SCL \"C\", VCC \"+\" and GND \"−\". Connect the RTC to 3.3\u00a0V, not 5\u00a0V – otherwise the data lines of the {chip} get 5\u00a0V. GND of the power supply, LED strip, RTC and board must be connected.",
     pinErr: "Enter three different GPIO numbers from 0 to 48.", savedRestart: "Saved. The new pins apply after a restart.",
     gRestart: "Restart", restartSub: "Restarts the clock. Settings are kept.", restartBtn: "Restart",
     restartQ: "Restart the clock now?", cancel: "Cancel", restartDone: "Restarting. The page will be back in about 15 seconds.",
@@ -922,6 +935,28 @@ function buildWeek() {
   }).join("");
 }
 
+// Wiring plan: GPIO numbers with the names printed on the board (D1 mini / NodeMCU use D0..D8)
+const ESP8266_PIN_NAMES = { 16: "D0", 5: "D1", 4: "D2", 0: "D3", 2: "D4", 14: "D5", 12: "D6", 13: "D7", 15: "D8", 3: "RX", 1: "TX" };
+function boardPin(gpio) {
+  if (!Number.isInteger(gpio)) return "–";
+  const name = st.chip === "ESP8266" ? ESP8266_PIN_NAMES[gpio] : null;
+  return `<span class="mono">GPIO ${gpio}</span>` + (name ? ` <b class="mono">(${name})</b>` : "");
+}
+function renderWiring() {
+  const p = cfg.pins || {};
+  const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  $("#wiringList").innerHTML =
+    `<dt><b>${t("wModule")}</b></dt><dd><b>${t("wBoard", { chip: st.chip })}</b></dd>` +
+    row(t("wLed"), boardPin(p.led)) +
+    row(t("wLedPwr"), t("wLedPwrTo")) +
+    row(t("wRtcVcc"), t("w33")) +
+    row(t("wRtcSda"), boardPin(p.sda)) +
+    row(t("wRtcScl"), boardPin(p.scl)) +
+    row(t("wRtcGnd"), t("wGnd")) +
+    row("RTC: NC / 32K / SQW", t("wFree"));
+  $("#wiringHint").textContent = t("wiringHint", { chip: st.chip });
+}
+
 function renderDeps() {
   // LEDs
   const max = cfg.psu ? 255 : 128;
@@ -943,6 +978,7 @@ function renderDeps() {
   $("#quarterGroup").hidden = cfg.lang !== 0;
   const pd = st.pinDefaults || {};
   $("#pinHint").textContent = t("pinHint", { chip: st.chip, l: pd.led, d: pd.sda, c: pd.scl });
+  renderWiring();
   $("#dateSub").textContent = t("dateSub" + cfg.date);
   $("#setWlanSub").textContent = t("setWlanSub", { v: cfg.lang === 0 ? "SET WLAN" : "WIFI" });
   $("#minOrderField").hidden = cfg.minMode !== 2;
