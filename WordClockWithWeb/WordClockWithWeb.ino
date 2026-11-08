@@ -76,11 +76,8 @@ typedef HTTPUpdateServer ESP8266HTTPUpdateServer;   // Same interface as on the 
 #include "webpage.h"                  // Configuration page (gzipped), generated from web/index.html by tools/build_webpage.py
 
 #if defined(ESP32)
-#include <driver/rmt_tx.h>       // Own LED output, see ledBegin() / ledShow()
-#include <driver/rmt_encoder.h>  // Own LED output, see ledBegin() / ledShow()
-#include <soc/soc_caps.h>        // RMT memory size and DMA support of the chip
-// The HTTPS connection to GitHub needs more stack than the default 8 KB of the Arduino loop task. The LED output of Adafruit NeoPixel
-// (only used as fallback, see ledBegin()) puts the whole RMT buffer for the 114 LEDs (about 11 KB) on the stack as well.
+// Adafruit NeoPixel puts the whole RMT buffer for the 114 LEDs (about 11 KB) on the stack of the calling task,
+// more than the default 8 KB of the Arduino loop task. The HTTPS connection to GitHub needs stack as well.
 SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 #endif
 
@@ -88,7 +85,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.1.2";
+const char* WORD_CLOCK_VERSION = "V6.2.0";
 
 
 // ###########################################################################################################################################
@@ -131,109 +128,6 @@ bool RESTmanLEDsON = true;                                                      
 bool UpdateAvailable = false;                                                        // Global flag to check for avaiable updates
 String AvailableVersion = "-";                                                       // Global string to check for avaiable updates
 bool NightModeActive = false;                                                        // Global flag to track if Night Mode is currently active - used for PING function
-
-
-// ###########################################################################################################################################
-// # LED output: ledBegin() and ledShow() replace pixels.begin() and pixels.show(). Adafruit NeoPixel still holds the pixel data.
-// #
-// # ESP8266: unchanged, Adafruit NeoPixel sends the data with disabled interrupts, so there are no pauses in the data stream.
-// #
-// # ESP32: Adafruit NeoPixel uses only one RMT memory block (48 or 64 bits) and refills it in an interrupt every 30..40 µs.
-// # If WiFi or a flash access delays this interrupt, the data stream to the LEDs gets a pause or wrong bits. Old WS2812 LEDs
-// # (5050 with 6 pins) often take a pause of a few µs already as the end of the data: the next LEDs show the data of other LEDs,
-// # the display looks shifted or shows wrong colors. Newer LEDs (WS2812B-V5, SK6812) wait 80..280 µs and hide the problem.
-// # The own RMT channel below uses as much memory as the chip has (ESP32-S3: DMA), the interrupt then has 60..640 µs time.
-// # The bit timing is centered in the tolerances of the old WS2812 and of the newer WS2812B / SK6812 LEDs (Adafruit NeoPixel
-// # uses 0.4 µs low after a 1-bit on the ESP32, the old WS2812 need at least 0.45 µs).
-// # If the RMT channel can not be created, the output of Adafruit NeoPixel is used as before.
-// ###########################################################################################################################################
-#if defined(ESP32)
-#define LED_RMT_RESOLUTION_HZ 20000000  // RMT clock 20 MHz = 0.05 µs per tick
-#define LED_T0H 7                       // 0-bit: 0.35 µs high
-#define LED_T0L 18                      //        0.90 µs low
-#define LED_T1H 14                      // 1-bit: 0.70 µs high
-#define LED_T1L 11                      //        0.55 µs low  -> 1.25 µs per bit (800 kHz)
-#define LED_RESET_US 300                // Pause between two images, the LEDs take over the new data (WS2812B-V5: at least 280 µs)
-
-rmt_channel_handle_t ledChannel = nullptr;  // Own RMT channel, nullptr = Adafruit NeoPixel output is used
-rmt_encoder_handle_t ledEncoder = nullptr;  // Turns the bytes of the pixel data into the WS2812 bits
-unsigned long ledLastShow = 0;              // micros() at the end of the last transmission
-
-// Try to create the RMT channel with the given memory size (number of bits it can hold):
-bool ledTryChannel(int pin, int symbols, bool dma) {
-  rmt_tx_channel_config_t cfg = {};
-  cfg.gpio_num = (gpio_num_t)pin;
-  cfg.clk_src = RMT_CLK_SRC_DEFAULT;
-  cfg.resolution_hz = LED_RMT_RESOLUTION_HZ;
-  cfg.mem_block_symbols = symbols;
-  cfg.trans_queue_depth = 1;
-  cfg.flags.with_dma = dma;
-  if (rmt_new_tx_channel(&cfg, &ledChannel) != ESP_OK) {
-    ledChannel = nullptr;
-    return false;
-  }
-  Serial.printf("LED output: own RMT channel with a buffer of %d bits%s\n", symbols, dma ? " (DMA)" : "");
-  return true;
-}
-
-void ledBegin(int pin) {
-  pixels.setPin(pin);
-  pixels.begin();  // Adafruit NeoPixel holds the pixel data, ledShow() sends it
-  bool ok = false;
-#if SOC_RMT_SUPPORT_DMA
-  ok = ledTryChannel(pin, 1024, true);  // ESP32-S3: DMA buffer, refilled every 640 µs
-#endif
-  for (int blocks = 8; !ok && blocks >= 1; blocks /= 2) {  // Otherwise as many memory blocks as free (ESP32: 8, ESP32-C3: 2..4)
-    ok = ledTryChannel(pin, blocks * SOC_RMT_MEM_WORDS_PER_CHANNEL, false);
-  }
-  if (ok) {
-    rmt_bytes_encoder_config_t enc = {};
-    enc.bit0.level0 = 1;
-    enc.bit0.duration0 = LED_T0H;
-    enc.bit0.level1 = 0;
-    enc.bit0.duration1 = LED_T0L;
-    enc.bit1.level0 = 1;
-    enc.bit1.duration0 = LED_T1H;
-    enc.bit1.level1 = 0;
-    enc.bit1.duration1 = LED_T1L;
-    enc.flags.msb_first = 1;
-    ok = rmt_new_bytes_encoder(&enc, &ledEncoder) == ESP_OK;
-    if (ok) ok = rmt_enable(ledChannel) == ESP_OK;
-    if (!ok) {
-      if (ledEncoder) rmt_del_encoder(ledEncoder);
-      rmt_del_channel(ledChannel);
-      ledEncoder = nullptr;
-      ledChannel = nullptr;
-    }
-  }
-  if (!ok) Serial.println("LED output: no RMT channel available - using the output of Adafruit NeoPixel");
-}
-
-void ledShow() {
-  if (!ledChannel) {
-    pixels.show();
-    return;
-  }
-  unsigned long pause = micros() - ledLastShow;
-  if (pause < LED_RESET_US) delayMicroseconds(LED_RESET_US - pause);
-  rmt_transmit_config_t tx = {};
-  tx.loop_count = 0;
-  tx.flags.eot_level = 0;  // Data line low after the transmission
-  if (rmt_transmit(ledChannel, ledEncoder, pixels.getPixels(), pixels.numPixels() * 3, &tx) == ESP_OK) {
-    rmt_tx_wait_all_done(ledChannel, 100);  // 114 LEDs take about 3.5 ms
-  }
-  ledLastShow = micros();
-}
-#else
-void ledBegin(int pin) {
-  pixels.setPin(pin);
-  pixels.begin();
-}
-
-void ledShow() {
-  pixels.show();
-}
-#endif
 
 
 // ###########################################################################################################################################
@@ -316,7 +210,24 @@ struct hwRec {
 } hw;
 #define HW_MAGIC 0x57434831UL  // "WCH1"
 #define HW_OFFSET (((sizeof(parameter) + 3) / 4) * 4)
-#define EEPROM_SIZE (HW_OFFSET + sizeof(hwRec))
+
+
+// ###########################################################################################################################################
+// # Sunrise and sunset for the night mode, stored behind the hardware settings so that the existing settings stay valid.
+// # Location 0 / 0 means "not set". Changed on the configuration page (Night mode).
+// ###########################################################################################################################################
+struct sunRec {
+  uint32_t magic;
+  float lat;           // Latitude in degrees, north positive
+  float lon;           // Longitude in degrees, east positive
+  int16_t riseOffset;  // Minutes added to the sunrise, -120..120
+  int16_t setOffset;   // Minutes added to the sunset, -120..120
+  uint8_t on;          // 1 = the day times follow sunrise and sunset
+  uint8_t reserved[3];
+} sun;
+#define SUN_MAGIC 0x57435331UL  // "WCS1"
+#define SUN_OFFSET (((HW_OFFSET + sizeof(hwRec) + 3) / 4) * 4)
+#define EEPROM_SIZE (SUN_OFFSET + sizeof(sunRec))
 
 bool validPin(int p) {
 #if defined(ESP32)
@@ -329,6 +240,16 @@ bool validPin(int p) {
 void writeHwConfig() {
   hw.magic = HW_MAGIC;
   EEPROM.put(HW_OFFSET, hw);
+  EEPROM.commit();
+}
+
+bool sunLocationSet() {
+  return !(sun.lat == 0 && sun.lon == 0);
+}
+
+void writeSunConfig() {
+  sun.magic = SUN_MAGIC;
+  EEPROM.put(SUN_OFFSET, sun);
   EEPROM.commit();
 }
 
@@ -455,7 +376,8 @@ void setup() {
   Serial.println(" (" CHIP_NAME ")");
   Serial.println("######################################################################");
   readEEPROM();                     // get persistent data from EEPROM (and the pins)
-  ledBegin(hw.ledPin);              // Init the LED output, LED pin from the configuration page
+  pixels.setPin(hw.ledPin);         // LED pin from the configuration page
+  pixels.begin();                   // Init the NeoPixel library
   dunkel();                         // Switch display black
   if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();    // Set default minute corner LED order based on switchLEDOrder setting
   pixels.setBrightness(intensity);  // Set LED brightness
@@ -474,7 +396,7 @@ void setup() {
   handleTime();                     // handle NTP / RTC time
   if (timeValid) {                  // Time from the RTC: show it right away
     ShowTheTime();
-    ledShow();
+    pixels.show();
   } else {
     SetWLAN();  // Show SET WLAN text
   }
@@ -561,7 +483,7 @@ void loop() {
   // PING function:
   if (PING_USEMONITOR == 1 && WiFi.status() == WL_CONNECTED) PingIP();
 
-  if (LEDsON == true && RESTmanLEDsON == true) ledShow();  // This sends the updated pixel color to the hardware.
+  if (LEDsON == true && RESTmanLEDsON == true) pixels.show();  // This sends the updated pixel color to the hardware.
 }
 
 
@@ -686,6 +608,14 @@ void readEEPROM() {
     hw.sclPin = SCL_PIN;
     hw.rtcUtc = 0;
     hw.reserved = 0;
+  }
+
+  // Sunrise and sunset settings, switched off if none are stored yet:
+  EEPROM.get(SUN_OFFSET, sun);
+  if (sun.magic != SUN_MAGIC || !(sun.lat >= -90 && sun.lat <= 90) || !(sun.lon >= -180 && sun.lon <= 180)
+      || sun.riseOffset < -120 || sun.riseOffset > 120 || sun.setOffset < -120 || sun.setOffset > 120) {
+    memset(&sun, 0, sizeof(sun));
+    sun.magic = SUN_MAGIC;
   }
 }
 
@@ -855,7 +785,7 @@ void showIP() {
         offSet++;
       }
     }
-    ledShow();
+    pixels.show();
     delay(150);  // set speed of timeshift
   }
 }
@@ -1054,7 +984,7 @@ void showCurrentDate() {
     iYear = iYear % 100;
     printAt(iYear / 10, x + 38, 2);
     printAt(iYear % 10, x + 44, 2);
-    ledShow();
+    pixels.show();
     delay(150);  // set speed of timeshift
   }
 }
@@ -1303,11 +1233,92 @@ void ShowTheTime() {
 
 
 // ###########################################################################################################################################
+// # Sunrise and sunset, calculated on the clock itself (works without internet with the RTC as well):
+// # NOAA "General Solar Position Calculations", accuracy about 1..2 minutes. The web interface uses the same formula for its preview.
+// ###########################################################################################################################################
+int sunRiseToday = -1;  // Local minutes after midnight, -1 = unknown. Polar night: 1440 / 0, polar day: 0 / 1440
+int sunSetToday = -1;
+long sunCalcDate = -1;  // Date of the last calculation, -1 = calculate again
+int sunCalcOffset = 0;  // Difference to UTC at the last calculation (daylight saving time starts or ends in the night)
+
+// Sunrise and sunset in minutes after midnight UTC. Returns 0 = normal day, 1 = polar day, -1 = polar night.
+int sunTimesUtc(int year, int month, int day, double lat, double lon, double& riseUtc, double& setUtc) {
+  static const int daysBefore[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+  bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+  int dayOfYear = daysBefore[month - 1] + day + ((leap && month > 2) ? 1 : 0);
+  double g = 2.0 * PI / (leap ? 366.0 : 365.0) * (dayOfYear - 1);  // Fractional year
+  double eqTime = 229.18 * (0.000075 + 0.001868 * cos(g) - 0.032077 * sin(g) - 0.014615 * cos(2 * g) - 0.040849 * sin(2 * g));
+  double decl = 0.006918 - 0.399912 * cos(g) + 0.070257 * sin(g) - 0.006758 * cos(2 * g) + 0.000907 * sin(2 * g)
+                - 0.002697 * cos(3 * g) + 0.00148 * sin(3 * g);
+  double latRad = lat * DEG_TO_RAD;
+  double cosHa = cos(90.833 * DEG_TO_RAD) / (cos(latRad) * cos(decl)) - tan(latRad) * tan(decl);
+  if (cosHa > 1) return -1;  // The sun does not rise
+  if (cosHa < -1) return 1;  // The sun does not set
+  double ha = acos(cosHa) * RAD_TO_DEG;
+  riseUtc = 720 - 4 * (lon + ha) - eqTime;
+  setUtc = 720 - 4 * (lon - ha) - eqTime;
+  return 0;
+}
+
+// Difference between local time and UTC in minutes right now (time zone and daylight saving time):
+int utcOffsetMinutes() {
+  time_t now;
+  time(&now);
+  struct tm lt, gt;
+  localtime_r(&now, &lt);
+  gmtime_r(&now, &gt);
+  int days = lt.tm_yday - gt.tm_yday;
+  if (days > 1) days = -1;  // Turn of the year
+  if (days < -1) days = 1;
+  return days * 1440 + (lt.tm_hour - gt.tm_hour) * 60 + (lt.tm_min - gt.tm_min);
+}
+
+// Calculate sunrise and sunset of today once a day (and again after the settings or the daylight saving time changed):
+void updateSunTimes() {
+  long date = iYear * 10000L + iMonth * 100L + iDay;
+  int offset = utcOffsetMinutes();
+  if (date == sunCalcDate && offset == sunCalcOffset) return;
+  sunCalcDate = date;
+  sunCalcOffset = offset;
+  sunRiseToday = sunSetToday = -1;
+  if (!sunLocationSet()) return;
+  double rise = 0, set = 0;
+  int state = sunTimesUtc(iYear, iMonth, iDay, sun.lat, sun.lon, rise, set);
+  if (state == -1) {  // Polar night: no day brightness
+    sunRiseToday = 1440;
+    sunSetToday = 0;
+  } else if (state == 1) {  // Polar day: day brightness all day
+    sunRiseToday = 0;
+    sunSetToday = 1440;
+  } else {
+    sunRiseToday = constrain((int)lround(rise) + offset, 0, 1440);
+    sunSetToday = constrain((int)lround(set) + offset, 0, 1440);
+  }
+  Serial.printf("Sun times for %ld: sunrise %02d:%02d, sunset %02d:%02d\n", date, sunRiseToday / 60, sunRiseToday % 60, sunSetToday / 60, sunSetToday % 60);
+}
+
+
+// ###########################################################################################################################################
 // # Handle day and night time mode:
 // ###########################################################################################################################################
 
+// displayonMin / displayonMax are the stored night times of the weekday: day brightness from displayonMin + 1 to displayonMax o'clock.
+// With sunrise and sunset switched on, the darker setting wins: the day starts at the later of the sunrise and the morning time
+// and ends at the earlier of the sunset and the evening time (so the clock is not bright at 5 o'clock in the summer).
 void DayNightMode(int displayonMin, int displayonMax) {
-  if (iHour > displayonMin && iHour < displayonMax) {
+  int now = iHour * 60 + iMinute;
+  int dayStart = (displayonMin + 1) * 60;
+  int dayEnd = displayonMax * 60;
+  if (sun.on && sunLocationSet()) {
+    updateSunTimes();
+    if (sunRiseToday >= 0) {
+      int sunDayStart = sunRiseToday + sun.riseOffset;
+      int sunDayEnd = sunSetToday + sun.setOffset;
+      if (sunDayStart > dayStart) dayStart = sunDayStart;
+      if (sunDayEnd < dayEnd) dayEnd = sunDayEnd;
+    }
+  }
+  if (now >= dayStart && now < dayEnd) {
     pixels.setBrightness(intensity);  // Day brightness
     NightModeActive = false;
     ShowTheTime();
@@ -1421,7 +1432,7 @@ void ledsON() {
   pixels.setBrightness(intensity);
   RESTmanLEDsON = true;
   LEDsON = true;
-  ledShow();
+  pixels.show();
 }
 
 
@@ -1432,10 +1443,10 @@ void ledsOFF() {
   server1->send(200, "text/plain", "WordClock LEDs set to OFF");
   Serial.println("WordClock LEDs set to OFF");
   pixels.setBrightness(0);
-  ledShow();
+  pixels.show();
   RESTmanLEDsON = false;
   LEDsON = false;
-  ledShow();
+  pixels.show();
 }
 
 
@@ -1460,18 +1471,18 @@ void DisplayTest() {
 
     for (int i = 0; i < NUMPIXELS; i++) {
       setLED(i, i, 0);
-      ledShow();
+      pixels.show();
     }
 
     for (int i = 0; i < NUMPIXELS; i++) {
       setLED(i, i, 1);
-      ledShow();
+      pixels.show();
       delay(50);
       pixels.setPixelColor(i, 0, 0, 0);
     }
 
     pixels.setPixelColor(NUMPIXELS, 0, 0, 0);
-    ledShow();
+    pixels.show();
   }
 }
 
@@ -1510,7 +1521,7 @@ void SetWLAN() {  // Shown at startup and as long as the clock has no time (no W
           break;
         }
     }
-    ledShow();
+    pixels.show();
   }
 }
 
@@ -1539,7 +1550,7 @@ void ClockRestart() {  // Called by the REST function /clockrestart and by the c
         break;
       }
   }
-  ledShow();
+  pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
   Serial.println("##########################################");
@@ -1584,7 +1595,7 @@ void ClockWifiReset() {  // Called by the REST function /clockwifireset and by t
         break;
       }
   }
-  ledShow();
+  pixels.show();
   WiFi.disconnect(true);
   delay(1500);
   wifiManager.resetSettings();
@@ -1790,7 +1801,7 @@ void PingIP() {
     if (PingStatusIP1 == false && PingStatusIP2 == false && PingStatusIP3 == false) {
       if (PING_DEBUG_MODE == 1) Serial.println("All clients offline --> LEDs = OFF until one of the IP-addresses can be reached again...");
       pixels.setBrightness(0);
-      ledShow();
+      pixels.show();
       if (RESTmanLEDsON == true) LEDsON = false;
     }
   }
@@ -1888,13 +1899,13 @@ void WIFI_DebugWifiLEDs(uint32_t color) {
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  ledShow();
+  pixels.show();
   delay(1000);
   int myArray[] = { 110, 111, 112, 113 };
   for (int element : myArray) {
     pixels.setPixelColor(element, color);
   }
-  ledShow();
+  pixels.show();
   delay(3000);
 }
 
@@ -1927,7 +1938,7 @@ void update_started() {  // Callback update start function
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  ledShow();
+  pixels.show();
   switchRainBow = 0;
   pixels.setBrightness(50);
   redVal = 0;
@@ -1952,7 +1963,7 @@ void update_started() {  // Callback update start function
   setLED(94, 94, 1);
   setLED(92, 92, 1);
   setLED(104, 104, 1);
-  ledShow();
+  pixels.show();
   delay(1500);
 }
 
@@ -1963,13 +1974,13 @@ void update_finished() {  // Callback update success finish function
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  ledShow();
+  pixels.show();
   update_msg_LEDs(0, 255, 0);
   delay(3000);
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  ledShow();
+  pixels.show();
   Serial.println("Show RESET before board reset...");
   switch (switchLangWeb) {
     case 0:  // DE:
@@ -1990,7 +2001,7 @@ void update_finished() {  // Callback update success finish function
         break;
       }
   }
-  ledShow();
+  pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
   Serial.println("##########################################");
@@ -2004,13 +2015,13 @@ void update_error(int err) {  // Callback update error finish function
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  ledShow();
+  pixels.show();
   update_msg_LEDs(255, 0, 0);
   delay(3000);
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  ledShow();
+  pixels.show();
   Serial.println("Show RESET before board reset...");
   switch (switchLangWeb) {
     case 0:  // DE:
@@ -2031,7 +2042,7 @@ void update_error(int err) {  // Callback update error finish function
         break;
       }
   }
-  ledShow();
+  pixels.show();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
   Serial.println("##########################################");
@@ -2074,7 +2085,7 @@ void update_msg_LEDs(int redCol, int greenCol, int blueCol) {
   setLED(84, 84, 1);
   setLED(91, 91, 1);
   setLED(107, 107, 1);
-  ledShow();
+  pixels.show();
 }
 
 void update_progress(int cur, int total) {  // Callback update download progress function
@@ -2118,7 +2129,7 @@ void update_progress(int cur, int total) {  // Callback update download progress
   if (percent == 100) {
     delay(1500);
   }
-  ledShow();
+  pixels.show();
   Serial.print("Automatic update - download file progress: ");
   Serial.print(percent);
   Serial.println("%");
@@ -2297,6 +2308,12 @@ void handleApiState() {
     day.add(*nightOffFrom[d]);
     day.add(*nightOnAfter[d]);
   }
+  JsonObject sn = c["sun"].to<JsonObject>();
+  sn["on"] = sun.on != 0;
+  sn["lat"] = serialized(String(sun.lat, 4));
+  sn["lon"] = serialized(String(sun.lon, 4));
+  sn["rise"] = sun.riseOffset;
+  sn["set"] = sun.setOffset;
   c["lang"] = switchLangWeb;
   c["deSpecial"] = DEspecial1;
   c["blink"] = blinkTime != 0;
@@ -2384,6 +2401,21 @@ void handleApiConfig() {
       onAfter[d] = nd[d][1] | -1;
       if (offFrom[d] < 1 || offFrom[d] > 24 || onAfter[d] < 0 || onAfter[d] > 23) return sendError(400, "nightDays");
     }
+  }
+
+  sunRec newSun = sun;
+  JsonObjectConst sc = c["sun"].as<JsonObjectConst>();
+  if (!sc.isNull()) {
+    newSun.on = (sc["on"] | (sun.on != 0)) ? 1 : 0;
+    newSun.lat = sc["lat"] | sun.lat;
+    newSun.lon = sc["lon"] | sun.lon;
+    int rise = sc["rise"] | (int)sun.riseOffset;
+    int set = sc["set"] | (int)sun.setOffset;
+    if (!(newSun.lat >= -90 && newSun.lat <= 90) || !(newSun.lon >= -180 && newSun.lon <= 180)) return sendError(400, "sun.loc");
+    if (newSun.on && newSun.lat == 0 && newSun.lon == 0) return sendError(400, "sun.loc");
+    if (rise < -120 || rise > 120 || set < -120 || set > 120) return sendError(400, "sun.offset");
+    newSun.riseOffset = rise;
+    newSun.setOffset = set;
   }
 
   int lang = constrain((int)(c["lang"] | switchLangWeb), 0, 1);
@@ -2488,7 +2520,12 @@ void handleApiConfig() {
   applyUpdateMode(update);
 
   writeEEPROM();
-  configNTPTime();  // also sets the time zone
+  if (memcmp(&newSun, &sun, sizeof(sun)) != 0) {
+    sun = newSun;
+    writeSunConfig();
+  }
+  sunCalcDate = -1;  // Calculate the sun times again (location, or the time zone changed)
+  configNTPTime();   // also sets the time zone
   pixels.setBrightness(intensity);
 
   bool pinsChanged = ledPin != hw.ledPin || sdaPin != hw.sdaPin || sclPin != hw.sclPin;
@@ -2521,11 +2558,11 @@ void handleApiCornerTest() {
   for (int k = 0; k < 4; k++) {
     dunkel();
     pixels.setPixelColor(110 + k, pixels.Color(255, 255, 255));
-    ledShow();
+    pixels.show();
     delay(1000);
   }
   dunkel();
-  ledShow();
+  pixels.show();
 }
 
 void handleApiTime() {

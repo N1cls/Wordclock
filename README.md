@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V6.1.2     </b></h3>
+<h3><b>Current version: V6.2.0     </b></h3>
 
 
 <hr>
@@ -100,6 +100,7 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - To every new hour the hour text can flash orange to notify about the new reached hour
 - Optionally the date can scroll across the clock hourly at :30 or every 30 minutes
 - A time span can be selected to turn off the LEDs fully or reduce their intensity for night time usage for each day seperately
+- Optional: the day times follow sunrise and sunset of your location (calculated on the clock, also without internet)
 - Updates of the software can be done with the web portal as well to avoid connecting the device to Arduino IDE again. The needed .bin file is included
 - During startup you can choose if the following functions should be displayed: IP-address as scrolling text, the SET WLAN/WiFi text and/or the LED test function
 - The LED color can be shown as randomised 'rainbow' color changed every new minute or every word can be shown in its own random color, also changed every new minute
@@ -189,6 +190,10 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - 6.1.2    ESP32: more robust LED output against flickering and wrong colors, especially with old WS2812 LEDs (5050 with 6 pins).
            Own RMT output with a large buffer (ESP32-S3: DMA), so WiFi and flash accesses no longer interrupt the data to the LEDs,
            and a bit timing within the tolerances of the old WS2812 and the newer WS2812B / SK6812 LEDs. ESP8266 unchanged.
+- 6.2.0    Night mode: optional sunrise and sunset of the location as day times (location via IP as suggestion or entered by hand,
+           offsets in minutes). The weekday times are entered as day times now ("on from 07:00 until 22:00"), the stored values
+           and the behavior stay the same.
+           ESP32: LED output of 6.1.2 reverted (Adafruit NeoPixel as in 6.1.1 again), it did not fix the wrong colors.
 
 <hr>
 
