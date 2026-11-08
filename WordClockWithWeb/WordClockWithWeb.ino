@@ -85,7 +85,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.1.2";
+const char* WORD_CLOCK_VERSION = "V6.2.0";
 
 
 // ###########################################################################################################################################
@@ -210,7 +210,24 @@ struct hwRec {
 } hw;
 #define HW_MAGIC 0x57434831UL  // "WCH1"
 #define HW_OFFSET (((sizeof(parameter) + 3) / 4) * 4)
-#define EEPROM_SIZE (HW_OFFSET + sizeof(hwRec))
+
+
+// ###########################################################################################################################################
+// # Sunrise and sunset for the night mode, stored behind the hardware settings so that the existing settings stay valid.
+// # Location 0 / 0 means "not set". Changed on the configuration page (Night mode).
+// ###########################################################################################################################################
+struct sunRec {
+  uint32_t magic;
+  float lat;           // Latitude in degrees, north positive
+  float lon;           // Longitude in degrees, east positive
+  int16_t riseOffset;  // Minutes added to the sunrise, -120..120
+  int16_t setOffset;   // Minutes added to the sunset, -120..120
+  uint8_t on;          // 1 = the day times follow sunrise and sunset
+  uint8_t reserved[3];
+} sun;
+#define SUN_MAGIC 0x57435331UL  // "WCS1"
+#define SUN_OFFSET (((HW_OFFSET + sizeof(hwRec) + 3) / 4) * 4)
+#define EEPROM_SIZE (SUN_OFFSET + sizeof(sunRec))
 
 bool validPin(int p) {
 #if defined(ESP32)
@@ -223,6 +240,16 @@ bool validPin(int p) {
 void writeHwConfig() {
   hw.magic = HW_MAGIC;
   EEPROM.put(HW_OFFSET, hw);
+  EEPROM.commit();
+}
+
+bool sunLocationSet() {
+  return !(sun.lat == 0 && sun.lon == 0);
+}
+
+void writeSunConfig() {
+  sun.magic = SUN_MAGIC;
+  EEPROM.put(SUN_OFFSET, sun);
   EEPROM.commit();
 }
 
@@ -581,6 +608,14 @@ void readEEPROM() {
     hw.sclPin = SCL_PIN;
     hw.rtcUtc = 0;
     hw.reserved = 0;
+  }
+
+  // Sunrise and sunset settings, switched off if none are stored yet:
+  EEPROM.get(SUN_OFFSET, sun);
+  if (sun.magic != SUN_MAGIC || !(sun.lat >= -90 && sun.lat <= 90) || !(sun.lon >= -180 && sun.lon <= 180)
+      || sun.riseOffset < -120 || sun.riseOffset > 120 || sun.setOffset < -120 || sun.setOffset > 120) {
+    memset(&sun, 0, sizeof(sun));
+    sun.magic = SUN_MAGIC;
   }
 }
 
@@ -1198,11 +1233,92 @@ void ShowTheTime() {
 
 
 // ###########################################################################################################################################
+// # Sunrise and sunset, calculated on the clock itself (works without internet with the RTC as well):
+// # NOAA "General Solar Position Calculations", accuracy about 1..2 minutes. The web interface uses the same formula for its preview.
+// ###########################################################################################################################################
+int sunRiseToday = -1;  // Local minutes after midnight, -1 = unknown. Polar night: 1440 / 0, polar day: 0 / 1440
+int sunSetToday = -1;
+long sunCalcDate = -1;  // Date of the last calculation, -1 = calculate again
+int sunCalcOffset = 0;  // Difference to UTC at the last calculation (daylight saving time starts or ends in the night)
+
+// Sunrise and sunset in minutes after midnight UTC. Returns 0 = normal day, 1 = polar day, -1 = polar night.
+int sunTimesUtc(int year, int month, int day, double lat, double lon, double& riseUtc, double& setUtc) {
+  static const int daysBefore[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+  bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+  int dayOfYear = daysBefore[month - 1] + day + ((leap && month > 2) ? 1 : 0);
+  double g = 2.0 * PI / (leap ? 366.0 : 365.0) * (dayOfYear - 1);  // Fractional year
+  double eqTime = 229.18 * (0.000075 + 0.001868 * cos(g) - 0.032077 * sin(g) - 0.014615 * cos(2 * g) - 0.040849 * sin(2 * g));
+  double decl = 0.006918 - 0.399912 * cos(g) + 0.070257 * sin(g) - 0.006758 * cos(2 * g) + 0.000907 * sin(2 * g)
+                - 0.002697 * cos(3 * g) + 0.00148 * sin(3 * g);
+  double latRad = lat * DEG_TO_RAD;
+  double cosHa = cos(90.833 * DEG_TO_RAD) / (cos(latRad) * cos(decl)) - tan(latRad) * tan(decl);
+  if (cosHa > 1) return -1;  // The sun does not rise
+  if (cosHa < -1) return 1;  // The sun does not set
+  double ha = acos(cosHa) * RAD_TO_DEG;
+  riseUtc = 720 - 4 * (lon + ha) - eqTime;
+  setUtc = 720 - 4 * (lon - ha) - eqTime;
+  return 0;
+}
+
+// Difference between local time and UTC in minutes right now (time zone and daylight saving time):
+int utcOffsetMinutes() {
+  time_t now;
+  time(&now);
+  struct tm lt, gt;
+  localtime_r(&now, &lt);
+  gmtime_r(&now, &gt);
+  int days = lt.tm_yday - gt.tm_yday;
+  if (days > 1) days = -1;  // Turn of the year
+  if (days < -1) days = 1;
+  return days * 1440 + (lt.tm_hour - gt.tm_hour) * 60 + (lt.tm_min - gt.tm_min);
+}
+
+// Calculate sunrise and sunset of today once a day (and again after the settings or the daylight saving time changed):
+void updateSunTimes() {
+  long date = iYear * 10000L + iMonth * 100L + iDay;
+  int offset = utcOffsetMinutes();
+  if (date == sunCalcDate && offset == sunCalcOffset) return;
+  sunCalcDate = date;
+  sunCalcOffset = offset;
+  sunRiseToday = sunSetToday = -1;
+  if (!sunLocationSet()) return;
+  double rise = 0, set = 0;
+  int state = sunTimesUtc(iYear, iMonth, iDay, sun.lat, sun.lon, rise, set);
+  if (state == -1) {  // Polar night: no day brightness
+    sunRiseToday = 1440;
+    sunSetToday = 0;
+  } else if (state == 1) {  // Polar day: day brightness all day
+    sunRiseToday = 0;
+    sunSetToday = 1440;
+  } else {
+    sunRiseToday = constrain((int)lround(rise) + offset, 0, 1440);
+    sunSetToday = constrain((int)lround(set) + offset, 0, 1440);
+  }
+  Serial.printf("Sun times for %ld: sunrise %02d:%02d, sunset %02d:%02d\n", date, sunRiseToday / 60, sunRiseToday % 60, sunSetToday / 60, sunSetToday % 60);
+}
+
+
+// ###########################################################################################################################################
 // # Handle day and night time mode:
 // ###########################################################################################################################################
 
+// displayonMin / displayonMax are the stored night times of the weekday: day brightness from displayonMin + 1 to displayonMax o'clock.
+// With sunrise and sunset switched on, the darker setting wins: the day starts at the later of the sunrise and the morning time
+// and ends at the earlier of the sunset and the evening time (so the clock is not bright at 5 o'clock in the summer).
 void DayNightMode(int displayonMin, int displayonMax) {
-  if (iHour > displayonMin && iHour < displayonMax) {
+  int now = iHour * 60 + iMinute;
+  int dayStart = (displayonMin + 1) * 60;
+  int dayEnd = displayonMax * 60;
+  if (sun.on && sunLocationSet()) {
+    updateSunTimes();
+    if (sunRiseToday >= 0) {
+      int sunDayStart = sunRiseToday + sun.riseOffset;
+      int sunDayEnd = sunSetToday + sun.setOffset;
+      if (sunDayStart > dayStart) dayStart = sunDayStart;
+      if (sunDayEnd < dayEnd) dayEnd = sunDayEnd;
+    }
+  }
+  if (now >= dayStart && now < dayEnd) {
     pixels.setBrightness(intensity);  // Day brightness
     NightModeActive = false;
     ShowTheTime();
@@ -2192,6 +2308,12 @@ void handleApiState() {
     day.add(*nightOffFrom[d]);
     day.add(*nightOnAfter[d]);
   }
+  JsonObject sn = c["sun"].to<JsonObject>();
+  sn["on"] = sun.on != 0;
+  sn["lat"] = serialized(String(sun.lat, 4));
+  sn["lon"] = serialized(String(sun.lon, 4));
+  sn["rise"] = sun.riseOffset;
+  sn["set"] = sun.setOffset;
   c["lang"] = switchLangWeb;
   c["deSpecial"] = DEspecial1;
   c["blink"] = blinkTime != 0;
@@ -2279,6 +2401,21 @@ void handleApiConfig() {
       onAfter[d] = nd[d][1] | -1;
       if (offFrom[d] < 1 || offFrom[d] > 24 || onAfter[d] < 0 || onAfter[d] > 23) return sendError(400, "nightDays");
     }
+  }
+
+  sunRec newSun = sun;
+  JsonObjectConst sc = c["sun"].as<JsonObjectConst>();
+  if (!sc.isNull()) {
+    newSun.on = (sc["on"] | (sun.on != 0)) ? 1 : 0;
+    newSun.lat = sc["lat"] | sun.lat;
+    newSun.lon = sc["lon"] | sun.lon;
+    int rise = sc["rise"] | (int)sun.riseOffset;
+    int set = sc["set"] | (int)sun.setOffset;
+    if (!(newSun.lat >= -90 && newSun.lat <= 90) || !(newSun.lon >= -180 && newSun.lon <= 180)) return sendError(400, "sun.loc");
+    if (newSun.on && newSun.lat == 0 && newSun.lon == 0) return sendError(400, "sun.loc");
+    if (rise < -120 || rise > 120 || set < -120 || set > 120) return sendError(400, "sun.offset");
+    newSun.riseOffset = rise;
+    newSun.setOffset = set;
   }
 
   int lang = constrain((int)(c["lang"] | switchLangWeb), 0, 1);
@@ -2383,7 +2520,12 @@ void handleApiConfig() {
   applyUpdateMode(update);
 
   writeEEPROM();
-  configNTPTime();  // also sets the time zone
+  if (memcmp(&newSun, &sun, sizeof(sun)) != 0) {
+    sun = newSun;
+    writeSunConfig();
+  }
+  sunCalcDate = -1;  // Calculate the sun times again (location, or the time zone changed)
+  configNTPTime();   // also sets the time zone
   pixels.setBrightness(intensity);
 
   bool pinsChanged = ledPin != hw.ledPin || sdaPin != hw.sdaPin || sclPin != hw.sclPin;

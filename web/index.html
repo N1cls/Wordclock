@@ -179,16 +179,18 @@ input:disabled,select:disabled{opacity:.55}
 .day{display:grid;grid-template-columns:7.5em auto minmax(80px,1fr);align-items:center;gap:14px;padding-block:7px}
 .day+.day{border-top:1px solid var(--line)}
 .dname{font-weight:600}
-.dsel{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.dsel{display:flex;align-items:center;gap:6px 12px;font-variant-numeric:tabular-nums}
+.dpart{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .dsel select{padding:6px 8px}
 .bar{height:10px;border-radius:5px;background:var(--bar-on)}
-.axis{display:grid;grid-template-columns:7.5em auto minmax(80px,1fr);gap:14px;font-size:11.5px;color:var(--muted)}
-.axis .ticks{grid-column:3;display:flex;justify-content:space-between;font-family:var(--mono)}
-.axis .sp{visibility:hidden}
+.axis{display:grid;grid-template-columns:7.5em auto minmax(80px,1fr);column-gap:14px;color:var(--muted)}
+.axis .ticks{grid-column:3;display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px}
+.axis .sp{visibility:hidden;height:0;overflow:hidden}
 .legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
 .legend i{display:inline-block;width:14px;height:8px;border-radius:3px;margin-right:6px;vertical-align:.05em}
 @media (max-width:560px){
-  .day{grid-template-columns:minmax(0,1fr) auto;row-gap:8px}
+  .day{grid-template-columns:auto minmax(0,1fr);row-gap:8px}
+  .day .dsel{flex-wrap:wrap;justify-content:flex-end}
   .day .bar{grid-column:1/-1}
   .axis{display:none}
 }
@@ -204,6 +206,7 @@ input:disabled,select:disabled{opacity:.55}
 
 /* network / system */
 .ipgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+#sunFields .field{align-content:end}
 .inline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .urls{display:grid;gap:8px}
 .url{display:grid;grid-template-columns:7em minmax(0,1fr) auto;align-items:center;gap:10px;font-size:13.5px}
@@ -314,10 +317,26 @@ a{color:var(--accent)}
             <p class="hint" id="nightHint"></p>
           </div>
           <div class="group" id="nightWeek">
-            <div class="ghead"><h3 data-t="gWeek">Nachtzeiten</h3><button type="button" class="btn sm" id="copyMon" data-t="copyMon">Montag auf alle Tage übertragen</button></div>
+            <div class="ghead"><h3 data-t="gWeek">Tagzeiten</h3><button type="button" class="btn sm" id="copyMon" data-t="copyMon">Montag auf alle Tage übertragen</button></div>
+            <p class="hint" id="weekHint"></p>
             <div class="week" id="week"></div>
-            <div class="axis" aria-hidden="true"><span class="sp">.</span><span class="sp">.</span><span class="ticks"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></span></div>
+            <div class="axis" aria-hidden="true"><span class="sp">.</span><span class="sp dsel" id="axisSel">.</span><span class="ticks"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></span></div>
             <div class="legend"><span><i style="background:var(--bar-on)"></i><span data-t="lgOn">Uhr leuchtet</span></span><span><i style="background:var(--bar-off)"></i><span id="lgOff"></span></span></div>
+          </div>
+          <div class="group" id="sunGroup">
+            <h3 data-t="gSun">Sonnenauf- und -untergang</h3>
+            <div class="rows">
+              <label class="row" for="sunOn"><span class="rt"><b data-t="sunOn"></b><small data-t="sunOnSub"></small></span><input type="checkbox" class="sw" id="sunOn" data-k="sun.on"></label>
+            </div>
+            <div class="ipgrid" id="sunFields">
+              <div class="field"><label for="sunLat" data-t="sunLat"></label><input type="number" id="sunLat" data-k="sun.lat" data-type="num" step="0.0001" min="-90" max="90" inputmode="decimal"></div>
+              <div class="field"><label for="sunLon" data-t="sunLon"></label><input type="number" id="sunLon" data-k="sun.lon" data-type="num" step="0.0001" min="-180" max="180" inputmode="decimal"></div>
+              <div class="field"><label for="sunRise" data-t="sunRise"></label><input type="number" id="sunRise" data-k="sun.rise" data-type="num" step="5" min="-120" max="120"></div>
+              <div class="field"><label for="sunSet" data-t="sunSet"></label><input type="number" id="sunSet" data-k="sun.set" data-type="num" step="5" min="-120" max="120"></div>
+            </div>
+            <p class="err" id="sunErr" hidden></p>
+            <div class="inline"><button type="button" class="btn sm" id="sunLocate" data-t="sunLocate">Standort per IP ermitteln</button><span class="hint" id="sunLocHint"></span></div>
+            <p class="hint" id="sunToday"></p>
           </div>
         </section>
 
@@ -529,6 +548,7 @@ const mock = {
   cfg: {
     color: "#00ff00", rainbow: 0, bright: 42, brightNight: 21, psu: false,
     night: 0, nightDays: [[22,6],[22,6],[22,6],[22,6],[23,6],[23,7],[22,6]],
+    sun: { on: false, lat: 0, lon: 0, rise: 0, set: 0 },
     lang: 0, deSpecial: 0, blink: false, date: 0, minMode: 0, minOrder: "3,4,1,2",
     ledTest: true, setWlan: true, showIp: true,
     ntp: "de.pool.ntp.org", tz: "CET-1CEST,M3.5.0/02,M10.5.0/03",
@@ -536,7 +556,7 @@ const mock = {
     rest: true, update: 1, pins: { led: 12, sda: 4, scl: 5 }
   },
   status: {
-    version: "V6.1.1", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
+    version: "V6.2.0", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
     ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, timeOk: true,
     uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, ledsOn: true, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
     pinDefaults: { led: 12, sda: 4, scl: 5 }
@@ -600,8 +620,21 @@ const T = {
     nHint0: "Die Uhr leuchtet rund um die Uhr mit der Tag-Helligkeit.",
     nHint1: "In den Nachtzeiten bleiben alle LEDs aus.",
     nHint2: "In den Nachtzeiten leuchtet die Uhr mit der Nacht-Helligkeit ({v}).",
-    gWeek: "Nachtzeiten", copyMon: "Montag auf alle Tage übertragen", copied: "Zeiten von Montag übernommen",
-    offFrom: "aus ab", until: "bis", lgOn: "Uhr leuchtet", lgOff1: "Display aus", lgOff2: "Gedimmt",
+    gWeek: "Tagzeiten", copyMon: "Montag auf alle Tage übertragen", copied: "Zeiten von Montag übernommen",
+    onFrom: "an von", until: "bis", lgOn: "Uhr leuchtet", lgOff1: "Display aus", lgOff2: "Gedimmt",
+    weekHint: "In diesen Zeiten leuchtet die Uhr mit der Tag-Helligkeit, davor und danach gilt der Nachtmodus.",
+    weekHintSun: "In diesen Zeiten leuchtet die Uhr höchstens mit der Tag-Helligkeit. Die Balken zeigen die nächsten 7 Tage mit Sonnenauf- und -untergang.",
+    gSun: "Sonnenauf- und -untergang", sunOn: "An Sonnenauf- und -untergang anpassen",
+    sunOnSub: "Hell ab Sonnenaufgang, aber nicht vor der Zeit „an von“. Nachtmodus ab Sonnenuntergang, spätestens zur Zeit „bis“. Die Uhr rechnet die Zeiten selbst aus, auch ohne Internet.",
+    sunLat: "Breitengrad", sunLon: "Längengrad", sunRise: "Versatz Aufgang (Min.)", sunSet: "Versatz Untergang (Min.)",
+    sunLocate: "Standort per IP ermitteln", sunLocating: "Standort wird ermittelt …",
+    sunLocFound: "Ungefährer Standort deiner Internetverbindung: {c}. Bei Bedarf genauer eintragen.",
+    sunLocErr: "Standort konnte nicht ermittelt werden. Bitte Breiten- und Längengrad eintragen.",
+    sunLocNote: "Fragt den Dienst geojs.io nach dem ungefähren Standort deiner Internetverbindung.",
+    sunErr: "Bitte einen Standort eintragen (Breitengrad −90…90, Längengrad −180…180) und Versatz zwischen −120 und 120 Minuten.",
+    sunToday: "Heute: Sonnenaufgang {r}, Sonnenuntergang {s}. Die Uhr leuchtet von {a} bis {b}.",
+    sunTodayNone: "Heute: Sonnenaufgang {r}, Sonnenuntergang {s}. Die Uhr bleibt den ganzen Tag im Nachtmodus.",
+    sunPolarDay: "Heute geht die Sonne nicht unter.", sunPolarNight: "Heute geht die Sonne nicht auf.",
     days: ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"],
     gLang: "Sprache der Uhr", langHint: "Legt die Wörter auf der Uhr und die Sprache dieser Seite fest, genau wie der Umschalter oben rechts. Muss zur Frontplatte passen.",
     cornerTest: "Ecken testen", cornerTestHint: "Die Uhr lässt die Ecken nacheinander als 1, 2, 3 und 4 aufleuchten.",
@@ -675,8 +708,21 @@ const T = {
     nHint0: "The clock stays at day brightness around the clock.",
     nHint1: "All LEDs stay off during the night times.",
     nHint2: "During the night times the clock uses the night brightness ({v}).",
-    gWeek: "Night times", copyMon: "Copy Monday to all days", copied: "Monday's times copied",
-    offFrom: "off from", until: "until", lgOn: "Clock lit", lgOff1: "Display off", lgOff2: "Dimmed",
+    gWeek: "Day times", copyMon: "Copy Monday to all days", copied: "Monday's times copied",
+    onFrom: "on from", until: "until", lgOn: "Clock lit", lgOff1: "Display off", lgOff2: "Dimmed",
+    weekHint: "During these times the clock uses the day brightness, before and after them the night mode applies.",
+    weekHintSun: "During these times the clock uses the day brightness at most. The bars show the next 7 days with sunrise and sunset.",
+    gSun: "Sunrise and sunset", sunOn: "Follow sunrise and sunset",
+    sunOnSub: "Bright from sunrise, but not before the \"on from\" time. Night mode from sunset, at the latest at the \"until\" time. The clock calculates the times itself, also without internet.",
+    sunLat: "Latitude", sunLon: "Longitude", sunRise: "Sunrise offset (min)", sunSet: "Sunset offset (min)",
+    sunLocate: "Locate via IP", sunLocating: "Locating …",
+    sunLocFound: "Approximate location of your internet connection: {c}. Enter it more precisely if needed.",
+    sunLocErr: "The location could not be determined. Please enter latitude and longitude.",
+    sunLocNote: "Asks the service geojs.io for the approximate location of your internet connection.",
+    sunErr: "Please enter a location (latitude −90…90, longitude −180…180) and offsets between −120 and 120 minutes.",
+    sunToday: "Today: sunrise {r}, sunset {s}. The clock is lit from {a} to {b}.",
+    sunTodayNone: "Today: sunrise {r}, sunset {s}. The clock stays in night mode all day.",
+    sunPolarDay: "Today the sun does not set.", sunPolarNight: "Today the sun does not rise.",
     days: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
     gLang: "Clock language", langHint: "Sets the words on the clock and the language of this page, same as the switch at the top right. Must match the front plate.",
     cornerTest: "Test corners", cornerTestHint: "The clock lights the corners one after another as 1, 2, 3 and 4.",
@@ -873,8 +919,8 @@ function renderFace() {
   const total = simMin ?? now.getHours() * 60 + now.getMinutes();
   const h = Math.floor(total / 60), m = total % 60;
   const { on, hour, word } = lit(h, m, cfg.lang, cfg.deSpecial, minuteOrder(cfg));
-  const [offFrom, onAfter] = cfg.nightDays[(now.getDay() + 6) % 7];
-  const isNight = cfg.night !== 0 && !(h > onAfter && h < offFrom);
+  const [dayStart, dayEnd] = dayWindow((now.getDay() + 6) % 7, now);
+  const isNight = cfg.night !== 0 && !(total >= dayStart && total < dayEnd);
   const dark = !st.ledsOn || (isNight && cfg.night === 1);
   const level = isNight && cfg.night === 2 ? cfg.brightNight : cfg.bright;
   $("#face").style.setProperty("--lvl", (0.32 + 0.68 * Math.sqrt(level / 255)).toFixed(3));
@@ -922,17 +968,75 @@ function applyLang() {
   fillForm();
 }
 
+// Each weekday stores [night from, night until HH:59] (firmware format). The page shows the day time of the same weekday instead:
+// on from (night until + 1):00 until (night from):00. The option values stay the stored ones, only the labels show the hours.
 function buildWeek() {
-  const opt = (from, to, sel) => { let s = ""; for (let v = from; v <= to; v++) s += `<option value="${v}"${v === sel ? " selected" : ""}>${pad(v)}</option>`; return s; };
+  const opt = (from, to, sel, shift) => { let s = ""; for (let v = from; v <= to; v++) s += `<option value="${v}"${v === sel ? " selected" : ""}>${pad(v + shift)}</option>`; return s; };
+  const extra = (v, from, to, shift) => v < from || v > to ? `<option value="${v}" selected>${pad(v + shift)}</option>` : "";
   $("#week").innerHTML = T[L].days.map((name, i) => {
     const [mx, mn] = cfg.nightDays[i];
     return `<div class="day"><span class="dname">${name}</span>
-      <span class="dsel"><span class="muted">${t("offFrom")}</span>
-        <select id="n${i}max" data-k="nightDays.${i}.0" data-type="num" aria-label="${name} ${t("offFrom")}">${opt(15, 23, mx)}${mx < 15 || mx > 23 ? `<option value="${mx}" selected>${pad(mx)}</option>` : ""}</select><span>:00</span>
-        <span class="muted">${t("until")}</span>
-        <select id="n${i}min" data-k="nightDays.${i}.1" data-type="num" aria-label="${name} ${t("until")}">${opt(5, 9, mn)}${mn < 5 || mn > 9 ? `<option value="${mn}" selected>${pad(mn)}</option>` : ""}</select><span>:59</span></span>
+      <span class="dsel"><span class="dpart"><span class="muted">${t("onFrom")}</span>
+        <select id="n${i}min" data-k="nightDays.${i}.1" data-type="num" aria-label="${name} ${t("onFrom")}">${extra(mn, 3, 11, 1)}${opt(3, 11, mn, 1)}</select><span>:00</span></span>
+        <span class="dpart"><span class="muted">${t("until")}</span>
+        <select id="n${i}max" data-k="nightDays.${i}.0" data-type="num" aria-label="${name} ${t("until")}">${extra(mx, 15, 24, 0)}${opt(15, 24, mx, 0)}</select><span>:00</span></span></span>
       <div class="bar" id="bar${i}"></div></div>`;
   }).join("");
+  // Invisible copy of the time selection under the rows, so the hours of the axis line up with the bars
+  $("#axisSel").innerHTML = `<span class="dpart"><span>${t("onFrom")}</span><select tabindex="-1">${opt(3, 11, -1, 1)}</select><span>:00</span></span>`
+    + `<span class="dpart"><span>${t("until")}</span><select tabindex="-1">${opt(15, 24, -1, 0)}</select><span>:00</span></span>`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sunrise and sunset (same NOAA formula as the firmware, accuracy about 1..2 minutes)
+// ---------------------------------------------------------------------------------------------
+const sunLocSet = sn => !!sn && Number.isFinite(sn.lat) && Number.isFinite(sn.lon) && !(sn.lat === 0 && sn.lon === 0);
+// Local minutes after midnight for the date (time zone of this browser). Polar night: 1440 / 0, polar day: 0 / 1440.
+function sunTimes(date, lat, lon) {
+  const y = date.getFullYear(), leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const noon = new Date(y, date.getMonth(), date.getDate(), 12);
+  const dayOfYear = Math.round((new Date(y, date.getMonth(), date.getDate()) - new Date(y, 0, 1)) / 864e5) + 1;
+  const g = 2 * Math.PI / (leap ? 366 : 365) * (dayOfYear - 1), rad = Math.PI / 180;
+  const eqTime = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g)
+             - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const cosHa = Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(decl)) - Math.tan(lat * rad) * Math.tan(decl);
+  if (cosHa > 1) return { rise: 1440, set: 0, polar: -1 };
+  if (cosHa < -1) return { rise: 0, set: 1440, polar: 1 };
+  const ha = Math.acos(cosHa) / rad, offset = -noon.getTimezoneOffset();
+  const clampMin = v => Math.min(1440, Math.max(0, Math.round(v)));
+  return { rise: clampMin(720 - 4 * (lon + ha) - eqTime + offset), set: clampMin(720 - 4 * (lon - ha) - eqTime + offset), polar: 0 };
+}
+// Minutes [start, end) of the day brightness for the weekday (0 = Monday) on that date, like DayNightMode() in the firmware
+function dayWindow(i, date) {
+  const [mx, mn] = cfg.nightDays[i];
+  let a = (mn + 1) * 60, b = mx * 60;
+  const sn = cfg.sun;
+  if (sn && sn.on && sunLocSet(sn)) {
+    const s = sunTimes(date, sn.lat, sn.lon);
+    a = Math.max(a, s.rise + (sn.rise || 0)); b = Math.min(b, s.set + (sn.set || 0));
+  }
+  return [a, b];
+}
+const hhmm = v => pad(Math.floor(v / 60) % 24) + ":" + pad(v % 60);
+
+// Approximate location of the internet connection, as a suggestion that can be changed by hand
+let sunLocInfo = null;  // { k: text key, v: values }
+async function locateByIp() {
+  const btn = $("#sunLocate"); btn.disabled = true;
+  sunLocInfo = { k: "sunLocating" }; renderDeps();
+  try {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);
+    const r = await fetch("https://get.geojs.io/v1/ip/geo.json", { signal: ctl.signal }).then(x => x.json()).finally(() => clearTimeout(timer));
+    const lat = Number(r.latitude), lon = Number(r.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) throw new Error("no location");
+    cfg.sun.lat = Math.round(lat * 10000) / 10000; cfg.sun.lon = Math.round(lon * 10000) / 10000;
+    $("#sunLat").value = cfg.sun.lat; $("#sunLon").value = cfg.sun.lon;
+    sunLocInfo = { k: "sunLocFound", v: { c: [r.city, r.country].filter(Boolean).join(", ") || "?" } };
+    if ($("#sunLat").classList.contains("invalid")) validate();
+    after();
+  } catch (e) { sunLocInfo = { k: "sunLocErr" }; renderDeps(); }
+  btn.disabled = false;
 }
 
 // Wiring plan: GPIO numbers with the names printed on the board (D1 mini / NodeMCU use D0..D8)
@@ -968,12 +1072,31 @@ function renderDeps() {
   // Night
   $("#nightHint").textContent = t("nHint" + cfg.night, { v: cfg.brightNight });
   $("#nightWeek").classList.toggle("off", cfg.night === 0);
+  $("#sunGroup").classList.toggle("off", cfg.night === 0);
   $("#lgOff").textContent = t(cfg.night === 2 ? "lgOff2" : "lgOff1");
-  cfg.nightDays.forEach(([mx, mn], i) => {
-    const a = ((mn + 1) / 24 * 100).toFixed(2), b = (mx / 24 * 100).toFixed(2);
+  const sn = cfg.sun, sunActive = !!(sn && sn.on && sunLocSet(sn));
+  $("#weekHint").textContent = t(sunActive ? "weekHintSun" : "weekHint");
+  const today = new Date(), todayIdx = (today.getDay() + 6) % 7;
+  cfg.nightDays.forEach((_, i) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (i - todayIdx + 7) % 7);  // Next date of this weekday
+    const [from, to] = dayWindow(i, date);
+    const a = (Math.min(from, 1440) / 1440 * 100).toFixed(2), b = (Math.max(from, Math.min(to, 1440)) / 1440 * 100).toFixed(2);
     const bar = $("#bar" + i);
     if (bar) bar.style.background = `linear-gradient(90deg,var(--bar-off) 0 ${a}%,var(--bar-on) ${a}% ${b}%,var(--bar-off) ${b}% 100%)`;
   });
+  if (sn) {
+    $("#sunFields").querySelectorAll("input").forEach(i => i.disabled = !sn.on);
+    $("#sunLocate").hidden = !sn.on;
+    $("#sunLocHint").textContent = sunLocInfo ? t(sunLocInfo.k, sunLocInfo.v) : t("sunLocNote");
+    $("#sunLocHint").hidden = !sn.on;
+    let info = "";
+    if (sunActive) {
+      const s = sunTimes(today, sn.lat, sn.lon), [a, b] = dayWindow(todayIdx, today);
+      if (s.polar) info = t(s.polar > 0 ? "sunPolarDay" : "sunPolarNight");
+      else info = t(a < b ? "sunToday" : "sunTodayNone", { r: hhmm(s.rise), s: hhmm(s.set), a: hhmm(a), b: hhmm(b) });
+    }
+    $("#sunToday").textContent = info; $("#sunToday").hidden = !info;
+  }
   // Display
   $("#quarterGroup").hidden = cfg.lang !== 0;
   const pd = st.pinDefaults || {};
@@ -1074,6 +1197,7 @@ function onInput(e) {
   } else if (el.dataset.k) {
     setPath(cfg, el.dataset.k, readEl(el));
     if (el.dataset.k === "color") cfg.color = cfg.color.toLowerCase();
+    if (el.dataset.k === "sun.on" && cfg.sun.on && !sunLocSet(cfg.sun) && e.type === "change") locateByIp();
   } else return;
   if (el.classList.contains("invalid")) validate(false);
   after();
@@ -1113,7 +1237,7 @@ function updateDirty() {
   const ch = changedKeys();
   $("#savebar").hidden = ch.length === 0;
   $("#dirtyText").textContent = ch.length === 1 ? t("dirty1") : t("dirtyN", { n: ch.length });
-  const tabOf = { led: ["color","rainbow","bright","brightNight","psu"], night: ["night","nightDays"], disp: ["lang","deSpecial","blink","date","minMode","minOrder","ledTest","setWlan","showIp"], time: ["ntp","tz"], net: ["hostNum","ping","rest"], sys: ["update","pins"] };
+  const tabOf = { led: ["color","rainbow","bright","brightNight","psu"], night: ["night","nightDays","sun"], disp: ["lang","deSpecial","blink","date","minMode","minOrder","ledTest","setWlan","showIp"], time: ["ntp","tz"], net: ["hostNum","ping","rest"], sys: ["update","pins"] };
   $$("#tabs button").forEach(b => {
     const has = ch.some(k => tabOf[b.dataset.tab].includes(k.split(".")[0]));
     let d = b.querySelector(".tdot");
@@ -1130,6 +1254,16 @@ function validate() {
     if (!ok) bad.push(id);
   };
   mark("minOrder", cfg.minMode !== 2 || !!parseOrder(cfg.minOrder), "minOrderErr");
+  const sn = cfg.sun;
+  if (sn) {
+    const inRange = (v, lo, hi) => Number.isFinite(v) && v >= lo && v <= hi;
+    const locOk = !sn.on || (inRange(sn.lat, -90, 90) && inRange(sn.lon, -180, 180) && sunLocSet(sn));
+    const offOk = !sn.on || (Number.isInteger(sn.rise) && inRange(sn.rise, -120, 120) && Number.isInteger(sn.set) && inRange(sn.set, -120, 120));
+    ["sunLat", "sunLon"].forEach(id => $("#" + id).classList.toggle("invalid", !locOk));
+    ["sunRise", "sunSet"].forEach(id => $("#" + id).classList.toggle("invalid", !offOk));
+    $("#sunErr").textContent = t("sunErr"); $("#sunErr").hidden = locOk && offOk;
+    if (!locOk) bad.push("sunLat"); else if (!offOk) bad.push("sunRise");
+  }
   mark("ntp", cfg.ntp.trim().length > 0, "ntpErr");
   mark("tz", cfg.tz.trim().length > 0, "tzErr");
   const ipOk = s => /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(String(s).trim());
@@ -1210,6 +1344,7 @@ function wire() {
     cfg.color = b.dataset.c; $("#color").value = cfg.color; after();
   });
 
+  $("#sunLocate").addEventListener("click", () => locateByIp());
   $("#copyMon").addEventListener("click", () => {
     const mon = cfg.nightDays[0]; cfg.nightDays = cfg.nightDays.map(() => [...mon]);
     buildWeek(); after(); toast(t("copied"));
