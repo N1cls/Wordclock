@@ -76,8 +76,11 @@ typedef HTTPUpdateServer ESP8266HTTPUpdateServer;   // Same interface as on the 
 #include "webpage.h"                  // Configuration page (gzipped), generated from web/index.html by tools/build_webpage.py
 
 #if defined(ESP32)
-// Adafruit NeoPixel puts the whole RMT buffer for the 114 LEDs (about 11 KB) on the stack of the calling task,
-// more than the default 8 KB of the Arduino loop task. The HTTPS connection to GitHub needs stack as well.
+#include <driver/rmt_tx.h>       // Own LED output, see ledBegin() / ledShow()
+#include <driver/rmt_encoder.h>  // Own LED output, see ledBegin() / ledShow()
+#include <soc/soc_caps.h>        // RMT memory size and DMA support of the chip
+// The HTTPS connection to GitHub needs more stack than the default 8 KB of the Arduino loop task. The LED output of Adafruit NeoPixel
+// (only used as fallback, see ledBegin()) puts the whole RMT buffer for the 114 LEDs (about 11 KB) on the stack as well.
 SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 #endif
 
@@ -85,7 +88,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.1.1";
+const char* WORD_CLOCK_VERSION = "V6.1.2";
 
 
 // ###########################################################################################################################################
@@ -128,6 +131,109 @@ bool RESTmanLEDsON = true;                                                      
 bool UpdateAvailable = false;                                                        // Global flag to check for avaiable updates
 String AvailableVersion = "-";                                                       // Global string to check for avaiable updates
 bool NightModeActive = false;                                                        // Global flag to track if Night Mode is currently active - used for PING function
+
+
+// ###########################################################################################################################################
+// # LED output: ledBegin() and ledShow() replace pixels.begin() and pixels.show(). Adafruit NeoPixel still holds the pixel data.
+// #
+// # ESP8266: unchanged, Adafruit NeoPixel sends the data with disabled interrupts, so there are no pauses in the data stream.
+// #
+// # ESP32: Adafruit NeoPixel uses only one RMT memory block (48 or 64 bits) and refills it in an interrupt every 30..40 µs.
+// # If WiFi or a flash access delays this interrupt, the data stream to the LEDs gets a pause or wrong bits. Old WS2812 LEDs
+// # (5050 with 6 pins) often take a pause of a few µs already as the end of the data: the next LEDs show the data of other LEDs,
+// # the display looks shifted or shows wrong colors. Newer LEDs (WS2812B-V5, SK6812) wait 80..280 µs and hide the problem.
+// # The own RMT channel below uses as much memory as the chip has (ESP32-S3: DMA), the interrupt then has 60..640 µs time.
+// # The bit timing is centered in the tolerances of the old WS2812 and of the newer WS2812B / SK6812 LEDs (Adafruit NeoPixel
+// # uses 0.4 µs low after a 1-bit on the ESP32, the old WS2812 need at least 0.45 µs).
+// # If the RMT channel can not be created, the output of Adafruit NeoPixel is used as before.
+// ###########################################################################################################################################
+#if defined(ESP32)
+#define LED_RMT_RESOLUTION_HZ 20000000  // RMT clock 20 MHz = 0.05 µs per tick
+#define LED_T0H 7                       // 0-bit: 0.35 µs high
+#define LED_T0L 18                      //        0.90 µs low
+#define LED_T1H 14                      // 1-bit: 0.70 µs high
+#define LED_T1L 11                      //        0.55 µs low  -> 1.25 µs per bit (800 kHz)
+#define LED_RESET_US 300                // Pause between two images, the LEDs take over the new data (WS2812B-V5: at least 280 µs)
+
+rmt_channel_handle_t ledChannel = nullptr;  // Own RMT channel, nullptr = Adafruit NeoPixel output is used
+rmt_encoder_handle_t ledEncoder = nullptr;  // Turns the bytes of the pixel data into the WS2812 bits
+unsigned long ledLastShow = 0;              // micros() at the end of the last transmission
+
+// Try to create the RMT channel with the given memory size (number of bits it can hold):
+bool ledTryChannel(int pin, int symbols, bool dma) {
+  rmt_tx_channel_config_t cfg = {};
+  cfg.gpio_num = (gpio_num_t)pin;
+  cfg.clk_src = RMT_CLK_SRC_DEFAULT;
+  cfg.resolution_hz = LED_RMT_RESOLUTION_HZ;
+  cfg.mem_block_symbols = symbols;
+  cfg.trans_queue_depth = 1;
+  cfg.flags.with_dma = dma;
+  if (rmt_new_tx_channel(&cfg, &ledChannel) != ESP_OK) {
+    ledChannel = nullptr;
+    return false;
+  }
+  Serial.printf("LED output: own RMT channel with a buffer of %d bits%s\n", symbols, dma ? " (DMA)" : "");
+  return true;
+}
+
+void ledBegin(int pin) {
+  pixels.setPin(pin);
+  pixels.begin();  // Adafruit NeoPixel holds the pixel data, ledShow() sends it
+  bool ok = false;
+#if SOC_RMT_SUPPORT_DMA
+  ok = ledTryChannel(pin, 1024, true);  // ESP32-S3: DMA buffer, refilled every 640 µs
+#endif
+  for (int blocks = 8; !ok && blocks >= 1; blocks /= 2) {  // Otherwise as many memory blocks as free (ESP32: 8, ESP32-C3: 2..4)
+    ok = ledTryChannel(pin, blocks * SOC_RMT_MEM_WORDS_PER_CHANNEL, false);
+  }
+  if (ok) {
+    rmt_bytes_encoder_config_t enc = {};
+    enc.bit0.level0 = 1;
+    enc.bit0.duration0 = LED_T0H;
+    enc.bit0.level1 = 0;
+    enc.bit0.duration1 = LED_T0L;
+    enc.bit1.level0 = 1;
+    enc.bit1.duration0 = LED_T1H;
+    enc.bit1.level1 = 0;
+    enc.bit1.duration1 = LED_T1L;
+    enc.flags.msb_first = 1;
+    ok = rmt_new_bytes_encoder(&enc, &ledEncoder) == ESP_OK;
+    if (ok) ok = rmt_enable(ledChannel) == ESP_OK;
+    if (!ok) {
+      if (ledEncoder) rmt_del_encoder(ledEncoder);
+      rmt_del_channel(ledChannel);
+      ledEncoder = nullptr;
+      ledChannel = nullptr;
+    }
+  }
+  if (!ok) Serial.println("LED output: no RMT channel available - using the output of Adafruit NeoPixel");
+}
+
+void ledShow() {
+  if (!ledChannel) {
+    pixels.show();
+    return;
+  }
+  unsigned long pause = micros() - ledLastShow;
+  if (pause < LED_RESET_US) delayMicroseconds(LED_RESET_US - pause);
+  rmt_transmit_config_t tx = {};
+  tx.loop_count = 0;
+  tx.flags.eot_level = 0;  // Data line low after the transmission
+  if (rmt_transmit(ledChannel, ledEncoder, pixels.getPixels(), pixels.numPixels() * 3, &tx) == ESP_OK) {
+    rmt_tx_wait_all_done(ledChannel, 100);  // 114 LEDs take about 3.5 ms
+  }
+  ledLastShow = micros();
+}
+#else
+void ledBegin(int pin) {
+  pixels.setPin(pin);
+  pixels.begin();
+}
+
+void ledShow() {
+  pixels.show();
+}
+#endif
 
 
 // ###########################################################################################################################################
@@ -349,8 +455,7 @@ void setup() {
   Serial.println(" (" CHIP_NAME ")");
   Serial.println("######################################################################");
   readEEPROM();                     // get persistent data from EEPROM (and the pins)
-  pixels.setPin(hw.ledPin);         // LED pin from the configuration page
-  pixels.begin();                   // Init the NeoPixel library
+  ledBegin(hw.ledPin);              // Init the LED output, LED pin from the configuration page
   dunkel();                         // Switch display black
   if (!useCustomMinuteOrder) setDefaultMinuteLedOrderFromSwitch();    // Set default minute corner LED order based on switchLEDOrder setting
   pixels.setBrightness(intensity);  // Set LED brightness
@@ -369,7 +474,7 @@ void setup() {
   handleTime();                     // handle NTP / RTC time
   if (timeValid) {                  // Time from the RTC: show it right away
     ShowTheTime();
-    pixels.show();
+    ledShow();
   } else {
     SetWLAN();  // Show SET WLAN text
   }
@@ -456,7 +561,7 @@ void loop() {
   // PING function:
   if (PING_USEMONITOR == 1 && WiFi.status() == WL_CONNECTED) PingIP();
 
-  if (LEDsON == true && RESTmanLEDsON == true) pixels.show();  // This sends the updated pixel color to the hardware.
+  if (LEDsON == true && RESTmanLEDsON == true) ledShow();  // This sends the updated pixel color to the hardware.
 }
 
 
@@ -750,7 +855,7 @@ void showIP() {
         offSet++;
       }
     }
-    pixels.show();
+    ledShow();
     delay(150);  // set speed of timeshift
   }
 }
@@ -949,7 +1054,7 @@ void showCurrentDate() {
     iYear = iYear % 100;
     printAt(iYear / 10, x + 38, 2);
     printAt(iYear % 10, x + 44, 2);
-    pixels.show();
+    ledShow();
     delay(150);  // set speed of timeshift
   }
 }
@@ -1316,7 +1421,7 @@ void ledsON() {
   pixels.setBrightness(intensity);
   RESTmanLEDsON = true;
   LEDsON = true;
-  pixels.show();
+  ledShow();
 }
 
 
@@ -1327,10 +1432,10 @@ void ledsOFF() {
   server1->send(200, "text/plain", "WordClock LEDs set to OFF");
   Serial.println("WordClock LEDs set to OFF");
   pixels.setBrightness(0);
-  pixels.show();
+  ledShow();
   RESTmanLEDsON = false;
   LEDsON = false;
-  pixels.show();
+  ledShow();
 }
 
 
@@ -1355,18 +1460,18 @@ void DisplayTest() {
 
     for (int i = 0; i < NUMPIXELS; i++) {
       setLED(i, i, 0);
-      pixels.show();
+      ledShow();
     }
 
     for (int i = 0; i < NUMPIXELS; i++) {
       setLED(i, i, 1);
-      pixels.show();
+      ledShow();
       delay(50);
       pixels.setPixelColor(i, 0, 0, 0);
     }
 
     pixels.setPixelColor(NUMPIXELS, 0, 0, 0);
-    pixels.show();
+    ledShow();
   }
 }
 
@@ -1405,7 +1510,7 @@ void SetWLAN() {  // Shown at startup and as long as the clock has no time (no W
           break;
         }
     }
-    pixels.show();
+    ledShow();
   }
 }
 
@@ -1434,7 +1539,7 @@ void ClockRestart() {  // Called by the REST function /clockrestart and by the c
         break;
       }
   }
-  pixels.show();
+  ledShow();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
   Serial.println("##########################################");
@@ -1479,7 +1584,7 @@ void ClockWifiReset() {  // Called by the REST function /clockwifireset and by t
         break;
       }
   }
-  pixels.show();
+  ledShow();
   WiFi.disconnect(true);
   delay(1500);
   wifiManager.resetSettings();
@@ -1685,7 +1790,7 @@ void PingIP() {
     if (PingStatusIP1 == false && PingStatusIP2 == false && PingStatusIP3 == false) {
       if (PING_DEBUG_MODE == 1) Serial.println("All clients offline --> LEDs = OFF until one of the IP-addresses can be reached again...");
       pixels.setBrightness(0);
-      pixels.show();
+      ledShow();
       if (RESTmanLEDsON == true) LEDsON = false;
     }
   }
@@ -1783,13 +1888,13 @@ void WIFI_DebugWifiLEDs(uint32_t color) {
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  pixels.show();
+  ledShow();
   delay(1000);
   int myArray[] = { 110, 111, 112, 113 };
   for (int element : myArray) {
     pixels.setPixelColor(element, color);
   }
-  pixels.show();
+  ledShow();
   delay(3000);
 }
 
@@ -1822,7 +1927,7 @@ void update_started() {  // Callback update start function
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  pixels.show();
+  ledShow();
   switchRainBow = 0;
   pixels.setBrightness(50);
   redVal = 0;
@@ -1847,7 +1952,7 @@ void update_started() {  // Callback update start function
   setLED(94, 94, 1);
   setLED(92, 92, 1);
   setLED(104, 104, 1);
-  pixels.show();
+  ledShow();
   delay(1500);
 }
 
@@ -1858,13 +1963,13 @@ void update_finished() {  // Callback update success finish function
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  pixels.show();
+  ledShow();
   update_msg_LEDs(0, 255, 0);
   delay(3000);
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  pixels.show();
+  ledShow();
   Serial.println("Show RESET before board reset...");
   switch (switchLangWeb) {
     case 0:  // DE:
@@ -1885,7 +1990,7 @@ void update_finished() {  // Callback update success finish function
         break;
       }
   }
-  pixels.show();
+  ledShow();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
   Serial.println("##########################################");
@@ -1899,13 +2004,13 @@ void update_error(int err) {  // Callback update error finish function
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  pixels.show();
+  ledShow();
   update_msg_LEDs(255, 0, 0);
   delay(3000);
   for (uint16_t i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, (0, 0, 0));
   }
-  pixels.show();
+  ledShow();
   Serial.println("Show RESET before board reset...");
   switch (switchLangWeb) {
     case 0:  // DE:
@@ -1926,7 +2031,7 @@ void update_error(int err) {  // Callback update error finish function
         break;
       }
   }
-  pixels.show();
+  ledShow();
   Serial.println("##########################################");
   Serial.println("# WORDCLOCK WILL RESTART IN 3 SECONDS... #");
   Serial.println("##########################################");
@@ -1969,7 +2074,7 @@ void update_msg_LEDs(int redCol, int greenCol, int blueCol) {
   setLED(84, 84, 1);
   setLED(91, 91, 1);
   setLED(107, 107, 1);
-  pixels.show();
+  ledShow();
 }
 
 void update_progress(int cur, int total) {  // Callback update download progress function
@@ -2013,7 +2118,7 @@ void update_progress(int cur, int total) {  // Callback update download progress
   if (percent == 100) {
     delay(1500);
   }
-  pixels.show();
+  ledShow();
   Serial.print("Automatic update - download file progress: ");
   Serial.print(percent);
   Serial.println("%");
@@ -2416,11 +2521,11 @@ void handleApiCornerTest() {
   for (int k = 0; k < 4; k++) {
     dunkel();
     pixels.setPixelColor(110 + k, pixels.Color(255, 255, 255));
-    pixels.show();
+    ledShow();
     delay(1000);
   }
   dunkel();
-  pixels.show();
+  ledShow();
 }
 
 void handleApiTime() {

@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V6.1.1     </b></h3>
+<h3><b>Current version: V6.1.2     </b></h3>
 
 
 <hr>
@@ -186,6 +186,9 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
            Web interface: preview with the letters of the front plate, current color in the random color mode.
            Library change for compiling: ESPping (works on ESP8266 and ESP32) replaces ESP8266Ping, ArduinoJson 7 is needed.
 - 6.1.1    Web interface: wiring plan in System -> Hardware with the pin names of the board (f.e. D6 on the D1 mini) and of the RTC module.
+- 6.1.2    ESP32: more robust LED output against flickering and wrong colors, especially with old WS2812 LEDs (5050 with 6 pins).
+           Own RMT output with a large buffer (ESP32-S3: DMA), so WiFi and flash accesses no longer interrupt the data to the LEDs,
+           and a bit timing within the tolerances of the old WS2812 and the newer WS2812B / SK6812 LEDs. ESP8266 unchanged.
 
 <hr>
 
