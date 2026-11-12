@@ -85,7 +85,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.2.0";
+const char* WORD_CLOCK_VERSION = "V6.3.0";
 
 
 // ###########################################################################################################################################
@@ -128,6 +128,7 @@ bool RESTmanLEDsON = true;                                                      
 bool UpdateAvailable = false;                                                        // Global flag to check for avaiable updates
 String AvailableVersion = "-";                                                       // Global string to check for avaiable updates
 bool NightModeActive = false;                                                        // Global flag to track if Night Mode is currently active - used for PING function
+bool lampMode = false;                                                               // Lamp mode: all LEDs on in the set color (switched on the configuration page, not stored)
 
 
 // ###########################################################################################################################################
@@ -421,7 +422,9 @@ void loop() {
   handleTime();    // handle NTP / RTC time
   serviceDelay(750);
 
-  if (!timeValid) {  // Neither NTP nor RTC delivered a time yet: show that WiFi is needed
+  if (lampMode) {  // Lamp mode: all LEDs on instead of the time
+    showLamp();
+  } else if (!timeValid) {  // Neither NTP nor RTC delivered a time yet: show that WiFi is needed
     pixels.setBrightness(intensity);
     dunkel();
     SetWLAN();
@@ -439,29 +442,9 @@ void loop() {
 
     // Show the display only during the set Min/Max time if option is set
     if (displayoff) {
-      switch (iWeekDay) {
-        case 0:  // Sunday
-          DayNightMode(displayonminSU, displayonmaxSU);
-          break;
-        case 1:  // Monday
-          DayNightMode(displayonminMO, displayonmaxMO);
-          break;
-        case 2:  // Tuesday
-          DayNightMode(displayonminTU, displayonmaxTU);
-          break;
-        case 3:  // Wednesday
-          DayNightMode(displayonminWE, displayonmaxWE);
-          break;
-        case 4:  // Thursday
-          DayNightMode(displayonminTH, displayonmaxTH);
-          break;
-        case 5:  // Friday
-          DayNightMode(displayonminFR, displayonmaxFR);
-          break;
-        case 6:  // Saturday
-          DayNightMode(displayonminSA, displayonmaxSA);
-          break;
-      }
+      int displayonMin, displayonMax;
+      nightTimesToday(displayonMin, displayonMax);
+      DayNightMode(displayonMin, displayonMax);
     } else {
       pixels.setBrightness(intensity);  // DAY brightness
       ShowTheTime();
@@ -1305,7 +1288,7 @@ void updateSunTimes() {
 // displayonMin / displayonMax are the stored night times of the weekday: day brightness from displayonMin + 1 to displayonMax o'clock.
 // With sunrise and sunset switched on, the darker setting wins: the day starts at the later of the sunrise and the morning time
 // and ends at the earlier of the sunset and the evening time (so the clock is not bright at 5 o'clock in the summer).
-void DayNightMode(int displayonMin, int displayonMax) {
+bool isDayTime(int displayonMin, int displayonMax) {
   int now = iHour * 60 + iMinute;
   int dayStart = (displayonMin + 1) * 60;
   int dayEnd = displayonMax * 60;
@@ -1318,7 +1301,28 @@ void DayNightMode(int displayonMin, int displayonMax) {
       if (sunDayEnd < dayEnd) dayEnd = sunDayEnd;
     }
   }
-  if (now >= dayStart && now < dayEnd) {
+  return now >= dayStart && now < dayEnd;
+}
+
+// The stored night times of today's weekday (iWeekDay: 0 = Sunday):
+void nightTimesToday(int& displayonMin, int& displayonMax) {
+  static int* const onAfter[7] = { &displayonminSU, &displayonminMO, &displayonminTU, &displayonminWE, &displayonminTH, &displayonminFR, &displayonminSA };
+  static int* const offFrom[7] = { &displayonmaxSU, &displayonmaxMO, &displayonmaxTU, &displayonmaxWE, &displayonmaxTH, &displayonmaxFR, &displayonmaxSA };
+  int d = constrain(iWeekDay, 0, 6);
+  displayonMin = *onAfter[d];
+  displayonMax = *offFrom[d];
+}
+
+// true while the night mode applies right now (night mode switched on and outside the day times of today):
+bool nightTimeNow() {
+  if (!displayoff || !timeValid) return false;
+  int displayonMin, displayonMax;
+  nightTimesToday(displayonMin, displayonMax);
+  return !isDayTime(displayonMin, displayonMax);
+}
+
+void DayNightMode(int displayonMin, int displayonMax) {
+  if (isDayTime(displayonMin, displayonMax)) {
     pixels.setBrightness(intensity);  // Day brightness
     NightModeActive = false;
     ShowTheTime();
@@ -1331,6 +1335,21 @@ void DayNightMode(int displayonMin, int displayonMax) {
       dunkel();
     }
   }
+}
+
+
+// ###########################################################################################################################################
+// # Lamp mode: all LEDs (letters and corners) in the color set on the configuration page.
+// # Brightness as the clock would use it right now: day brightness, during the night times of the night mode the night brightness
+// # (also when the night mode switches the display off - the lamp was switched on on purpose).
+// # The color modes "Rainbow" and "Random" use the set color as well, so the lamp keeps its color.
+// ###########################################################################################################################################
+void showLamp() {
+  bool night = nightTimeNow();
+  NightModeActive = night;  // The PING function sets the same brightness
+  pixels.setBrightness(night ? intensityNight : intensity);
+  uint32_t color = switchRainBow == 2 ? pixels.Color(parameter.pRed, parameter.pGreen, parameter.pBlue) : pixels.Color(redVal, greenVal, blueVal);
+  pixels.fill(color, 0, NUMPIXELS);
 }
 
 
@@ -2193,6 +2212,7 @@ void applyUpdateMode(int mode) {
 // #   POST /api/restart      restart the clock
 // #   POST /api/wifireset    delete the WiFi credentials and restart
 // #   POST /api/cornertest   light the corner LEDs 110..113 one after another
+// #   POST /api/lamp         lamp mode, all LEDs on in the set color: {"on": true | false}
 // #   POST /api/time         set the time from the browser: {"epoch": <unix time>}
 // #   POST /api/updatecheck  look up the newest GitHub release
 // #   POST /api/update       install the release found by /api/updatecheck
@@ -2205,6 +2225,7 @@ void setupWebServer() {
   server.on("/api/restart", HTTP_POST, handleApiRestart);
   server.on("/api/wifireset", HTTP_POST, handleApiWifiReset);
   server.on("/api/cornertest", HTTP_POST, handleApiCornerTest);
+  server.on("/api/lamp", HTTP_POST, handleApiLamp);
   server.on("/api/time", HTTP_POST, handleApiTime);
   server.on("/api/updatecheck", HTTP_POST, handleApiUpdateCheck);
   server.on("/api/update", HTTP_POST, handleApiUpdate);
@@ -2357,6 +2378,7 @@ void handleApiState() {
   s["uptime"] = millis() / 1000UL;
   s["heap"] = ESP.getFreeHeap();
   s["ledsOn"] = LEDsON && RESTmanLEDsON;
+  s["lamp"] = lampMode;
   s["curColor"] = colorToHex(redVal, greenVal, blueVal);
   s["rainbowSeed"] = rainbowSeed;  // RainBow variant 1: the page calculates the same word colors  // Color shown right now (differs from the saved one in the random color mode)
   s["restPort"] = server1port;
@@ -2563,6 +2585,22 @@ void handleApiCornerTest() {
   }
   dunkel();
   pixels.show();
+}
+
+void handleApiLamp() {
+  JsonDocument doc;
+  if (deserializeJson(doc, server.arg("plain"))) return sendError(400, "invalid JSON");
+  if (!doc["on"].is<bool>()) return sendError(400, "on");
+  lampMode = doc["on"].as<bool>();
+  Serial.println(lampMode ? "Lamp mode ON" : "Lamp mode OFF");
+  if (lampMode) {  // Switch on right away; switching off shows the time again with the next loop pass (about a second)
+    showLamp();
+    if (LEDsON && RESTmanLEDsON) pixels.show();
+  }
+  JsonDocument res;
+  res["ok"] = true;
+  res["lamp"] = lampMode;
+  sendJson(200, res);
 }
 
 void handleApiTime() {

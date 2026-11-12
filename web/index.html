@@ -91,6 +91,7 @@ p{margin:0}
 .readout{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .clock{font-family:var(--mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .facestate{font-size:13px;font-weight:600;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:5px 9px;justify-self:start}
+.lamp{border-top:1px solid var(--line);padding-top:12px}
 .sim{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:12px}
 .sim label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .simrow{display:flex;align-items:center;gap:10px}
@@ -251,6 +252,7 @@ a{color:var(--accent)}
         </div>
         <div class="readout"><span class="clock" id="clock">--:--</span><span class="muted" id="dateLine"></span></div>
         <p class="facestate" id="faceState" hidden></p>
+        <label class="row lamp" for="lamp"><span class="rt"><b data-t="lamp">Lampenmodus</b><small data-t="lampSub"></small></span><input type="checkbox" class="sw" id="lamp"></label>
         <div class="sim">
           <label for="simTime" data-t="simLabel">Uhrzeit ausprobieren</label>
           <div class="simrow">
@@ -556,9 +558,9 @@ const mock = {
     rest: true, update: 1, pins: { led: 12, sda: 4, scl: 5 }
   },
   status: {
-    version: "V6.2.0", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
+    version: "V6.3.0", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
     ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, timeOk: true,
-    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, ledsOn: true, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
+    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, ledsOn: true, lamp: false, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
     pinDefaults: { led: 12, sda: 4, scl: 5 }
   }
 };
@@ -608,13 +610,14 @@ const T = {
     stTime: "Zeit", stRtc: "RTC", stWifi: "WLAN", stIp: "IP-Adresse", stFw: "Firmware",
     ntpAgo: "NTP, vor {n} Min.", ntpNone: "Kein NTP", rtcOk: "DS3231 erkannt", rtcNo: "Nicht gefunden",
     faceOff: "LEDs ausgeschaltet", faceNightOff: "Nachtmodus: Display aus", faceNightDim: "Nachtmodus: gedimmt",
-    gColor: "Farbe", gColorHint: "Gilt, solange der Farbmodus „Einfarbig“ ist.",
+    lamp: "Lampenmodus", lampSub: "Alle LEDs leuchten in der eingestellten Farbe und Helligkeit.", faceLampNight: "Lampenmodus: Nacht-Helligkeit",
+    gColor: "Farbe", gColorHint: "Gilt im Farbmodus „Einfarbig“ und im Lampenmodus.",
     gMode: "Farbmodus", rb0: "Einfarbig", rb1: "Regenbogen", rb2: "Zufällig",
     rbHint0: "Alle Wörter leuchten in der gewählten Farbe.",
     rbHint1: "Jedes Wort leuchtet in einer eigenen Zufallsfarbe, jede Minute neu.",
     rbHint2: "Jede Minute wählt die Uhr eine neue Zufallsfarbe.",
     gBright: "Helligkeit", day: "Tag", night: "Nacht", noteLabel: "Hinweis:",
-    psuNote: "Beide Werte sind auf 128 von 255 begrenzt. Je nach Farbe und Helligkeit braucht die Uhr ein Netzteil mit mindestens 5 V / 3 A.",
+    psuNote: "Beide Werte sind auf 128 von 255 begrenzt. Je nach Farbe und Helligkeit braucht die Uhr ein Netzteil mit mindestens 5 V / 3 A. Im Lampenmodus leuchten alle LEDs, bei Weiß und 128 können das schon rund 3,5 A sein.",
     psu: "Volle Helligkeit freigeben", psuSub: "Erlaubt Werte bis 255. Nur mit ausreichend starkem Netzteil.",
     gNightMode: "Verhalten in der Nacht", n0: "Unverändert", n1: "Display aus", n2: "Gedimmt",
     nHint0: "Die Uhr leuchtet rund um die Uhr mit der Tag-Helligkeit.",
@@ -696,13 +699,14 @@ const T = {
     stTime: "Time", stRtc: "RTC", stWifi: "Wi-Fi", stIp: "IP address", stFw: "Firmware",
     ntpAgo: "NTP, {n} min ago", ntpNone: "No NTP", rtcOk: "DS3231 found", rtcNo: "Not found",
     faceOff: "LEDs switched off", faceNightOff: "Night mode: display off", faceNightDim: "Night mode: dimmed",
-    gColor: "Color", gColorHint: "Used while the color mode is “Single color”.",
+    lamp: "Lamp mode", lampSub: "All LEDs light up in the set color and brightness.", faceLampNight: "Lamp mode: night brightness",
+    gColor: "Color", gColorHint: "Used in the color mode “Single color” and in lamp mode.",
     gMode: "Color mode", rb0: "Single color", rb1: "Rainbow", rb2: "Random",
     rbHint0: "All words light up in the selected color.",
     rbHint1: "Every word lights up in its own random color, new every minute.",
     rbHint2: "The clock picks a new random color every minute.",
     gBright: "Brightness", day: "Day", night: "Night", noteLabel: "Note:",
-    psuNote: "Both values are limited to 128 of 255. Depending on color and brightness, the clock needs a power supply of at least 5 V / 3 A.",
+    psuNote: "Both values are limited to 128 of 255. Depending on color and brightness, the clock needs a power supply of at least 5 V / 3 A. In lamp mode all LEDs are on, white at 128 can already draw about 3.5 A.",
     psu: "Unlock full brightness", psuSub: "Allows values up to 255. Only with a strong enough power supply.",
     gNightMode: "At night", n0: "Unchanged", n1: "Display off", n2: "Dimmed",
     nHint0: "The clock stays at day brightness around the clock.",
@@ -861,7 +865,7 @@ function parseOrder(s) {
 // ---------------------------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------------------------
-let cfg = null, saved = null, st = null, simMin = null, gridLang = -1, cornerTestLed = null;
+let cfg = null, saved = null, st = null, simMin = null, gridLang = -1, cornerTestLed = null, lampBusy = false;
 const cells = [];
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -921,8 +925,10 @@ function renderFace() {
   const { on, hour, word } = lit(h, m, cfg.lang, cfg.deSpecial, minuteOrder(cfg));
   const [dayStart, dayEnd] = dayWindow((now.getDay() + 6) % 7, now);
   const isNight = cfg.night !== 0 && !(total >= dayStart && total < dayEnd);
-  const dark = !st.ledsOn || (isNight && cfg.night === 1);
-  const level = isNight && cfg.night === 2 ? cfg.brightNight : cfg.bright;
+  // Lamp mode: all LEDs in the set color, at night with the night brightness (also when the night mode switches the display off)
+  const lamp = !!st.lamp;
+  const dark = !st.ledsOn || (!lamp && isNight && cfg.night === 1);
+  const level = isNight && (lamp || cfg.night === 2) ? cfg.brightNight : cfg.bright;
   $("#face").style.setProperty("--lvl", (0.32 + 0.68 * Math.sqrt(level / 255)).toFixed(3));
   // Random color mode: show the color the clock uses right now (only known for the live time of a saved random mode)
   const randomColor = (simMin === null && saved && saved.rainbow === 2 && st.curColor) ? st.curColor : `hsl(${Math.round(seeded(total + 1) * 360)} 95% 58%)`;
@@ -930,10 +936,11 @@ function renderFace() {
   const wordColors = cfg.rainbow === 1 ? rbHues(simMin === null && st.rainbowSeed != null ? st.rainbowSeed : Math.floor(seeded(total + 7) * 2147483647), 16) : [];
   cells.forEach((el, i) => {
     if (!el) return;
-    const show = !dark && on.has(i);
+    const show = !dark && (lamp || on.has(i));
     el.classList.toggle("on", show);
     if (!show) return;
     let c = cfg.color;
+    if (lamp) { el.style.setProperty("--c", c); return; }
     if (cfg.rainbow === 1 && word.has(i)) c = wordColors[word.get(i)];
     if (cfg.rainbow === 2) c = randomColor;
     if (cfg.blink && m === 0 && hour.has(i)) c = "#ff8000";
@@ -945,11 +952,12 @@ function renderFace() {
     if (hit) { el.style.setProperty("--c", "var(--face-lit)"); el.dataset.n = k + 1; }
   });
   else $$(".corner.num").forEach(c => c.classList.remove("num"));
-  $("#face").setAttribute("aria-label", dark ? t("faceOff") : phrase(on));
+  $("#face").setAttribute("aria-label", dark ? t("faceOff") : lamp ? t("lamp") : phrase(on));
   $("#clock").textContent = pad(h) + ":" + pad(m);
   $("#dateLine").textContent = now.toLocaleDateString(t("locale"), { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
   const fs = $("#faceState");
-  const msg = !st.ledsOn ? t("faceOff") : isNight ? t(cfg.night === 1 ? "faceNightOff" : "faceNightDim") : "";
+  const msg = !st.ledsOn ? t("faceOff") : lamp ? (isNight ? t("faceLampNight") : "") : isNight ? t(cfg.night === 1 ? "faceNightOff" : "faceNightDim") : "";
+  if (!lampBusy) $("#lamp").checked = lamp;
   fs.textContent = msg; fs.hidden = !msg;
   if (simMin === null) { $("#simTime").value = total; }
   $("#simOut").textContent = pad(h) + ":" + pad(m);
@@ -1357,6 +1365,17 @@ function wire() {
     cfg.lang = r.value === "en" ? 1 : 0;
     fillForm(); after();
   }));
+
+  // Lamp mode: switched right away on the clock, not part of the settings (no save needed, not stored)
+  $("#lamp").addEventListener("change", async e => {
+    const b = e.currentTarget, on = b.checked;
+    if (!st) { b.checked = !on; return; }
+    lampBusy = true; b.disabled = true;
+    st.lamp = on; renderFace();
+    try { await api.action("lamp", { on }); }
+    catch (err) { st.lamp = !on; toast(t("actionErr")); }
+    lampBusy = false; b.disabled = false; renderFace();
+  });
 
   $("#cornerTest").addEventListener("click", async e => {
     const b = e.currentTarget; b.disabled = true;
