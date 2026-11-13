@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V6.3.0     </b></h3>
+<h3><b>Current version: V6.3.1     </b></h3>
 
 
 <hr>
@@ -196,6 +196,8 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
            ESP32: LED output of 6.1.2 reverted (Adafruit NeoPixel as in 6.1.1 again), it did not fix the wrong colors.
 - 6.3.0    Lamp mode: switch next to the clock face in the web interface, all LEDs light up in the set color with the current
            brightness (night brightness during the night times). Not stored, after a restart the clock shows the time again.
+- 6.3.1    System tab: reason of the last restart (power on, reset button, software, crash, watchdog, power dip), also on the
+           serial monitor at startup. Helps to find out why a clock restarts on its own.
 
 <hr>
 

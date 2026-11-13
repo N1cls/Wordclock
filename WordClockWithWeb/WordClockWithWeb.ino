@@ -85,7 +85,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.3.0";
+const char* WORD_CLOCK_VERSION = "V6.3.1";
 
 
 // ###########################################################################################################################################
@@ -375,6 +375,12 @@ void setup() {
   Serial.print("# WordClock startup of version: ");
   Serial.print(WORD_CLOCK_VERSION);
   Serial.println(" (" CHIP_NAME ")");
+  Serial.print("# Reason of the restart: ");
+  Serial.print(resetReason());
+  Serial.printf(" (code %d)\n", resetReasonCode());
+#if !defined(ESP32)
+  Serial.println("# " + ESP.getResetInfo());  // Exception and address of a crash
+#endif
   Serial.println("######################################################################");
   readEEPROM();                     // get persistent data from EEPROM (and the pins)
   pixels.setPin(hw.ledPin);         // LED pin from the configuration page
@@ -1912,6 +1918,47 @@ void startNetworkServices() {
 
 
 // ###########################################################################################################################################
+// # Reason of the last restart (System tab of the configuration page): shows whether the clock restarted on its own
+// # (crash, watchdog, power dip) or was switched on / restarted on purpose.
+// ###########################################################################################################################################
+int resetReasonCode() {
+#if defined(ESP32)
+  return (int)esp_reset_reason();
+#else
+  return (int)ESP.getResetInfoPtr()->reason;
+#endif
+}
+
+const char* resetReason() {
+#if defined(ESP32)
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "poweron";     // Power switched on
+    case ESP_RST_EXT: return "external";        // Reset pin / button
+    case ESP_RST_SW: return "software";         // ESP.restart(): restart button, update, WiFi reset
+    case ESP_RST_PANIC: return "crash";         // Exception / panic
+    case ESP_RST_INT_WDT:                       // Interrupt watchdog
+    case ESP_RST_TASK_WDT:                      // Task watchdog
+    case ESP_RST_WDT: return "watchdog";        // Other watchdogs
+    case ESP_RST_BROWNOUT: return "brownout";   // Supply voltage too low
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    default: return "other";
+  }
+#else
+  switch (ESP.getResetInfoPtr()->reason) {
+    case REASON_DEFAULT_RST: return "poweron";        // Power switched on
+    case REASON_EXT_SYS_RST: return "external";       // Reset pin / button
+    case REASON_SOFT_RESTART: return "software";      // ESP.restart(): restart button, update, WiFi reset
+    case REASON_EXCEPTION_RST: return "crash";        // Exception
+    case REASON_WDT_RST:                              // Hardware watchdog
+    case REASON_SOFT_WDT_RST: return "watchdog";      // Software watchdog
+    case REASON_DEEP_SLEEP_AWAKE: return "deepsleep";
+    default: return "other";
+  }
+#endif
+}
+
+
+// ###########################################################################################################################################
 // # LED debug for Wifi Manager setup and reconnect function that runs once at startup and during the loop function of the ESP:
 // ###########################################################################################################################################
 void WIFI_DebugWifiLEDs(uint32_t color) {
@@ -2377,6 +2424,8 @@ void handleApiState() {
   s["timeOk"] = timeValid;
   s["uptime"] = millis() / 1000UL;
   s["heap"] = ESP.getFreeHeap();
+  s["resetReason"] = resetReason();  // Why the clock started the last time (power on, crash, watchdog, power dip, ...)
+  s["resetCode"] = resetReasonCode();
   s["ledsOn"] = LEDsON && RESTmanLEDsON;
   s["lamp"] = lampMode;
   s["curColor"] = colorToHex(redVal, greenVal, blueVal);
