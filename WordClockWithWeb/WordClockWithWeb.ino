@@ -113,6 +113,26 @@ bool portalActive = false;                                                      
 bool servicesStarted = false;                                                        // Configuration page, REST and update functions are running
 bool wasConnected = false;                                                           // WiFi state of the last loop pass
 bool ipShown = false;                                                                // IP-address was shown after the first connection
+
+// Start log for the analysis of restarts (System tab): kept in memory that survives a restart, but not a power cut.
+// Nothing here changes the behavior of the clock, it only records what happened.
+enum bootStages { STAGE_NONE, STAGE_SETUP, STAGE_LEDTEST, STAGE_WIFI, STAGE_SERVICES, STAGE_SHOWIP, STAGE_RUN, STAGE_RTC, STAGE_PING, STAGE_UPDATE };
+struct bootLogRec {
+  uint32_t magic;   // BOOT_MAGIC if the record is valid
+  uint32_t boots;   // Starts since the power was switched on
+  uint32_t upSec;   // Seconds since the start, updated with every loop pass
+  uint32_t stage;   // What the clock was doing (bootStages)
+};
+const uint32_t BOOT_MAGIC = 0x57434231;  // "WCB1"
+#if defined(ESP32)
+RTC_NOINIT_ATTR bootLogRec bootLog;      // RTC memory, not initialized at a restart
+#else
+bootLogRec bootLog;                      // Copy of the record in the RTC user memory
+const uint32_t BOOT_RTC_OFFSET = 40;     // In 4 byte blocks; the first 32 blocks are used by OTA updates
+#endif
+bool prevRunKnown = false;               // The clock restarted without a power cut: the values of the run before are known
+uint32_t prevRunSec = 0;                 // How long the run before lasted
+uint32_t prevRunStage = STAGE_NONE;      // What the clock was doing when the run before ended
 int lastColorMinute = -1;                                                            // Minute of the last random colors (RainBow variants)
 uint32_t rainbowSeed = 0;                                                            // RainBow variant 1: random colors of the words, new every minute
 int rainbowWordNr = -1;                                                              // RainBow variant 1: number of the word set by showCurrentTime(), -1 = not in showCurrentTime()
@@ -381,6 +401,9 @@ void setup() {
 #if !defined(ESP32)
   Serial.println("# " + ESP.getResetInfo());  // Exception and address of a crash
 #endif
+  bootLogStart();
+  Serial.printf("# Starts since power on: %u\n", (unsigned)bootLog.boots);
+  if (prevRunKnown) Serial.printf("# The run before ended after %u s at stage %u\n", (unsigned)prevRunSec, (unsigned)prevRunStage);
   Serial.println("######################################################################");
   readEEPROM();                     // get persistent data from EEPROM (and the pins)
   pixels.setPin(hw.ledPin);         // LED pin from the configuration page
@@ -398,6 +421,7 @@ void setup() {
   setenv("TZ", timeZone.c_str(), 1);  // Time zone, so the RTC time is shown correctly before the first NTP sync
   tzset();
   rtcReadTime();                    // Take the time from the RTC, if one is connected
+  bootStage(STAGE_LEDTEST);
   DisplayTest();                    // Perform the LED test
   pixels.setBrightness(intensity);  // Set LED brightness
   handleTime();                     // handle NTP / RTC time
@@ -407,6 +431,7 @@ void setup() {
   } else {
     SetWLAN();  // Show SET WLAN text
   }
+  bootStage(STAGE_WIFI);
   WIFI_login();  // WiFiManager: connect to the saved WiFi or open the setup hotspot - both without stopping the clock
   Serial.println("######################################################################");
   Serial.println("# WordClock startup finished...");
@@ -419,6 +444,7 @@ void setup() {
 // ###########################################################################################################################################
 void loop() {
   ESP_WDT_FEED();  // Reset watchdog timer
+  bootStage(STAGE_RUN);  // Start log: normal operation, with the current run time
 
   // Check WiFi connection - the clock keeps running without WiFi, the time then comes from the RTC:
   WIFI_check();
@@ -756,6 +782,7 @@ void showIP() {
   Serial.println(ip);
 
   for (int x = 11; x > -75; x--) {
+    bootStage(STAGE_SHOWIP);  // Start log: keeps the run time current while the IP-address scrolls
     dunkel();
     int offSet = x;
     // Loop over 4 bytes of IP Address
@@ -1164,7 +1191,9 @@ void handleTime() {
   if (ntpSyncPending) {  // New time from the NTP server: write it to the RTC
     ntpSyncPending = false;
     lastNtpSync = millis() | 1;
+    bootStage(STAGE_RTC);
     rtcWriteTime();
+    bootStage(STAGE_RUN);
   }
   bool ntpFresh = lastNtpSync != 0 && millis() - lastNtpSync < 2UL * 3600UL * 1000UL;
   if (!ntpFresh && rtcTimeValid && millis() - lastRequest > 3600UL * 1000UL) rtcReadTime();
@@ -1738,6 +1767,7 @@ void setLEDLine(int xFrom, int xTo, int y, int switchOn) {
 // ###########################################################################################################################################
 void PingIP() {
   if (iSecond == 45 || iSecond == 15) {
+    bootStage(STAGE_PING);
     IPAddress IP1(PING_IP_ADDR1_O1, PING_IP_ADDR1_O2, PING_IP_ADDR1_O3, PING_IP_ADDR1_O4);
     IPAddress IP2(PING_IP_ADDR2_O1, PING_IP_ADDR2_O2, PING_IP_ADDR2_O3, PING_IP_ADDR2_O4);
     IPAddress IP3(PING_IP_ADDR3_O1, PING_IP_ADDR3_O2, PING_IP_ADDR3_O3, PING_IP_ADDR3_O4);
@@ -1899,6 +1929,7 @@ void WIFI_check() {
 // # Start the configuration page, the update and the REST functions after the first WiFi connection:
 // ###########################################################################################################################################
 void startNetworkServices() {
+  bootStage(STAGE_SERVICES);
   MDNS.begin((wchostname + wchostnamenum).c_str());  // Reachable as http://WordClock<n>.local
   MDNS.addService("http", "tcp", 80);
   if (useupdate == -1) useupdate = 1;            // Fix for settings from older versions
@@ -1912,8 +1943,10 @@ void startNetworkServices() {
   Serial.println("######################################################################");
   if (useshowip && !ipShown) {
     ipShown = true;
+    bootStage(STAGE_SHOWIP);
     showIP();  // Show IP-address on display
   }
+  bootStage(STAGE_RUN);
 }
 
 
@@ -1927,6 +1960,38 @@ int resetReasonCode() {
 #else
   return (int)ESP.getResetInfoPtr()->reason;
 #endif
+}
+
+// Start log: counts the starts since the power was switched on and remembers how far the run before got.
+void bootLogSave() {
+#if !defined(ESP32)
+  ESP.rtcUserMemoryWrite(BOOT_RTC_OFFSET, (uint32_t*)&bootLog, sizeof(bootLog));
+#endif
+}
+
+void bootLogStart() {
+#if !defined(ESP32)
+  ESP.rtcUserMemoryRead(BOOT_RTC_OFFSET, (uint32_t*)&bootLog, sizeof(bootLog));
+#endif
+  // After a power cut the memory holds random values, so the record only counts after a restart with power:
+  prevRunKnown = bootLog.magic == BOOT_MAGIC && strcmp(resetReason(), "poweron") != 0;
+  if (prevRunKnown) {
+    prevRunSec = bootLog.upSec;
+    prevRunStage = bootLog.stage;
+    bootLog.boots++;
+  } else {
+    bootLog.magic = BOOT_MAGIC;
+    bootLog.boots = 1;
+  }
+  bootLog.upSec = 0;
+  bootLog.stage = STAGE_SETUP;
+  bootLogSave();
+}
+
+void bootStage(uint32_t stage) {
+  bootLog.stage = stage;
+  bootLog.upSec = millis() / 1000UL;
+  bootLogSave();
 }
 
 const char* resetReason() {
@@ -2426,6 +2491,11 @@ void handleApiState() {
   s["heap"] = ESP.getFreeHeap();
   s["resetReason"] = resetReason();  // Why the clock started the last time (power on, crash, watchdog, power dip, ...)
   s["resetCode"] = resetReasonCode();
+  s["boots"] = bootLog.boots;  // Starts since the power was switched on (1 = no restart)
+  if (prevRunKnown) {          // Run before the last restart: how long it lasted and what the clock was doing
+    s["prevRunSec"] = prevRunSec;
+    s["prevRunStage"] = prevRunStage;
+  }
   s["ledsOn"] = LEDsON && RESTmanLEDsON;
   s["lamp"] = lampMode;
   s["curColor"] = colorToHex(redVal, greenVal, blueVal);
@@ -2718,6 +2788,7 @@ int compareVersions(const String& a, const String& b) {  // > 0 if a is newer th
 }
 
 void installRelease(const String& tag) {  // Download and install the update file of the release
+  bootStage(STAGE_UPDATE);
   Serial.println("Update: installing release " + tag + " (" UPDATE_BIN_NAME ")");
   WiFiClientSecure client;
   client.setInsecure();
@@ -2748,6 +2819,7 @@ void installRelease(const String& tag) {  // Download and install the update fil
 // ###########################################################################################################################################
 // Reads the newest version from GitHub into AvailableVersion. UpdateAvailable is set if it is newer than the running version.
 bool readhttpfile(String& errorMessage) {
+  bootStage(STAGE_UPDATE);
 #if defined(ESP32)
   bool enoughMemory = ESP.getMaxAllocHeap() > 40000;
 #else

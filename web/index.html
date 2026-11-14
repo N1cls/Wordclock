@@ -560,7 +560,7 @@ const mock = {
   status: {
     version: "V6.3.1", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
     ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, timeOk: true,
-    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, resetReason: "poweron", resetCode: 1, ledsOn: true, lamp: false, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
+    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, resetReason: "poweron", resetCode: 1, boots: 1, ledsOn: true, lamp: false, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
     pinDefaults: { led: 12, sda: 4, scl: 5 }
   }
 };
@@ -673,6 +673,9 @@ const T = {
     gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Laufzeit", fHeap: "Freier Speicher", upFmt: "{d} T {h} Std {m} Min",
     fReset: "Letzter Neustart", rst_poweron: "Strom eingeschaltet", rst_external: "Reset-Taster", rst_software: "Neustart durch die Software",
     rst_crash: "Absturz", rst_watchdog: "Watchdog (hing fest)", rst_brownout: "Spannungseinbruch", rst_deepsleep: "Aufwachen", rst_other: "Sonstiges (Code {n})",
+    fPrev: "Lauf davor", prevFmt: "endete bei: {w}, etwa {s} s nach dem Start", fBoots: "Starts seit dem Einschalten", bootsMore: "die Uhr hat ohne Stromausfall neu gestartet",
+    stage_0: "unbekannt", stage_1: "Start", stage_2: "LED-Test", stage_3: "WLAN-Verbindung", stage_4: "Start der Netzwerkdienste", stage_5: "IP-Anzeige",
+    stage_6: "Normalbetrieb", stage_7: "RTC stellen", stage_8: "Ping", stage_9: "Update",
     gUpd: "Update", u0: "Aus", u1: "Lokal", u2: "Automatisch",
     uHint0: "Updates sind ausgeschaltet.", uHint1: "Lade eine .bin-Datei über die Update-Seite hoch:",
     uHint2Ok: "Installiert ist die aktuelle Version {v}.", uHint2New: "Version {v} ist verfügbar.", uInstall: "Jetzt installieren", uStarted: "Update auf {v} läuft. Die Uhr zeigt den Fortschritt an und startet danach neu.",
@@ -764,6 +767,9 @@ const T = {
     gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Uptime", fHeap: "Free memory", upFmt: "{d} d {h} h {m} min",
     fReset: "Last restart", rst_poweron: "Power switched on", rst_external: "Reset button", rst_software: "Restart by the software",
     rst_crash: "Crash", rst_watchdog: "Watchdog (got stuck)", rst_brownout: "Power dip (brownout)", rst_deepsleep: "Wake-up", rst_other: "Other (code {n})",
+    fPrev: "Run before", prevFmt: "ended at: {w}, about {s} s after the start", fBoots: "Starts since power on", bootsMore: "the clock restarted without a power cut",
+    stage_0: "unknown", stage_1: "Startup", stage_2: "LED test", stage_3: "Wi-Fi connection", stage_4: "Start of the network services", stage_5: "IP address display",
+    stage_6: "Normal operation", stage_7: "Setting the RTC", stage_8: "Ping", stage_9: "Update",
     gUpd: "Update", u0: "Off", u1: "Local", u2: "Automatic",
     uHint0: "Updates are turned off.", uHint1: "Upload a .bin file on the update page:",
     uHint2Ok: "The latest version {v} is installed.", uHint2New: "Version {v} is available.", uInstall: "Install now", uStarted: "Updating to {v}. The clock shows the progress and restarts afterwards.",
@@ -1168,7 +1174,10 @@ function renderStatus() {
     row(t("fVer"), `<span class="mono">${st.version}</span>`) + row(t("fChip"), st.chip) +
     row(t("fUp"), t("upFmt", { d: Math.floor(up / 86400), h: Math.floor(up % 86400 / 3600), m: Math.floor(up % 3600 / 60) })) +
     row(t("fHeap"), `<span class="mono">${(st.heap / 1024).toLocaleString(t("locale"), { maximumFractionDigits: 1 })} KB</span>`) +
-    (st.resetReason ? row(t("fReset"), t("rst_" + st.resetReason, { n: st.resetCode }), ["crash", "watchdog", "brownout"].includes(st.resetReason) ? "bad" : "") : "");
+    (st.resetReason ? row(t("fReset"), t("rst_" + st.resetReason, { n: st.resetCode }), ["crash", "watchdog", "brownout"].includes(st.resetReason) ? "bad" : "") : "") +
+    // Analysis of restarts: what the run before the last restart was doing, and how often the clock started since power on
+    (st.prevRunStage != null ? row(t("fPrev"), t("prevFmt", { s: st.prevRunSec, w: t("stage_" + st.prevRunStage) })) : "") +
+    (st.boots ? row(t("fBoots"), `<span class="mono">${st.boots}</span>${st.boots > 1 ? " · " + t("bootsMore") : ""}`, st.boots > 1 ? "warn" : "") : "");
   updateSetTimeLabel();
 }
 
