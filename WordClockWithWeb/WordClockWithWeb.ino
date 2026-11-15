@@ -85,7 +85,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.3.1";
+const char* WORD_CLOCK_VERSION = "V6.3.2";
 
 
 // ###########################################################################################################################################
@@ -1877,7 +1877,6 @@ void WIFI_login() {
   Serial.println(WiFi.SSID());
   bool WiFires;
   bool DebugWifiLEDs = false;
-  configNTPTime();                                      // Set timezone
   wifiManager.setHostname(wchostname + wchostnamenum);  // Hostname in your router
   wifiManager.setConfigPortalBlocking(false);           // The clock keeps running while the hotspot is open
   wifiManager.setConfigPortalTimeout(AP_TIMEOUT);       // Max wait for 4 minutes
@@ -1918,6 +1917,10 @@ void WIFI_check() {
   bool connected = WiFi.status() == WL_CONNECTED && !portalActive;
   if (connected && !wasConnected) {
     Serial.println("Connected to WiFi: " + WiFi.SSID() + " - IP-address " + WiFi.localIP().toString());
+    // Start the NTP requests only now that the network is up. Started before (as up to V6.3.1 at startup), the first
+    // request failed without network and the next one only followed after a long wait: the clock showed SET WLAN again
+    // after the IP-address until it finally had the time. Started here, the time arrives while the IP-address scrolls.
+    configNTPTime();
     if (!servicesStarted) startNetworkServices();
   }
   if (!connected && wasConnected) Serial.println(rtcTimeValid ? "WiFi connection lost - the clock keeps running with the RTC time" : "WiFi connection lost - the clock keeps running with its internal time");
