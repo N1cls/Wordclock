@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V6.3.1     </b></h3>
+<h3><b>Current version: V6.3.2     </b></h3>
 
 
 <hr>
@@ -199,6 +199,9 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - 6.3.1    System tab: analysis of restarts - reason of the last restart (power on, reset button, software, crash, watchdog,
            power dip), number of starts since power on, and how long the run before lasted and what the clock was doing when
            it ended. Also on the serial monitor at startup. Analysis only, the behavior of the clock is unchanged.
+- 6.3.2    Startup without RTC: SET WLAN no longer appears a second time after the IP-address. The NTP requests now start
+           when the WiFi is connected, so the time arrives while the IP-address scrolls (before, the first request was sent
+           without network and the next one followed only after a long wait).
 
 <hr>
 
