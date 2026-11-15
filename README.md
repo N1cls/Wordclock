@@ -81,6 +81,7 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - RTClib (by Adafruit) together with Adafruit BusIO
 - WiFiManager (by tzapu / tablatronix)
 - ArduinoJson (by Benoit Blanchon), version 7 or newer
+- PubSubClient (by Nick O'Leary), for the Home Assistant connection via MQTT (since V6.4.0)
 - ESPping (by dvarrel): https://github.com/dvarrel/ESPping (replaces ESP8266Ping since V6.1.0, works on ESP8266 and ESP32)
 
 

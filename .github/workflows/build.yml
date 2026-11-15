@@ -101,7 +101,7 @@ jobs:
         run: |
           arduino-cli core update-index --additional-urls "${{ matrix.index }}"
           arduino-cli core install "${{ matrix.core }}" --additional-urls "${{ matrix.index }}"
-          arduino-cli lib install "Adafruit NeoPixel@1.12.3" "RTClib@2.1.4" "Adafruit BusIO@1.16.1" "WiFiManager@2.0.17" "ArduinoJson@7.2.1"
+          arduino-cli lib install "Adafruit NeoPixel@1.12.3" "RTClib@2.1.4" "Adafruit BusIO@1.16.1" "WiFiManager@2.0.17" "ArduinoJson@7.2.1" "PubSubClient@2.8"
           arduino-cli lib install --git-url https://github.com/dvarrel/ESPping.git#1.0.5
 
       - name: Compile for ${{ matrix.chip }}

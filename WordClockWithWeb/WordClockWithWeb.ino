@@ -72,6 +72,7 @@ typedef HTTPUpdateServer ESP8266HTTPUpdateServer;   // Same interface as on the 
 #include "RTClib.h"                   // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 #include <ESPping.h>                  // Used to send ping requests to a IP-address (of your smart phone) to detect if you have left your home
 #include <ArduinoJson.h>              // Used for the data exchange between the configuration page and the WordClock
+#include <PubSubClient.h>             // Used for the MQTT connection to Home Assistant
 #include "settings.h"                 // Settings are stored in a seperate file to make to code better readable and to be able to switch to other settings faster
 #include "webpage.h"                  // Configuration page (gzipped), generated from web/index.html by tools/build_webpage.py
 
@@ -251,7 +252,25 @@ struct sunRec {
 } sun;
 #define SUN_MAGIC 0x57435331UL  // "WCS1"
 #define SUN_OFFSET (((HW_OFFSET + sizeof(hwRec) + 3) / 4) * 4)
-#define EEPROM_SIZE (SUN_OFFSET + sizeof(sunRec))
+
+
+// ###########################################################################################################################################
+// # MQTT connection to Home Assistant, stored behind the sunrise settings so that the existing settings stay valid.
+// # Changed on the configuration page (Network -> Home Assistant).
+// ###########################################################################################################################################
+struct mqttRec {
+  uint32_t magic;
+  uint8_t on;       // 1 = connect to the MQTT broker
+  uint8_t reserved;
+  uint16_t port;    // Usually 1883
+  char host[64];    // IP-address or name of the broker (Home Assistant with the Mosquitto add-on)
+  char user[48];
+  char pass[64];    // Never sent to the configuration page
+} mqttCfg;
+#define MQTT_MAGIC 0x57434d31UL  // "WCM1"
+struct mqttStateRec { int on, bri, r, g, b, lamp, cmode, nmode, nbri; };  // State sent to Home Assistant (defined here for the function prototypes)
+#define MQTT_OFFSET (((SUN_OFFSET + sizeof(sunRec) + 3) / 4) * 4)
+#define EEPROM_SIZE (MQTT_OFFSET + sizeof(mqttRec))
 
 bool validPin(int p) {
 #if defined(ESP32)
@@ -274,6 +293,12 @@ bool sunLocationSet() {
 void writeSunConfig() {
   sun.magic = SUN_MAGIC;
   EEPROM.put(SUN_OFFSET, sun);
+  EEPROM.commit();
+}
+
+void writeMqttConfig() {
+  mqttCfg.magic = MQTT_MAGIC;
+  EEPROM.put(MQTT_OFFSET, mqttCfg);
   EEPROM.commit();
 }
 
@@ -636,6 +661,18 @@ void readEEPROM() {
     memset(&sun, 0, sizeof(sun));
     sun.magic = SUN_MAGIC;
   }
+
+  // MQTT connection to Home Assistant, switched off if none is stored yet:
+  EEPROM.get(MQTT_OFFSET, mqttCfg);
+  if (mqttCfg.magic != MQTT_MAGIC || mqttCfg.on > 1) {
+    memset(&mqttCfg, 0, sizeof(mqttCfg));
+    mqttCfg.magic = MQTT_MAGIC;
+    mqttCfg.port = 1883;
+  }
+  mqttCfg.host[sizeof(mqttCfg.host) - 1] = 0;
+  mqttCfg.user[sizeof(mqttCfg.user) - 1] = 0;
+  mqttCfg.pass[sizeof(mqttCfg.pass) - 1] = 0;
+  if (mqttCfg.port == 0) mqttCfg.port = 1883;
 }
 
 
@@ -732,6 +769,7 @@ void checkClient() {
   if (portalActive) wifiManager.process();
   if (servicesStarted) server.handleClient();
   if (useresturl && server1) server1->handleClient();
+  if (servicesStarted) mqttLoop();  // Home Assistant: commands, state, reconnect
 }
 
 // Delay that keeps the configuration page and the REST functions responsive:
@@ -1493,10 +1531,15 @@ void handleRoot() {
 // ###########################################################################################################################################
 void ledsON() {
   server1->send(200, "text/plain", "WordClock LEDs set to ON");
-  Serial.println("WordClock LEDs set to ON");
-  pixels.setBrightness(intensity);
-  RESTmanLEDsON = true;
-  LEDsON = true;
+  setLedsOn(true);
+}
+
+// Switches the LEDs on or off by hand (REST function and Home Assistant):
+void setLedsOn(bool on) {
+  Serial.println(on ? "WordClock LEDs set to ON" : "WordClock LEDs set to OFF");
+  pixels.setBrightness(on ? intensity : 0);
+  RESTmanLEDsON = on;
+  LEDsON = on;
   pixels.show();
 }
 
@@ -1506,12 +1549,7 @@ void ledsON() {
 // ###########################################################################################################################################
 void ledsOFF() {
   server1->send(200, "text/plain", "WordClock LEDs set to OFF");
-  Serial.println("WordClock LEDs set to OFF");
-  pixels.setBrightness(0);
-  pixels.show();
-  RESTmanLEDsON = false;
-  LEDsON = false;
-  pixels.show();
+  setLedsOn(false);
 }
 
 
@@ -1961,6 +1999,376 @@ void startNetworkServices() {
     showIP();  // Show IP-address on display
   }
   bootStage(STAGE_RUN);
+}
+
+
+// ###########################################################################################################################################
+// # Home Assistant via MQTT: the clock announces itself with MQTT discovery and appears in Home Assistant as a device
+// # (Settings -> Devices & services -> MQTT) with: light (LEDs on/off, brightness, color), lamp mode, color mode,
+// # night mode, night brightness, Wi-Fi signal and a restart button. Needs a MQTT broker, f.e. the Mosquitto add-on.
+// # Topics: wordclock/<last 6 digits of the MAC>/... - the discovery messages go to homeassistant/<component>/...
+// ###########################################################################################################################################
+WiFiClient mqttNet;
+PubSubClient mqtt(mqttNet);
+String mqttBase;                      // f.e. wordclock/3b7e01
+String mqttId;                        // f.e. wordclock_3b7e01 (unique id in Home Assistant)
+int mqttLastRc = 0;                   // PubSubClient state after the last connection attempt
+bool mqttTried = false;               // A connection attempt was made since the settings were changed
+unsigned long mqttLastTry = 0;        // Time of the last connection attempt
+unsigned long mqttRetryMs = 0;        // Wait before the next attempt: 5 s, doubled up to 2 minutes
+unsigned long mqttLastState = 0;      // Last check of the state for changes
+unsigned long mqttLastRssi = 0;       // Last time the Wi-Fi signal was sent
+unsigned long mqttSaveAt = 0;         // Store settings changed by Home Assistant at this time (0 = nothing to store)
+bool mqttRestartPending = false;      // Restart button pressed in Home Assistant
+uint32_t mqttDiscoverySig = 0;        // Settings the discovery messages depend on (to send them again after a change)
+mqttStateRec mqttLast;                // State sent last time
+bool mqttLastValid = false;
+
+// Names in Home Assistant follow the language of the clock (Display -> Language):
+const char* mqttT(const char* de, const char* en) {
+  return switchLangWeb == 0 ? de : en;
+}
+const char* const mqttColorModesDe[3] = { "Einfarbig", "Regenbogen", "Zufällig" };
+const char* const mqttColorModesEn[3] = { "Single color", "Rainbow", "Random" };
+const char* const mqttNightModesDe[3] = { "Unverändert", "Display aus", "Gedimmt" };
+const char* const mqttNightModesEn[3] = { "Unchanged", "Display off", "Dimmed" };
+
+int mqttMaxBright() {
+  return powersupply ? 255 : 128;
+}
+
+const char* mqttStatus() {
+  if (!mqttCfg.on) return "off";
+  if (mqtt.connected()) return "connected";
+  return mqttTried ? "error" : "connecting";
+}
+
+// Settings changed (configuration page): disconnect and connect again right away
+void mqttRestart() {
+  if (mqtt.connected()) {
+    mqtt.publish((mqttBase + "/status").c_str(), "offline", true);
+    mqtt.disconnect();
+  }
+  mqttTried = false;
+  mqttLastRc = 0;
+  mqttRetryMs = 0;
+  mqttLastValid = false;
+}
+
+uint32_t mqttSig() {
+  IPAddress ip = WiFi.localIP();
+  return (uint32_t)ip[3] << 24 ^ (uint32_t)ip[2] << 16 ^ (powersupply ? 1 : 0) ^ (switchLangWeb << 1) ^ (wchostnamenum << 3);
+}
+
+// One discovery message: component, object, entity name (nullptr = the device name) and the fields of the entity
+bool mqttDiscover(const char* component, const char* object, const char* name, JsonDocument& d) {
+  d["~"] = mqttBase;
+  d["name"] = name;
+  d["uniq_id"] = mqttId + "_" + object;
+  d["avty_t"] = "~/status";
+  JsonObject dev = d["dev"].to<JsonObject>();
+  dev["ids"].to<JsonArray>().add(mqttId);
+  dev["name"] = wchostname + wchostnamenum;
+  dev["mf"] = "WordClock";
+  dev["mdl"] = "WordClock (" CHIP_NAME ")";
+  dev["sw"] = WORD_CLOCK_VERSION;
+  dev["cu"] = "http://" + WiFi.localIP().toString();
+  String mac = WiFi.macAddress();
+  mac.toLowerCase();
+  JsonArray cns = dev["cns"].to<JsonArray>().add<JsonArray>();
+  cns.add("mac");
+  cns.add(mac);
+  String payload;
+  serializeJson(d, payload);
+  String topic = String("homeassistant/") + component + "/" + mqttId + "/" + object + "/config";
+  bool ok = mqtt.publish(topic.c_str(), payload.c_str(), true);
+  if (!ok) Serial.printf("MQTT: discovery for %s not sent (%u bytes)\n", object, (unsigned)payload.length());
+  return ok;
+}
+
+void mqttSendDiscovery() {
+  int maxBright = mqttMaxBright();
+  {
+    JsonDocument d;  // Main entity: the LEDs of the clock
+    d["schema"] = "json";
+    d["cmd_t"] = "~/light/set";
+    d["stat_t"] = "~/light";
+    d["brightness"] = true;
+    d["bri_scl"] = maxBright;
+    d["sup_clrm"].to<JsonArray>().add("rgb");
+    mqttDiscover("light", "light", nullptr, d);
+  }
+  {
+    JsonDocument d;
+    d["cmd_t"] = "~/lamp/set";
+    d["stat_t"] = "~/lamp";
+    d["icon"] = "mdi:lightbulb-on";
+    mqttDiscover("switch", "lamp", mqttT("Lampenmodus", "Lamp mode"), d);
+  }
+  {
+    JsonDocument d;
+    d["cmd_t"] = "~/colormode/set";
+    d["stat_t"] = "~/colormode";
+    d["icon"] = "mdi:palette";
+    JsonArray ops = d["ops"].to<JsonArray>();
+    for (int i = 0; i < 3; i++) ops.add(switchLangWeb == 0 ? mqttColorModesDe[i] : mqttColorModesEn[i]);
+    mqttDiscover("select", "colormode", mqttT("Farbmodus", "Color mode"), d);
+  }
+  {
+    JsonDocument d;
+    d["cmd_t"] = "~/nightmode/set";
+    d["stat_t"] = "~/nightmode";
+    d["icon"] = "mdi:weather-night";
+    d["ent_cat"] = "config";
+    JsonArray ops = d["ops"].to<JsonArray>();
+    for (int i = 0; i < 3; i++) ops.add(switchLangWeb == 0 ? mqttNightModesDe[i] : mqttNightModesEn[i]);
+    mqttDiscover("select", "nightmode", mqttT("Nachtmodus", "Night mode"), d);
+  }
+  {
+    JsonDocument d;
+    d["cmd_t"] = "~/nightbright/set";
+    d["stat_t"] = "~/nightbright";
+    d["min"] = 1;
+    d["max"] = maxBright;
+    d["step"] = 1;
+    d["mode"] = "slider";
+    d["icon"] = "mdi:brightness-4";
+    d["ent_cat"] = "config";
+    mqttDiscover("number", "nightbright", mqttT("Nacht-Helligkeit", "Night brightness"), d);
+  }
+  {
+    JsonDocument d;
+    d["stat_t"] = "~/rssi";
+    d["dev_cla"] = "signal_strength";
+    d["unit_of_meas"] = "dBm";
+    d["stat_cla"] = "measurement";
+    d["ent_cat"] = "diagnostic";
+    mqttDiscover("sensor", "rssi", mqttT("WLAN-Signal", "Wi-Fi signal"), d);
+  }
+  {
+    JsonDocument d;
+    d["cmd_t"] = "~/restart";
+    d["dev_cla"] = "restart";
+    d["ent_cat"] = "config";
+    mqttDiscover("button", "restart", mqttT("Neustart", "Restart"), d);
+  }
+  mqttDiscoverySig = mqttSig();
+}
+
+// Current state; the color is the set color (in the random color mode the shown color changes every minute)
+mqttStateRec mqttCurrent() {
+  mqttStateRec c;
+  c.on = RESTmanLEDsON ? 1 : 0;
+  c.bri = intensity;
+  bool saved = switchRainBow == 2;
+  c.r = saved ? parameter.pRed : redVal;
+  c.g = saved ? parameter.pGreen : greenVal;
+  c.b = saved ? parameter.pBlue : blueVal;
+  c.lamp = lampMode ? 1 : 0;
+  c.cmode = constrain(switchRainBow, 0, 2);
+  c.nmode = nightModeValue();
+  c.nbri = intensityNight;
+  return c;
+}
+
+// Sends what changed since the last time (or everything with force)
+void mqttSendState(bool force) {
+  mqttStateRec c = mqttCurrent();
+  mqttStateRec& l = mqttLast;
+  force = force || !mqttLastValid;
+  if (force || c.on != l.on || c.bri != l.bri || c.r != l.r || c.g != l.g || c.b != l.b) {
+    JsonDocument d;
+    d["state"] = c.on ? "ON" : "OFF";
+    d["brightness"] = c.bri;
+    d["color_mode"] = "rgb";
+    JsonObject col = d["color"].to<JsonObject>();
+    col["r"] = c.r;
+    col["g"] = c.g;
+    col["b"] = c.b;
+    String payload;
+    serializeJson(d, payload);
+    mqtt.publish((mqttBase + "/light").c_str(), payload.c_str(), true);
+  }
+  if (force || c.lamp != l.lamp) mqtt.publish((mqttBase + "/lamp").c_str(), c.lamp ? "ON" : "OFF", true);
+  if (force || c.cmode != l.cmode) mqtt.publish((mqttBase + "/colormode").c_str(), switchLangWeb == 0 ? mqttColorModesDe[c.cmode] : mqttColorModesEn[c.cmode], true);
+  if (force || c.nmode != l.nmode) mqtt.publish((mqttBase + "/nightmode").c_str(), switchLangWeb == 0 ? mqttNightModesDe[c.nmode] : mqttNightModesEn[c.nmode], true);
+  if (force || c.nbri != l.nbri) mqtt.publish((mqttBase + "/nightbright").c_str(), String(c.nbri).c_str(), true);
+  if (force || millis() - mqttLastRssi > 60000UL) {
+    mqttLastRssi = millis();
+    mqtt.publish((mqttBase + "/rssi").c_str(), String(WiFi.RSSI()).c_str(), true);
+  }
+  mqttLast = c;
+  mqttLastValid = true;
+}
+
+// Option text of a select in German or English -> index, -1 if unknown
+int mqttOption(const String& v, const char* const de[3], const char* const en[3]) {
+  for (int i = 0; i < 3; i++)
+    if (v == de[i] || v == en[i]) return i;
+  return -1;
+}
+
+// Settings changed by Home Assistant are stored a few seconds later, so a moved slider does not write the flash for every step
+void mqttSaveSoon() {
+  mqttSaveAt = (millis() + 3000UL) | 1;
+}
+
+void mqttSaveNow() {
+  mqttSaveAt = 0;
+  if (switchRainBow == 2) {  // Random color mode: store the set color, not the random color of the minute
+    int r = redVal, g = greenVal, b = blueVal;
+    redVal = parameter.pRed;
+    greenVal = parameter.pGreen;
+    blueVal = parameter.pBlue;
+    writeEEPROM();
+    redVal = r;
+    greenVal = g;
+    blueVal = b;
+  } else {
+    writeEEPROM();
+  }
+  Serial.println("MQTT: settings from Home Assistant stored");
+}
+
+void mqttCallback(char* topicC, byte* payload, unsigned int length) {
+  String topic(topicC);
+  String value;
+  value.reserve(length);
+  for (unsigned int i = 0; i < length; i++) value += (char)payload[i];
+  if (topic == "homeassistant/status") {  // Home Assistant restarted: announce the clock again
+    if (value == "online") {
+      mqttDiscoverySig = 0;
+      mqttLastValid = false;
+    }
+    return;
+  }
+  if (!topic.startsWith(mqttBase + "/")) return;
+  String cmd = topic.substring(mqttBase.length() + 1);
+  Serial.println("MQTT: " + cmd + " = " + value);
+  int maxBright = mqttMaxBright();
+
+  if (cmd == "light/set") {
+    JsonDocument d;
+    if (deserializeJson(d, value)) return;
+    if (d["brightness"].is<int>()) {
+      intensity = constrain(d["brightness"].as<int>(), 1, maxBright);
+      mqttSaveSoon();
+    }
+    if (d["color"].is<JsonObject>()) {
+      int r = constrain((int)(d["color"]["r"] | 0), 0, 255), g = constrain((int)(d["color"]["g"] | 0), 0, 255), b = constrain((int)(d["color"]["b"] | 0), 0, 255);
+      parameter.pRed = r;  // The set color (also kept in the random color mode)
+      parameter.pGreen = g;
+      parameter.pBlue = b;
+      if (switchRainBow != 2) {
+        redVal = r;
+        greenVal = g;
+        blueVal = b;
+      }
+      mqttSaveSoon();
+    }
+    String state = d["state"] | "";
+    if (state == "OFF") setLedsOn(false);
+    else if (state == "ON") setLedsOn(true);
+  } else if (cmd == "lamp/set") {
+    setLampMode(value == "ON");
+  } else if (cmd == "colormode/set") {
+    int m = mqttOption(value, mqttColorModesDe, mqttColorModesEn);
+    if (m < 0) return;
+    if (switchRainBow == 2 && m != 2) {  // Leaving the random color mode: show the set color again
+      redVal = parameter.pRed;
+      greenVal = parameter.pGreen;
+      blueVal = parameter.pBlue;
+    }
+    switchRainBow = m;
+    lastColorMinute = -1;  // New colors with the next loop pass
+    mqttSaveSoon();
+  } else if (cmd == "nightmode/set") {
+    int m = mqttOption(value, mqttNightModesDe, mqttNightModesEn);
+    if (m < 0) return;
+    displayoff = m ? -1 : 0;
+    useNightLEDs = (m == 2) ? -1 : 0;
+    if (m != 2) NightModeActive = false;
+    mqttSaveSoon();
+  } else if (cmd == "nightbright/set") {
+    intensityNight = constrain((int)value.toFloat(), 1, maxBright);
+    mqttSaveSoon();
+  } else if (cmd == "restart") {
+    mqttRestartPending = true;  // Not here: the restart waits for the loop, outside of the MQTT library
+  }
+}
+
+bool mqttConnect() {
+  if (mqttId.length() == 0) {
+    String mac = WiFi.macAddress();  // AA:BB:CC:DD:EE:FF
+    mac.replace(":", "");
+    mac.toLowerCase();
+    mqttId = "wordclock_" + mac.substring(6);
+    mqttBase = "wordclock/" + mac.substring(6);
+  }
+  mqtt.setServer(mqttCfg.host, mqttCfg.port);
+  mqtt.setCallback(mqttCallback);
+  mqtt.setBufferSize(1280);  // The discovery messages are up to about 800 bytes
+  mqtt.setKeepAlive(30);
+  mqtt.setSocketTimeout(3);  // Wait at most 3 s for the broker, the clock stands still meanwhile
+  Serial.printf("MQTT: connecting to %s:%u ...\n", mqttCfg.host, mqttCfg.port);
+  String clientId = "WordClock-" + mqttId.substring(10);
+  String will = mqttBase + "/status";
+  bool ok = mqtt.connect(clientId.c_str(), mqttCfg.user[0] ? mqttCfg.user : nullptr, mqttCfg.user[0] ? mqttCfg.pass : nullptr, will.c_str(), 0, true, "offline");
+  mqttTried = true;
+  mqttLastRc = mqtt.state();
+  if (!ok) {
+    Serial.printf("MQTT: connection failed, state %d\n", mqttLastRc);
+    return false;
+  }
+  Serial.println("MQTT: connected, topics " + mqttBase + "/...");
+  mqtt.publish(will.c_str(), "online", true);
+  mqtt.subscribe((mqttBase + "/+/set").c_str());
+  mqtt.subscribe((mqttBase + "/restart").c_str());
+  mqtt.subscribe("homeassistant/status");
+  mqttSendDiscovery();
+  mqttSendState(true);
+  return true;
+}
+
+// Called very often (from checkClient): keeps the connection, handles commands and sends changes
+void mqttLoop() {
+  static bool busy = false;
+  if (busy) return;
+  busy = true;
+  if (mqttSaveAt && (long)(millis() - mqttSaveAt) >= 0) mqttSaveNow();
+  if (mqttRestartPending) {
+    mqttRestartPending = false;
+    if (mqttSaveAt) mqttSaveNow();
+    mqtt.publish((mqttBase + "/status").c_str(), "offline", true);
+    mqtt.disconnect();
+    ClockRestart();
+  }
+  if (!mqttCfg.on || mqttCfg.host[0] == 0 || WiFi.status() != WL_CONNECTED) {
+    if (mqtt.connected()) mqtt.disconnect();
+    busy = false;
+    return;
+  }
+  if (!mqtt.connected()) {
+    if (mqttLastValid) {  // Connection lost (broker or Wi-Fi): show the reason on the configuration page
+      mqttLastRc = mqtt.state();
+      Serial.printf("MQTT: connection lost, state %d\n", mqttLastRc);
+    }
+    mqttLastValid = false;
+    if (mqttRetryMs == 0 || millis() - mqttLastTry >= mqttRetryMs) {
+      mqttLastTry = millis();
+      if (mqttConnect()) mqttRetryMs = 5000;
+      else mqttRetryMs = mqttRetryMs ? min(mqttRetryMs * 2, 120000UL) : 5000;
+    }
+    busy = false;
+    return;
+  }
+  mqtt.loop();
+  if (millis() - mqttLastState >= 500) {  // Changes from the configuration page, the REST functions or the night mode
+    mqttLastState = millis();
+    if (mqttSig() != mqttDiscoverySig) mqttSendDiscovery();
+    mqttSendState(false);
+  }
+  busy = false;
 }
 
 
@@ -2487,6 +2895,12 @@ void handleApiState() {
   pins["led"] = hw.ledPin;
   pins["sda"] = hw.sdaPin;
   pins["scl"] = hw.sclPin;
+  JsonObject mq = c["mqtt"].to<JsonObject>();
+  mq["on"] = mqttCfg.on != 0;
+  mq["host"] = mqttCfg.host;
+  mq["port"] = mqttCfg.port;
+  mq["user"] = mqttCfg.user;
+  mq["passSet"] = mqttCfg.pass[0] != 0;  // The password itself is never sent
 
   JsonObject s = doc["status"].to<JsonObject>();
   s["version"] = WORD_CLOCK_VERSION;
@@ -2517,6 +2931,9 @@ void handleApiState() {
   s["curColor"] = colorToHex(redVal, greenVal, blueVal);
   s["rainbowSeed"] = rainbowSeed;  // RainBow variant 1: the page calculates the same word colors  // Color shown right now (differs from the saved one in the random color mode)
   s["restPort"] = server1port;
+  s["mqtt"] = mqttStatus();  // off, connecting, connected, error
+  s["mqttRc"] = mqttLastRc;  // Result of the last connection attempt (PubSubClient state)
+  s["mqttTopic"] = mqttBase;
   JsonObject pd = s["pinDefaults"].to<JsonObject>();
   pd["led"] = PIN;
   pd["sda"] = SDA_PIN;
@@ -2623,6 +3040,31 @@ void handleApiConfig() {
     if (!validPin(ledPin) || !validPin(sdaPin) || !validPin(sclPin) || ledPin == sdaPin || ledPin == sclPin || sdaPin == sclPin) return sendError(400, "pins");
   }
 
+  mqttRec newMqtt = mqttCfg;
+  JsonObjectConst mc = c["mqtt"].as<JsonObjectConst>();
+  if (!mc.isNull()) {
+    newMqtt.on = (mc["on"] | (mqttCfg.on != 0)) ? 1 : 0;
+    String host = mc["host"] | String(mqttCfg.host), user = mc["user"] | String(mqttCfg.user);
+    host.trim();
+    user.trim();
+    if (host.length() >= sizeof(newMqtt.host) || (newMqtt.on && host.length() == 0)) return sendError(400, "mqtt.host");
+    long port = mc["port"] | (long)mqttCfg.port;
+    if (port < 1 || port > 65535) return sendError(400, "mqtt.port");
+    if (user.length() >= sizeof(newMqtt.user)) return sendError(400, "mqtt.user");
+    memset(newMqtt.host, 0, sizeof(newMqtt.host));
+    memset(newMqtt.user, 0, sizeof(newMqtt.user));
+    host.toCharArray(newMqtt.host, sizeof(newMqtt.host));
+    user.toCharArray(newMqtt.user, sizeof(newMqtt.user));
+    newMqtt.port = (uint16_t)port;
+    String pass = mc["pass"] | "";  // Empty = keep the stored password
+    if (pass.length() >= sizeof(newMqtt.pass)) return sendError(400, "mqtt.pass");
+    if (pass.length() > 0) {
+      memset(newMqtt.pass, 0, sizeof(newMqtt.pass));
+      pass.toCharArray(newMqtt.pass, sizeof(newMqtt.pass));
+    }
+    if (user.length() == 0) memset(newMqtt.pass, 0, sizeof(newMqtt.pass));  // No user, no password
+  }
+
   // ---- Apply ----
   redVal = r;
   greenVal = g;
@@ -2681,6 +3123,11 @@ void handleApiConfig() {
     sun = newSun;
     writeSunConfig();
   }
+  if (memcmp(&newMqtt, &mqttCfg, sizeof(mqttCfg)) != 0) {
+    mqttCfg = newMqtt;
+    writeMqttConfig();
+    mqttRestart();  // Connect again with the new settings (or disconnect)
+  }
   sunCalcDate = -1;  // Calculate the sun times again (location, or the time zone changed)
   configNTPTime();   // also sets the time zone
   pixels.setBrightness(intensity);
@@ -2722,16 +3169,20 @@ void handleApiCornerTest() {
   pixels.show();
 }
 
-void handleApiLamp() {
-  JsonDocument doc;
-  if (deserializeJson(doc, server.arg("plain"))) return sendError(400, "invalid JSON");
-  if (!doc["on"].is<bool>()) return sendError(400, "on");
-  lampMode = doc["on"].as<bool>();
+void setLampMode(bool on) {  // Configuration page and Home Assistant
+  lampMode = on;
   Serial.println(lampMode ? "Lamp mode ON" : "Lamp mode OFF");
   if (lampMode) {  // Switch on right away; switching off shows the time again with the next loop pass (about a second)
     showLamp();
     if (LEDsON && RESTmanLEDsON) pixels.show();
   }
+}
+
+void handleApiLamp() {
+  JsonDocument doc;
+  if (deserializeJson(doc, server.arg("plain"))) return sendError(400, "invalid JSON");
+  if (!doc["on"].is<bool>()) return sendError(400, "on");
+  setLampMode(doc["on"].as<bool>());
   JsonDocument res;
   res["ok"] = true;
   res["lamp"] = lampMode;
