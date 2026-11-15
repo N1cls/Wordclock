@@ -2310,7 +2310,7 @@ bool mqttConnect() {
   }
   mqtt.setServer(mqttCfg.host, mqttCfg.port);
   mqtt.setCallback(mqttCallback);
-  mqtt.setBufferSize(1280);  // The discovery messages are up to about 800 bytes
+  mqtt.setBufferSize(1024);  // The discovery messages have about 500 bytes
   mqtt.setKeepAlive(30);
   mqtt.setSocketTimeout(3);  // Wait at most 3 s for the broker, the clock stands still meanwhile
   Serial.printf("MQTT: connecting to %s:%u ...\n", mqttCfg.host, mqttCfg.port);
@@ -2368,8 +2368,9 @@ void mqttLoop() {
   mqtt.loop();
   if (millis() - mqttLastState >= 500) {  // Changes from the configuration page, the REST functions or the night mode
     mqttLastState = millis();
-    if (mqttSig() != mqttDiscoverySig) mqttSendDiscovery();
-    mqttSendState(false);
+    bool rediscover = mqttSig() != mqttDiscoverySig;  // Language, power supply, hostname or IP-address changed
+    if (rediscover) mqttSendDiscovery();
+    mqttSendState(rediscover);                         // After new discovery messages everything again (f.e. option names)
   }
   busy = false;
 }
