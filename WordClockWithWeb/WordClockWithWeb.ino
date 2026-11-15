@@ -85,7 +85,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.3.2";
+const char* WORD_CLOCK_VERSION = "V6.3.3";
 
 
 // ###########################################################################################################################################
@@ -96,6 +96,9 @@ RTC_DS3231 rtc;                                                                 
 unsigned long lastRequest = 0;                                                       // Variable to control RTC requests: millis() when the time was last read from the RTC
 int rtcStarted = 0;                                                                  // Variable to control whether RTC has been initialized
 bool rtcTimeValid = false;                                                           // RTC holds a usable time (battery ok)
+enum rtcReadResults { RTC_READ_NONE, RTC_READ_OK, RTC_READ_LOSTPOWER, RTC_READ_INVALID, RTC_READ_MISSING };
+uint8_t rtcLastRead = RTC_READ_NONE;                                                 // Result of the last rtcReadTime()
+uint8_t rtcStartRead = RTC_READ_NONE;                                                // Result at startup: stays visible after the NTP time repaired the RTC
 bool timeValid = false;                                                              // The clock knows the time (NTP, RTC or set on the configuration page)
 const time_t MIN_VALID_TIME = 1704067200;                                            // 2024-01-01 - anything earlier means "time not set yet"
 volatile bool ntpSyncPending = false;                                                // Set by the NTP callback, handled in handleTime()
@@ -421,6 +424,7 @@ void setup() {
   setenv("TZ", timeZone.c_str(), 1);  // Time zone, so the RTC time is shown correctly before the first NTP sync
   tzset();
   rtcReadTime();                    // Take the time from the RTC, if one is connected
+  rtcStartRead = rtcLastRead;       // Shown on the configuration page: was the RTC time usable at startup?
   bootStage(STAGE_LEDTEST);
   DisplayTest();                    // Perform the LED test
   pixels.setBrightness(intensity);  // Set LED brightness
@@ -745,9 +749,13 @@ void serviceDelay(unsigned long ms) {
 // ###########################################################################################################################################
 // Sets the clock of the ESP from the RTC, so the WordClock shows the time without WiFi.
 bool rtcReadTime() {
-  if (!checkRTC()) return false;
+  if (!checkRTC()) {
+    rtcLastRead = RTC_READ_MISSING;
+    return false;
+  }
   if (rtc.lostPower()) {  // The RTC was without power (battery empty?), so its time is not usable
     if (lastRequest == 0) Serial.println("rtcReadTime() - RTC lost its time (battery empty?) - waiting for NTP");
+    rtcLastRead = RTC_READ_LOSTPOWER;
     rtcTimeValid = false;
     lastRequest = millis() | 1;
     return false;
@@ -762,9 +770,12 @@ bool rtcReadTime() {
   }
   lastRequest = millis() | 1;
   if ((time_t)t < MIN_VALID_TIME) {
+    Serial.println("rtcReadTime() - RTC time is before 2024 - waiting for NTP");
+    rtcLastRead = RTC_READ_INVALID;
     rtcTimeValid = false;
     return false;
   }
+  rtcLastRead = RTC_READ_OK;
   rtcTimeValid = true;
   timeval tv = { (time_t)t, 0 };
   settimeofday(&tv, nullptr);
@@ -2489,6 +2500,8 @@ void handleApiState() {
   s["ntpAgoMin"] = lastNtpSync ? (long)(ntpAge / 60000UL) : -1;
   s["rtc"] = rtcStarted != 0;
   s["rtcOk"] = rtcTimeValid;
+  static const char* const rtcReadNames[] = { "none", "ok", "lostpower", "invalid", "missing" };
+  s["rtcStart"] = rtcReadNames[rtcStartRead];  // RTC at startup: time taken over, or why not (lostpower = battery)
   s["timeOk"] = timeValid;
   s["uptime"] = millis() / 1000UL;
   s["heap"] = ESP.getFreeHeap();
