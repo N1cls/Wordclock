@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V6.3.3     </b></h3>
+<h3><b>Current version: V6.4.0     </b></h3>
 
 
 <hr>
@@ -81,6 +81,7 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - RTClib (by Adafruit) together with Adafruit BusIO
 - WiFiManager (by tzapu / tablatronix)
 - ArduinoJson (by Benoit Blanchon), version 7 or newer
+- PubSubClient (by Nick O'Leary), for the Home Assistant connection via MQTT (since V6.4.0)
 - ESPping (by dvarrel): https://github.com/dvarrel/ESPping (replaces ESP8266Ping since V6.1.0, works on ESP8266 and ESP32)
 
 
@@ -112,6 +113,7 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - The timezone and NTP-Server configuration can be configured as well to fit to your demands
 - Optional you can set up to 3 IP-addresses (of f.e. your smart phones) connected on your network to be monitored via PING requests 2x per minute. After a set amount of failed PING attempts the WordClock LEDs will turn off to reduce power consumption when you are not at home
 - Automatic update without the need of a computer: the web interface checks the GitHub releases of this repository and installs a newer version with one click. The download and update progress is shown on the clock display.
+- Home Assistant via MQTT: the clock announces itself with MQTT discovery and appears as a device with light (on/off, brightness, color), lamp mode, color mode, night mode, night brightness, Wi-Fi signal and a restart button. Changes on the web interface show up in Home Assistant right away. See "Add WordClock to Home Assistant" below
 - German and English layout variant of the WordClock. The DE/EN switch at the top right of the web interface sets the clock layout and the language of the web interface. REST command texts are always in English.
 
 
@@ -205,6 +207,8 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - 6.3.3    RTC at startup: the Time tab shows whether the RTC time was usable when the clock was switched on, and the status
            on the start page warns "check the battery" if the RTC was without power. Before, the RTC looked fine as soon as
            the NTP time had repaired it, although it had lost its time at every power cut.
+- 6.4.0    Home Assistant via MQTT discovery: the clock appears as a device in Home Assistant (light, lamp mode, color mode,
+           night mode, night brightness, Wi-Fi signal, restart). Settings on the Network tab. Needs the PubSubClient library.
 
 <hr>
 
@@ -234,6 +238,28 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 
 
 <h3><b>How-To's:</b></h3>
+
+
+<hr>
+
+
+<b>Add WordClock to Home Assistant (MQTT discovery, since V6.4.0):</b>
+
+<b>Preconditions:</b>
+- Home Assistant with a MQTT broker, f.e. the official "Mosquitto broker" add-on, and the MQTT integration set up.
+
+<b>Steps:</b>
+1. Web interface of the clock: Network -> Home Assistant (MQTT) -> switch on "Connect to Home Assistant".
+2. MQTT server: the IP-address of Home Assistant (a name like homeassistant.local does not work on every chip, the IP-address always does), port 1883.
+3. User and password: a Home Assistant user or a login set in the Mosquitto add-on. Save.
+4. "Connection: Connected" shows that it worked. The clock now appears in Home Assistant under Settings -> Devices & services -> MQTT as "WordClock&lt;n&gt;".
+
+<b>Notes:</b>
+- Topics: wordclock/&lt;last 6 digits of the MAC&gt;/... (shown on the web interface), discovery under homeassistant/...
+- The entity names follow the language of the clock (Display -> Language).
+- Settings changed in Home Assistant (color, brightness, color mode, night mode, night brightness) are stored on the clock a few seconds later. Lamp mode and LEDs on/off are not stored, like on the web interface.
+- If the broker cannot be reached, the clock tries again after 5 s, then less often (up to every 2 minutes). Each attempt can hold the display for up to about 3 seconds.
+- To remove the clock from Home Assistant: switch off the connection on the web interface, then delete the device in Home Assistant.
 
 
 <hr>
