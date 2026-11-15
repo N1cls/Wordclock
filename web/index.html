@@ -145,7 +145,7 @@ dl.kv dd{text-align:right;overflow-wrap:anywhere}
 .seg label{flex:1 1 auto;text-align:center;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:550;color:var(--muted);white-space:nowrap}
 .seg input:checked+label{background:var(--surface);color:var(--fg);box-shadow:0 0 0 1px var(--line),0 1px 2px rgb(0 0 0 / .08)}
 .seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:1px}
-input[type=text],input[type=number],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s);padding:8px 10px;min-width:0}
+input[type=text],input[type=password],input[type=number],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s);padding:8px 10px;min-width:0}
 input[type=text].mono,input[type=number]{font-family:var(--mono)}
 input[type=range]{accent-color:var(--accent)}
 input:disabled,select:disabled{opacity:.55}
@@ -472,6 +472,21 @@ a{color:var(--accent)}
             </div>
             <div class="urls" id="restUrls"></div>
           </div>
+          <div class="group" id="mqttGroup">
+            <h3 data-t="gMqtt">Home Assistant (MQTT)</h3>
+            <div class="rows">
+              <label class="row" for="mqttOn"><span class="rt"><b data-t="mqttOn"></b><small data-t="mqttSub"></small></span><input type="checkbox" class="sw" id="mqttOn" data-k="mqtt.on"></label>
+            </div>
+            <div class="ipgrid" id="mqttFields">
+              <div class="field"><label for="mqttHost" data-t="mqttHost"></label><input type="text" id="mqttHost" class="mono" data-k="mqtt.host" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="192.168.1.10"></div>
+              <div class="field"><label for="mqttPort" data-t="mqttPort"></label><input type="number" id="mqttPort" class="mono" min="1" max="65535" data-k="mqtt.port" data-type="num"></div>
+              <div class="field"><label for="mqttUser" data-t="mqttUser"></label><input type="text" id="mqttUser" data-k="mqtt.user" spellcheck="false" autocomplete="off" autocapitalize="off"></div>
+              <div class="field"><label for="mqttPass" data-t="mqttPass"></label><input type="password" id="mqttPass" data-k="mqtt.pass" autocomplete="new-password"></div>
+            </div>
+            <p class="err" id="mqttErr" hidden></p>
+            <dl class="kv" id="mqttState"></dl>
+            <p class="hint" id="mqttHint"></p>
+          </div>
         </section>
 
         <!-- System -->
@@ -555,12 +570,13 @@ const mock = {
     ledTest: true, setWlan: true, showIp: true,
     ntp: "de.pool.ntp.org", tz: "CET-1CEST,M3.5.0/02,M10.5.0/03",
     hostNum: 0, ping: { on: false, ips: ["192.168.178.56","0.0.0.0","0.0.0.0"], tries: 10, debug: false },
-    rest: true, update: 1, pins: { led: 12, sda: 4, scl: 5 }
+    rest: true, update: 1, pins: { led: 12, sda: 4, scl: 5 },
+    mqtt: { on: false, host: "", port: 1883, user: "", passSet: false }
   },
   status: {
-    version: "V6.3.3", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
+    version: "V6.4.0", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
     ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, rtcStart: "ok", timeOk: true,
-    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, resetReason: "poweron", resetCode: 1, boots: 1, ledsOn: true, lamp: false, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
+    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, resetReason: "poweron", resetCode: 1, boots: 1, ledsOn: true, lamp: false, restPort: 55555, mqtt: "off", mqttRc: 0, mqttTopic: "wordclock/3b7e01", curColor: "#00ff00", rainbowSeed: 123456789,
     pinDefaults: { led: 12, sda: 4, scl: 5 }
   }
 };
@@ -585,7 +601,9 @@ const api = {
     if (MOCK) {
       await sleep(450);
       const restart = JSON.stringify(cfg.pins) !== JSON.stringify(mock.cfg.pins);
-      mock.cfg = clone(cfg); return { ok: true, restart };
+      mock.cfg = clone(cfg);
+      if (cfg.mqtt) { mock.status.mqtt = cfg.mqtt.on ? "connected" : "off"; mock.status.mqttRc = 0; }
+      return { ok: true, restart };
     }
     return post("/api/config", cfg);
   },
@@ -671,6 +689,13 @@ const T = {
     tries: "Fehlversuche bis die LEDs ausgehen", triesHint: "entspricht etwa {n} Min. (2 Pings pro Minute)",
     pingDebug: "Debug-Ausgabe im seriellen Monitor",
     gRest: "REST-Schnittstelle", rest: "REST-Schnittstelle aktiv", restSub: "Steuerung per URL, z. B. aus Home Assistant. Port {p}.",
+    gMqtt: "Home Assistant (MQTT)", mqttOn: "Mit Home Assistant verbinden", mqttSub: "Die Uhr meldet sich per MQTT-Discovery als Gerät an: Licht, Lampenmodus, Farbmodus, Nachtmodus und mehr.",
+    mqttHost: "MQTT-Server", mqttPort: "Port", mqttUser: "Benutzer", mqttPass: "Passwort", mqttPassKeep: "gespeichert",
+    mqttErr: "Bitte Server und einen Port von 1 bis 65535 angeben.", mqttConn: "Verbindung",
+    mq_off: "Aus", mq_connecting: "Verbindet …", mq_connected: "Verbunden", mq_rc_m4: "Keine Antwort vom Server", mq_rc_m3: "Verbindung verloren",
+    mq_rc_m2: "Server nicht erreichbar", mq_rc_4: "Benutzer oder Passwort falsch", mq_rc_5: "Nicht berechtigt", mq_rc: "Fehler (Code {n})",
+    mqttHint: "Server ist meist die IP-Adresse von Home Assistant mit dem Mosquitto-Add-on, Port 1883. Benutzer und Passwort: ein Home-Assistant-Benutzer oder ein Login aus dem Add-on. Die Uhr erscheint danach in Home Assistant unter Einstellungen › Geräte & Dienste › MQTT.",
+    mqttTopic: "Topics", 
     rOff: "LEDs aus", rOn: "LEDs an", rStat: "LED-Status", copy: "Kopieren", copiedUrl: "URL kopiert",
     gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Laufzeit", fHeap: "Freier Speicher", upFmt: "{d} T {h} Std {m} Min",
     fReset: "Letzter Neustart", rst_poweron: "Strom eingeschaltet", rst_external: "Reset-Taster", rst_software: "Neustart durch die Software",
@@ -767,6 +792,13 @@ const T = {
     tries: "Missed pings until the LEDs go off", triesHint: "about {n} min (2 pings per minute)",
     pingDebug: "Debug output on the serial monitor",
     gRest: "REST interface", rest: "REST interface enabled", restSub: "Control via URL, e.g. from Home Assistant. Port {p}.",
+    gMqtt: "Home Assistant (MQTT)", mqttOn: "Connect to Home Assistant", mqttSub: "The clock announces itself as a device via MQTT discovery: light, lamp mode, color mode, night mode and more.",
+    mqttHost: "MQTT server", mqttPort: "Port", mqttUser: "User", mqttPass: "Password", mqttPassKeep: "stored",
+    mqttErr: "Please enter the server and a port from 1 to 65535.", mqttConn: "Connection",
+    mq_off: "Off", mq_connecting: "Connecting …", mq_connected: "Connected", mq_rc_m4: "No answer from the server", mq_rc_m3: "Connection lost",
+    mq_rc_m2: "Server not reachable", mq_rc_4: "Wrong user or password", mq_rc_5: "Not authorized", mq_rc: "Error (code {n})",
+    mqttHint: "The server is usually the IP address of Home Assistant with the Mosquitto add-on, port 1883. User and password: a Home Assistant user or a login of the add-on. The clock then appears in Home Assistant under Settings › Devices & services › MQTT.",
+    mqttTopic: "Topics", 
     rOff: "LEDs off", rOn: "LEDs on", rStat: "LED status", copy: "Copy", copiedUrl: "URL copied",
     gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Uptime", fHeap: "Free memory", upFmt: "{d} d {h} h {m} min",
     fReset: "Last restart", rst_poweron: "Power switched on", rst_external: "Reset button", rst_software: "Restart by the software",
@@ -1145,6 +1177,13 @@ function renderDeps() {
   $("#restUrls").hidden = !cfg.rest;
   $("#restUrls").innerHTML = [["rOff", "ledsoff"], ["rOn", "ledson"], ["rStat", "ledstatus"]].map(([k, p]) =>
     `<div class="url"><span>${t(k)}</span><code>${base + p}</code><button type="button" class="btn sm" data-copy="${base + p}">${t("copy")}</button></div>`).join("");
+  // Home Assistant (MQTT); hidden for firmware without MQTT
+  $("#mqttGroup").hidden = !cfg.mqtt;
+  if (cfg.mqtt) {
+    $("#mqttFields").querySelectorAll("input").forEach(i => i.disabled = !cfg.mqtt.on);
+    $("#mqttPass").placeholder = cfg.mqtt.passSet ? t("mqttPassKeep") : "";
+    $("#mqttHint").textContent = t("mqttHint");
+  }
   // System
   const u = $("#updDetail");
   if (cfg.update === 0) u.innerHTML = `<p class="hint">${t("uHint0")}</p>`;
@@ -1176,6 +1215,13 @@ function renderStatus() {
   $("#wifiList").innerHTML =
     row(t("wNet"), st.ssid) + row(t("wSig"), `<span class="mono">${st.rssi} dBm</span>, ${sig}`, sigCls) +
     row(t("wIp"), `<span class="mono">${st.ip}</span>`) + row(t("wMac"), `<span class="mono">${st.mac}</span>`);
+  if (st.mqtt) {  // Connection state of the saved MQTT settings
+    const rcKey = { "-4": "mq_rc_m4", "-3": "mq_rc_m3", "-2": "mq_rc_m2", "4": "mq_rc_4", "5": "mq_rc_5" }[String(st.mqttRc)];
+    const txt = st.mqtt === "error" ? t(rcKey || "mq_rc", { n: st.mqttRc }) : t("mq_" + st.mqtt);
+    const cls = st.mqtt === "connected" ? "ok" : st.mqtt === "error" ? "bad" : st.mqtt === "connecting" ? "warn" : "";
+    $("#mqttState").innerHTML = row(t("mqttConn"), txt, cls) +
+      (st.mqtt === "connected" && st.mqttTopic ? row(t("mqttTopic"), `<span class="mono">${st.mqttTopic}/…</span>`) : "");
+  } else $("#mqttState").innerHTML = "";
   const up = st.uptime;
   $("#fwList").innerHTML =
     row(t("fVer"), `<span class="mono">${st.version}</span>`) + row(t("fChip"), st.chip) +
@@ -1266,7 +1312,7 @@ function updateDirty() {
   const ch = changedKeys();
   $("#savebar").hidden = ch.length === 0;
   $("#dirtyText").textContent = ch.length === 1 ? t("dirty1") : t("dirtyN", { n: ch.length });
-  const tabOf = { led: ["color","rainbow","bright","brightNight","psu"], night: ["night","nightDays","sun"], disp: ["lang","deSpecial","blink","date","minMode","minOrder","ledTest","setWlan","showIp"], time: ["ntp","tz"], net: ["hostNum","ping","rest"], sys: ["update","pins"] };
+  const tabOf = { led: ["color","rainbow","bright","brightNight","psu"], night: ["night","nightDays","sun"], disp: ["lang","deSpecial","blink","date","minMode","minOrder","ledTest","setWlan","showIp"], time: ["ntp","tz"], net: ["hostNum","ping","rest","mqtt"], sys: ["update","pins"] };
   $$("#tabs button").forEach(b => {
     const has = ch.some(k => tabOf[b.dataset.tab].includes(k.split(".")[0]));
     let d = b.querySelector(".tdot");
@@ -1302,6 +1348,12 @@ function validate() {
   ["pinLed", "pinSda", "pinScl"].forEach(id => $("#" + id).classList.toggle("invalid", !pinsOk));
   $("#pinErr").textContent = t("pinErr"); $("#pinErr").hidden = pinsOk;
   if (!pinsOk) bad.push("pinLed");
+  if (cfg.mqtt) {
+    const m = cfg.mqtt, hostOk = !m.on || /^[^\s]{1,63}$/.test(String(m.host).trim()), portOk = !m.on || (Number.isInteger(m.port) && m.port >= 1 && m.port <= 65535);
+    $("#mqttHost").classList.toggle("invalid", !hostOk); $("#mqttPort").classList.toggle("invalid", !portOk);
+    $("#mqttErr").textContent = t("mqttErr"); $("#mqttErr").hidden = hostOk && portOk;
+    if (!hostOk) bad.push("mqttHost"); else if (!portOk) bad.push("mqttPort");
+  }
   const ipBad = bad.some(x => x.startsWith("ip"));
   $("#ipErr").textContent = t("ipErr"); $("#ipErr").hidden = !ipBad;
   return bad;
@@ -1317,9 +1369,16 @@ async function save() {
   }
   const btn = $("#save"); btn.disabled = true; btn.textContent = t("saving");
   try {
+    const mqttChanged = changedKeys().some(k => k.startsWith("mqtt."));
     const res = await api.save(cfg);
+    if (cfg.mqtt) {  // The password is not sent back by the clock: keep the field empty, "stored" as hint
+      if (cfg.mqtt.pass) cfg.mqtt.passSet = true;
+      if (!cfg.mqtt.user) cfg.mqtt.passSet = false;
+      cfg.mqtt.pass = ""; $("#mqttPass").value = ""; renderDeps();
+    }
     saved = clone(cfg); updateDirty(); toast(t(res && res.restart ? "savedRestart" : "saved"));
     refreshStatus();  // f.e. the color the clock shows after switching the color mode
+    if (mqttChanged) setTimeout(refreshStatus, 5000);  // Result of the new MQTT connection
   } catch (e) { toast(t("saveErr")); }
   btn.disabled = false; btn.textContent = t("save");
 }
@@ -1455,7 +1514,9 @@ async function init() {
   selectTab(start);
   try {
     const data = await api.load();
-    cfg = data.cfg; st = data.status; saved = clone(cfg);
+    cfg = data.cfg; st = data.status;
+    if (cfg.mqtt && cfg.mqtt.pass == null) cfg.mqtt.pass = "";  // The clock never sends the password
+    saved = clone(cfg);
   } catch (e) { toast(t("loadErr")); return; }
   L = cfg.lang === 1 ? "en" : "de";
   applyLang(); renderStatus(); after();

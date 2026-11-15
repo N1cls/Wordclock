@@ -76,6 +76,10 @@ typedef HTTPUpdateServer ESP8266HTTPUpdateServer;   // Same interface as on the 
 #include "settings.h"                 // Settings are stored in a seperate file to make to code better readable and to be able to switch to other settings faster
 #include "webpage.h"                  // Configuration page (gzipped), generated from web/index.html by tools/build_webpage.py
 
+// State sent to Home Assistant via MQTT. Defined before everything else: the Arduino IDE puts the function prototypes
+// in front of the first function, and on the ESP32 that is SET_LOOP_TASK_STACK_SIZE below.
+struct mqttStateRec { int on, bri, r, g, b, lamp, cmode, nmode, nbri; };
+
 #if defined(ESP32)
 // Adafruit NeoPixel puts the whole RMT buffer for the 114 LEDs (about 11 KB) on the stack of the calling task,
 // more than the default 8 KB of the Arduino loop task. The HTTPS connection to GitHub needs stack as well.
@@ -86,7 +90,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.3.3";
+const char* WORD_CLOCK_VERSION = "V6.4.0";
 
 
 // ###########################################################################################################################################
@@ -268,7 +272,6 @@ struct mqttRec {
   char pass[64];    // Never sent to the configuration page
 } mqttCfg;
 #define MQTT_MAGIC 0x57434d31UL  // "WCM1"
-struct mqttStateRec { int on, bri, r, g, b, lamp, cmode, nmode, nbri; };  // State sent to Home Assistant (defined here for the function prototypes)
 #define MQTT_OFFSET (((SUN_OFFSET + sizeof(sunRec) + 3) / 4) * 4)
 #define EEPROM_SIZE (MQTT_OFFSET + sizeof(mqttRec))
 
