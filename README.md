@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V6.4.0     </b></h3>
+<h3><b>Current version: V6.4.1     </b></h3>
 
 
 <hr>
@@ -209,6 +209,9 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
            the NTP time had repaired it, although it had lost its time at every power cut.
 - 6.4.0    Home Assistant via MQTT discovery: the clock appears as a device in Home Assistant (light, lamp mode, color mode,
            night mode, night brightness, Wi-Fi signal, restart). Settings on the Network tab. Needs the PubSubClient library.
+- 6.4.1    Switching the LEDs on at night (Home Assistant light or REST "ledson") no longer flashes them with the day
+           brightness first; they come on with the night brightness right away (or stay dark if the night mode switches the
+           display off).
 
 <hr>
 

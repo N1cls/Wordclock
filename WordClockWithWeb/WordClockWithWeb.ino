@@ -90,7 +90,7 @@ SET_LOOP_TASK_STACK_SIZE(24 * 1024);
 // ###########################################################################################################################################
 // # Version number of the code:
 // ###########################################################################################################################################
-const char* WORD_CLOCK_VERSION = "V6.4.0";
+const char* WORD_CLOCK_VERSION = "V6.4.1";
 
 
 // ###########################################################################################################################################
@@ -1408,6 +1408,14 @@ bool nightTimeNow() {
   return !isDayTime(displayonMin, displayonMax);
 }
 
+// Brightness the clock uses right now: day brightness; during the night times of the night mode the night brightness,
+// or 0 if the night mode switches the display off (the lamp mode uses the night brightness also then):
+int brightnessNow() {
+  if (!nightTimeNow()) return intensity;
+  if (lampMode || useNightLEDs == -1) return intensityNight;
+  return 0;
+}
+
 void DayNightMode(int displayonMin, int displayonMax) {
   if (isDayTime(displayonMin, displayonMax)) {
     pixels.setBrightness(intensity);  // Day brightness
@@ -1540,7 +1548,7 @@ void ledsON() {
 // Switches the LEDs on or off by hand (REST function and Home Assistant):
 void setLedsOn(bool on) {
   Serial.println(on ? "WordClock LEDs set to ON" : "WordClock LEDs set to OFF");
-  pixels.setBrightness(on ? intensity : 0);
+  pixels.setBrightness(on ? brightnessNow() : 0);  // At night not first with the day brightness (flashed up until the next loop pass)
   RESTmanLEDsON = on;
   LEDsON = on;
   pixels.show();
@@ -3134,7 +3142,7 @@ void handleApiConfig() {
   }
   sunCalcDate = -1;  // Calculate the sun times again (location, or the time zone changed)
   configNTPTime();   // also sets the time zone
-  pixels.setBrightness(intensity);
+  pixels.setBrightness(brightnessNow());  // The next loop pass shows the new settings; at night with the night brightness
 
   bool pinsChanged = ledPin != hw.ledPin || sdaPin != hw.sdaPin || sclPin != hw.sclPin;
   if (pinsChanged) {  // Used after the next restart
