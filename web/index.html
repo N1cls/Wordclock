@@ -558,8 +558,8 @@ const mock = {
     rest: true, update: 1, pins: { led: 12, sda: 4, scl: 5 }
   },
   status: {
-    version: "V6.3.2", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
-    ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, timeOk: true,
+    version: "V6.3.3", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
+    ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, rtcStart: "ok", timeOk: true,
     uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, resetReason: "poweron", resetCode: 1, boots: 1, ledsOn: true, lamp: false, restPort: 55555, curColor: "#00ff00", rainbowSeed: 123456789,
     pinDefaults: { led: 12, sda: 4, scl: 5 }
   }
@@ -655,7 +655,9 @@ const T = {
     showIp: "IP-Adresse anzeigen", showIpSub: "Läuft nach dem Verbinden einmal als Text über die Uhr.",
     gSource: "Zeitquelle", srcNtp: "Internet (NTP)", srcRtc: "RTC-Modul",
     ntpSynced: "Synchronisiert vor {n} Min.", ntpFail: "Nicht erreichbar", rtcRun: "DS3231, läuft", rtcMissing: "Nicht gefunden",
-    rtcBad: "DS3231, Zeit ungültig (Batterie prüfen)", rtcBadShort: "DS3231, Zeit ungültig",
+    rtcBad: "DS3231, Zeit ungültig (Batterie prüfen)", rtcBadShort: "DS3231, Zeit ungültig", rtcBattShort: "DS3231, Batterie prüfen",
+    srcRtcStart: "RTC beim Start", rtcStart_ok: "Zeit übernommen", rtcStart_lostpower: "Zeit ungültig, die RTC war ohne Strom (Batterie prüfen)",
+    rtcStart_invalid: "Zeit ungültig (vor 2024)", rtcStart_missing: "Nicht gefunden",
     srcHint: "Ohne WLAN zeigt die Uhr die Zeit der RTC an, auch direkt nach dem Einschalten. Sobald NTP wieder erreichbar ist, wird die RTC nachgestellt.",
     gNtp: "NTP-Server", ntpDefault: "Standard: {v}", reset: "Zurücksetzen", ntpErr: "Bitte einen NTP-Server eingeben.",
     gTz: "Zeitzone", tzCustom: "Eigene Zeitzone (POSIX-Format)", tzCustomLabel: "POSIX-Zeitzone", tzHelp: "Format erklärt", tzErr: "Bitte eine Zeitzone eingeben.",
@@ -749,7 +751,9 @@ const T = {
     showIp: "Show IP address", showIpSub: "Scrolls across the clock once after connecting.",
     gSource: "Time source", srcNtp: "Internet (NTP)", srcRtc: "RTC module",
     ntpSynced: "Synced {n} min ago", ntpFail: "Not reachable", rtcRun: "DS3231, running", rtcMissing: "Not found",
-    rtcBad: "DS3231, time invalid (check the battery)", rtcBadShort: "DS3231, time invalid",
+    rtcBad: "DS3231, time invalid (check the battery)", rtcBadShort: "DS3231, time invalid", rtcBattShort: "DS3231, check the battery",
+    srcRtcStart: "RTC at startup", rtcStart_ok: "Time taken over", rtcStart_lostpower: "Time invalid, the RTC was without power (check the battery)",
+    rtcStart_invalid: "Time invalid (before 2024)", rtcStart_missing: "Not found",
     srcHint: "Without Wi-Fi the clock shows the RTC time, also right after power-up. Once NTP is reachable again, the RTC is corrected.",
     gNtp: "NTP server", ntpDefault: "Default: {v}", reset: "Reset", ntpErr: "Enter an NTP server.",
     gTz: "Time zone", tzCustom: "Custom time zone (POSIX format)", tzCustomLabel: "POSIX time zone", tzHelp: "Format explained", tzErr: "Enter a time zone.",
@@ -1158,14 +1162,17 @@ function renderStatus() {
   const sig = st.rssi > -60 ? t("sigGood") : st.rssi > -72 ? t("sigOk") : t("sigBad");
   const sigCls = st.rssi > -60 ? "ok" : st.rssi > -72 ? "warn" : "bad";
   const row = (k, v, cls) => `<dt>${k}</dt><dd>${cls ? `<span class="dot ${cls}"></span>` : ""}${v}</dd>`;
+  const rtcStartBad = !!st.rtc && (st.rtcStart === "lostpower" || st.rtcStart === "invalid");
   $("#statusList").innerHTML =
     row(t("stTime"), st.ntpOk ? t("ntpAgo", { n: st.ntpAgoMin }) : t("ntpNone"), st.ntpOk ? "ok" : "warn") +
-    row(t("stRtc"), !st.rtc ? t("rtcNo") : st.rtcOk === false ? t("rtcBadShort") : t("rtcOk"), !st.rtc ? "bad" : st.rtcOk === false ? "warn" : "ok") +
+    // RTC: also warn when its time was unusable at startup (battery), although the NTP time repaired it meanwhile
+    row(t("stRtc"), !st.rtc ? t("rtcNo") : st.rtcOk === false || st.rtcStart === "invalid" ? t("rtcBadShort") : rtcStartBad ? t("rtcBattShort") : t("rtcOk"), !st.rtc ? "bad" : st.rtcOk === false || rtcStartBad ? "warn" : "ok") +
     row(t("stWifi"), `${st.ssid}, ${sig}`, sigCls) +
     row(t("stFw"), `<span class="mono">${st.version}</span> · ${st.chip}`);
   $("#sourceList").innerHTML =
     row(t("srcNtp"), st.ntpOk ? t("ntpSynced", { n: st.ntpAgoMin }) : t("ntpFail"), st.ntpOk ? "ok" : "warn") +
-    row(t("srcRtc"), !st.rtc ? t("rtcMissing") : st.rtcOk === false ? t("rtcBad") : t("rtcRun"), !st.rtc ? "bad" : st.rtcOk === false ? "warn" : "ok");
+    row(t("srcRtc"), !st.rtc ? t("rtcMissing") : st.rtcOk === false ? t("rtcBad") : t("rtcRun"), !st.rtc ? "bad" : st.rtcOk === false ? "warn" : "ok") +
+    (st.rtc && st.rtcStart && st.rtcStart !== "none" ? row(t("srcRtcStart"), t("rtcStart_" + st.rtcStart), rtcStartBad ? "warn" : "ok") : "");
   $("#wifiList").innerHTML =
     row(t("wNet"), st.ssid) + row(t("wSig"), `<span class="mono">${st.rssi} dBm</span>, ${sig}`, sigCls) +
     row(t("wIp"), `<span class="mono">${st.ip}</span>`) + row(t("wMac"), `<span class="mono">${st.mac}</span>`);

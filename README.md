@@ -8,7 +8,7 @@ Feel free to add functions, ideas and everything else, which helps this project 
 <hr>
 
 
-<h3><b>Current version: V6.3.2     </b></h3>
+<h3><b>Current version: V6.3.3     </b></h3>
 
 
 <hr>
@@ -202,6 +202,9 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - 6.3.2    Startup without RTC: SET WLAN no longer appears a second time after the IP-address. The NTP requests now start
            when the WiFi is connected, so the time arrives while the IP-address scrolls (before, the first request was sent
            without network and the next one followed only after a long wait).
+- 6.3.3    RTC at startup: the Time tab shows whether the RTC time was usable when the clock was switched on, and the status
+           on the start page warns "check the battery" if the RTC was without power. Before, the RTC looked fine as soon as
+           the NTP time had repaired it, although it had lost its time at every power cut.
 
 <hr>
 
