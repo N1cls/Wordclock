@@ -113,7 +113,7 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - The timezone and NTP-Server configuration can be configured as well to fit to your demands
 - Optional you can set up to 3 IP-addresses (of f.e. your smart phones) connected on your network to be monitored via PING requests 2x per minute. After a set amount of failed PING attempts the WordClock LEDs will turn off to reduce power consumption when you are not at home
 - Automatic update without the need of a computer: the web interface checks the GitHub releases of this repository and installs a newer version with one click. The download and update progress is shown on the clock display.
-- Home Assistant via MQTT: the clock announces itself with MQTT discovery and appears as a device with light (on/off, brightness, color), lamp mode, color mode, night mode, night brightness, Wi-Fi signal and a restart button. Changes on the web interface show up in Home Assistant right away. See "Add WordClock to Home Assistant" below
+- Home Assistant via MQTT: the clock announces itself with MQTT discovery and appears as a device with light (on/off, brightness, color), lamp mode, color mode, night mode, day and night brightness, Wi-Fi signal and a restart button. Changes on the web interface show up in Home Assistant right away. See "Add WordClock to Home Assistant" below
 - German and English layout variant of the WordClock. The DE/EN switch at the top right of the web interface sets the clock layout and the language of the web interface. REST command texts are always in English.
 
 
@@ -209,9 +209,10 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
            the NTP time had repaired it, although it had lost its time at every power cut.
 - 6.4.0    Home Assistant via MQTT discovery: the clock appears as a device in Home Assistant (light, lamp mode, color mode,
            night mode, night brightness, Wi-Fi signal, restart). Settings on the Network tab. Needs the PubSubClient library.
-- 6.4.1    Switching the LEDs on at night (Home Assistant light or REST "ledson") no longer flashes them with the day
-           brightness first; they come on with the night brightness right away (or stay dark if the night mode switches the
-           display off).
+- 6.4.1    Home Assistant: the brightness of the light is now the brightness of the current time - during the night times
+           of the night mode the night brightness, else the day brightness (before always the day brightness, so dimming at
+           night seemed to do nothing and flashed the clock). New entity "Day brightness". Switching the LEDs on at night
+           (Home Assistant or REST "ledson") no longer flashes them with the day brightness first.
 
 <hr>
 
@@ -260,6 +261,7 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 <b>Notes:</b>
 - Topics: wordclock/&lt;last 6 digits of the MAC&gt;/... (shown on the web interface), discovery under homeassistant/...
 - The entity names follow the language of the clock (Display -> Language).
+- The brightness of the light is the brightness of the current time: during the night times of the night mode the night brightness, else the day brightness. So dimming in Home Assistant always changes what the clock shows right now. Day and night brightness can also be set on their own (entities "Day brightness" and "Night brightness").
 - Settings changed in Home Assistant (color, brightness, color mode, night mode, night brightness) are stored on the clock a few seconds later. Lamp mode and LEDs on/off are not stored, like on the web interface.
 - If the broker cannot be reached, the clock tries again after 5 s, then less often (up to every 2 minutes). Each attempt can hold the display for up to about 3 seconds.
 - To remove the clock from Home Assistant: switch off the connection on the web interface, then delete the device in Home Assistant.

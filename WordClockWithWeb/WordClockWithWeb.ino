@@ -78,7 +78,7 @@ typedef HTTPUpdateServer ESP8266HTTPUpdateServer;   // Same interface as on the 
 
 // State sent to Home Assistant via MQTT. Defined before everything else: the Arduino IDE puts the function prototypes
 // in front of the first function, and on the ESP32 that is SET_LOOP_TASK_STACK_SIZE below.
-struct mqttStateRec { int on, bri, r, g, b, lamp, cmode, nmode, nbri; };
+struct mqttStateRec { int on, bri, r, g, b, lamp, cmode, nmode, nbri, dbri; };
 
 #if defined(ESP32)
 // Adafruit NeoPixel puts the whole RMT buffer for the 114 LEDs (about 11 KB) on the stack of the calling task,
@@ -2016,7 +2016,9 @@ void startNetworkServices() {
 // ###########################################################################################################################################
 // # Home Assistant via MQTT: the clock announces itself with MQTT discovery and appears in Home Assistant as a device
 // # (Settings -> Devices & services -> MQTT) with: light (LEDs on/off, brightness, color), lamp mode, color mode,
-// # night mode, night brightness, Wi-Fi signal and a restart button. Needs a MQTT broker, f.e. the Mosquitto add-on.
+// # night mode, day and night brightness, Wi-Fi signal and a restart button. Needs a MQTT broker, f.e. the Mosquitto add-on.
+// # The brightness of the light is the brightness of the current time: during the night times of the night mode the night
+// # brightness, else the day brightness. So the slider in Home Assistant always changes what the clock shows right now.
 // # Topics: wordclock/<last 6 digits of the MAC>/... - the discovery messages go to homeassistant/<component>/...
 // ###########################################################################################################################################
 WiFiClient mqttNet;
@@ -2137,6 +2139,18 @@ void mqttSendDiscovery() {
   }
   {
     JsonDocument d;
+    d["cmd_t"] = "~/daybright/set";
+    d["stat_t"] = "~/daybright";
+    d["min"] = 1;
+    d["max"] = maxBright;
+    d["step"] = 1;
+    d["mode"] = "slider";
+    d["icon"] = "mdi:brightness-7";
+    d["ent_cat"] = "config";
+    mqttDiscover("number", "daybright", mqttT("Tag-Helligkeit", "Day brightness"), d);
+  }
+  {
+    JsonDocument d;
     d["cmd_t"] = "~/nightbright/set";
     d["stat_t"] = "~/nightbright";
     d["min"] = 1;
@@ -2170,7 +2184,8 @@ void mqttSendDiscovery() {
 mqttStateRec mqttCurrent() {
   mqttStateRec c;
   c.on = RESTmanLEDsON ? 1 : 0;
-  c.bri = intensity;
+  c.bri = nightTimeNow() ? intensityNight : intensity;  // Light: the brightness of the current time (day or night)
+  c.dbri = intensity;
   bool saved = switchRainBow == 2;
   c.r = saved ? parameter.pRed : redVal;
   c.g = saved ? parameter.pGreen : greenVal;
@@ -2204,6 +2219,7 @@ void mqttSendState(bool force) {
   if (force || c.cmode != l.cmode) mqtt.publish((mqttBase + "/colormode").c_str(), switchLangWeb == 0 ? mqttColorModesDe[c.cmode] : mqttColorModesEn[c.cmode], true);
   if (force || c.nmode != l.nmode) mqtt.publish((mqttBase + "/nightmode").c_str(), switchLangWeb == 0 ? mqttNightModesDe[c.nmode] : mqttNightModesEn[c.nmode], true);
   if (force || c.nbri != l.nbri) mqtt.publish((mqttBase + "/nightbright").c_str(), String(c.nbri).c_str(), true);
+  if (force || c.dbri != l.dbri) mqtt.publish((mqttBase + "/daybright").c_str(), String(c.dbri).c_str(), true);
   if (force || millis() - mqttLastRssi > 60000UL) {
     mqttLastRssi = millis();
     mqtt.publish((mqttBase + "/rssi").c_str(), String(WiFi.RSSI()).c_str(), true);
@@ -2241,6 +2257,14 @@ void mqttSaveNow() {
   Serial.println("MQTT: settings from Home Assistant stored");
 }
 
+// Shows a new brightness right away (the colors follow with the next loop pass, within a second)
+void mqttShowNow() {
+  if (!(RESTmanLEDsON && LEDsON)) return;
+  if (lampMode) showLamp();
+  else pixels.setBrightness(brightnessNow());
+  pixels.show();
+}
+
 void mqttCallback(char* topicC, byte* payload, unsigned int length) {
   String topic(topicC);
   String value;
@@ -2261,8 +2285,10 @@ void mqttCallback(char* topicC, byte* payload, unsigned int length) {
   if (cmd == "light/set") {
     JsonDocument d;
     if (deserializeJson(d, value)) return;
-    if (d["brightness"].is<int>()) {
-      intensity = constrain(d["brightness"].as<int>(), 1, maxBright);
+    if (d["brightness"].is<int>()) {  // The brightness of the current time: night brightness during the night times, else day brightness
+      int bri = constrain(d["brightness"].as<int>(), 1, maxBright);
+      if (nightTimeNow()) intensityNight = bri;
+      else intensity = bri;
       mqttSaveSoon();
     }
     if (d["color"].is<JsonObject>()) {
@@ -2277,9 +2303,10 @@ void mqttCallback(char* topicC, byte* payload, unsigned int length) {
       }
       mqttSaveSoon();
     }
-    String state = d["state"] | "";
+    String state = d["state"] | "";  // Home Assistant sends "ON" also with every brightness or color change
     if (state == "OFF") setLedsOn(false);
-    else if (state == "ON") setLedsOn(true);
+    else if (state == "ON" && !(RESTmanLEDsON && LEDsON)) setLedsOn(true);
+    else mqttShowNow();
   } else if (cmd == "lamp/set") {
     setLampMode(value == "ON");
   } else if (cmd == "colormode/set") {
@@ -2303,6 +2330,11 @@ void mqttCallback(char* topicC, byte* payload, unsigned int length) {
   } else if (cmd == "nightbright/set") {
     intensityNight = constrain((int)value.toFloat(), 1, maxBright);
     mqttSaveSoon();
+    mqttShowNow();
+  } else if (cmd == "daybright/set") {
+    intensity = constrain((int)value.toFloat(), 1, maxBright);
+    mqttSaveSoon();
+    mqttShowNow();
   } else if (cmd == "restart") {
     mqttRestartPending = true;  // Not here: the restart waits for the loop, outside of the MQTT library
   }
