@@ -2016,7 +2016,8 @@ void startNetworkServices() {
 // ###########################################################################################################################################
 // # Home Assistant via MQTT: the clock announces itself with MQTT discovery and appears in Home Assistant as a device
 // # (Settings -> Devices & services -> MQTT) with: light (LEDs on/off, brightness, color), lamp mode, color mode,
-// # night mode, day and night brightness, Wi-Fi signal and a restart button. Needs a MQTT broker, f.e. the Mosquitto add-on.
+// # night mode, day and night brightness, Wi-Fi signal, a restart button and (ESP32 only) the firmware update.
+// # Needs a MQTT broker, f.e. the Mosquitto add-on.
 // # The brightness of the light is the brightness of the current time: during the night times of the night mode the night
 // # brightness, else the day brightness. So the slider in Home Assistant always changes what the clock shows right now.
 // # Topics: wordclock/<last 6 digits of the MAC>/... - the discovery messages go to homeassistant/<component>/...
@@ -2036,6 +2037,16 @@ bool mqttRestartPending = false;      // Restart button pressed in Home Assistan
 uint32_t mqttDiscoverySig = 0;        // Settings the discovery messages depend on (to send them again after a change)
 mqttStateRec mqttLast;                // State sent last time
 bool mqttLastValid = false;
+#if defined(ESP32)
+// Firmware update entity. Only on the ESP32: the ESP8266 lacks the memory for the HTTPS request to GitHub next to MQTT.
+#define MQTT_UPDATE_ENTITY 1
+#define MQTT_UPDATE_CHECK_MS (6UL * 3600UL * 1000UL)  // Ask GitHub for the newest version every 6 hours
+#define MQTT_UPDATE_FIRST_MS 30000UL                  // ... and 30 s after the connection
+unsigned long mqttUpdConnectedAt = 0;  // Time of the MQTT connection
+unsigned long mqttUpdLastCheck = 0;    // Time of the last check (0 = not yet since the connection)
+bool mqttInstallPending = false;       // Install pressed in Home Assistant
+String mqttLastUpdState;               // Update state sent last time
+#endif
 
 // Names in Home Assistant follow the language of the clock (Display -> Language):
 const char* mqttT(const char* de, const char* en) {
@@ -2070,7 +2081,7 @@ void mqttRestart() {
 
 uint32_t mqttSig() {
   IPAddress ip = WiFi.localIP();
-  return (uint32_t)ip[3] << 24 ^ (uint32_t)ip[2] << 16 ^ (powersupply ? 1 : 0) ^ (switchLangWeb << 1) ^ (wchostnamenum << 3);
+  return (uint32_t)ip[3] << 24 ^ (uint32_t)ip[2] << 16 ^ (powersupply ? 1 : 0) ^ (switchLangWeb << 1) ^ (wchostnamenum << 3) ^ (useupdate << 8);
 }
 
 // One discovery message: component, object, entity name (nullptr = the device name) and the fields of the entity
@@ -2177,6 +2188,19 @@ void mqttSendDiscovery() {
     d["ent_cat"] = "config";
     mqttDiscover("button", "restart", mqttT("Neustart", "Restart"), d);
   }
+#ifdef MQTT_UPDATE_ENTITY
+  {
+    JsonDocument d;  // Firmware: installed and newest version; "Install" only with the update mode "Automatic" (System tab)
+    d["stat_t"] = "~/update";
+    d["dev_cla"] = "firmware";
+    d["ent_cat"] = "config";
+    if (useupdate == 2) {
+      d["cmd_t"] = "~/update/set";
+      d["payload_install"] = "INSTALL";
+    }
+    mqttDiscover("update", "firmware", "Firmware", d);
+  }
+#endif
   mqttDiscoverySig = mqttSig();
 }
 
@@ -2220,6 +2244,13 @@ void mqttSendState(bool force) {
   if (force || c.nmode != l.nmode) mqtt.publish((mqttBase + "/nightmode").c_str(), switchLangWeb == 0 ? mqttNightModesDe[c.nmode] : mqttNightModesEn[c.nmode], true);
   if (force || c.nbri != l.nbri) mqtt.publish((mqttBase + "/nightbright").c_str(), String(c.nbri).c_str(), true);
   if (force || c.dbri != l.dbri) mqtt.publish((mqttBase + "/daybright").c_str(), String(c.dbri).c_str(), true);
+#ifdef MQTT_UPDATE_ENTITY
+  String upd = mqttUpdateState(false, -1);
+  if (force || upd != mqttLastUpdState) {
+    mqtt.publish((mqttBase + "/update").c_str(), upd.c_str(), true);
+    mqttLastUpdState = upd;
+  }
+#endif
   if (force || millis() - mqttLastRssi > 60000UL) {
     mqttLastRssi = millis();
     mqtt.publish((mqttBase + "/rssi").c_str(), String(WiFi.RSSI()).c_str(), true);
@@ -2256,6 +2287,37 @@ void mqttSaveNow() {
   }
   Serial.println("MQTT: settings from Home Assistant stored");
 }
+
+#ifdef MQTT_UPDATE_ENTITY
+// Version without the leading "V" (Home Assistant compares the versions itself): "V6.4.1" -> "6.4.1"
+String mqttVersion(const String& v) {
+  return (v.startsWith("V") || v.startsWith("v")) ? v.substring(1) : v;
+}
+
+// State of the update entity. The newest version is left out as long as GitHub was not asked successfully.
+String mqttUpdateState(bool inProgress, int percent) {
+  JsonDocument d;
+  d["installed_version"] = mqttVersion(WORD_CLOCK_VERSION);
+  if (AvailableVersion.length() > 1 && AvailableVersion != "-") {
+    d["latest_version"] = mqttVersion(AvailableVersion);
+    d["release_url"] = "https://github.com/" UPDATE_REPO "/releases/tag/" + AvailableVersion;
+  }
+  d["title"] = "WordClock";
+  d["in_progress"] = inProgress;
+  if (percent >= 0) d["update_percentage"] = percent;
+  String out;
+  serializeJson(d, out);
+  return out;
+}
+
+// Called from update_progress() during an update: progress in steps of 10 % to Home Assistant
+void mqttUpdateProgress(int percent) {
+  static int lastStep = -1;
+  if (!mqtt.connected() || percent / 10 == lastStep) return;
+  lastStep = percent / 10;
+  mqtt.publish((mqttBase + "/update").c_str(), mqttUpdateState(true, percent).c_str(), true);
+}
+#endif
 
 // Shows a new brightness right away (the colors follow with the next loop pass, within a second)
 void mqttShowNow() {
@@ -2335,6 +2397,13 @@ void mqttCallback(char* topicC, byte* payload, unsigned int length) {
     intensity = constrain((int)value.toFloat(), 1, maxBright);
     mqttSaveSoon();
     mqttShowNow();
+#ifdef MQTT_UPDATE_ENTITY
+  } else if (cmd == "update/set") {
+    if (value != "INSTALL") return;
+    if (useupdate != 2) Serial.println("MQTT: update not installed - the update mode is not \"Automatic\" (System tab)");
+    else if (!UpdateAvailable) Serial.println("MQTT: no update available");
+    else mqttInstallPending = true;  // Not here: the update waits for the loop, outside of the MQTT library
+#endif
   } else if (cmd == "restart") {
     mqttRestartPending = true;  // Not here: the restart waits for the loop, outside of the MQTT library
   }
@@ -2364,6 +2433,10 @@ bool mqttConnect() {
     return false;
   }
   Serial.println("MQTT: connected, topics " + mqttBase + "/...");
+#ifdef MQTT_UPDATE_ENTITY
+  mqttUpdConnectedAt = millis();
+  mqttUpdLastCheck = 0;
+#endif
   mqtt.publish(will.c_str(), "online", true);
   mqtt.subscribe((mqttBase + "/+/set").c_str());
   mqtt.subscribe((mqttBase + "/restart").c_str());
@@ -2406,6 +2479,22 @@ void mqttLoop() {
     return;
   }
   mqtt.loop();
+#ifdef MQTT_UPDATE_ENTITY
+  if (mqttInstallPending) {  // Install pressed in Home Assistant: like the update button of the configuration page
+    mqttInstallPending = false;
+    if (mqttSaveAt) mqttSaveNow();
+    Serial.println("MQTT: installing update " + AvailableVersion);
+    mqtt.publish((mqttBase + "/update").c_str(), mqttUpdateState(true, 0).c_str(), true);
+    installRelease(AvailableVersion);  // Restarts the clock, also if it fails
+  }
+  bool checkDue = mqttUpdLastCheck == 0 ? millis() - mqttUpdConnectedAt >= MQTT_UPDATE_FIRST_MS : millis() - mqttUpdLastCheck >= MQTT_UPDATE_CHECK_MS;
+  if (checkDue) {  // Ask GitHub for the newest version (takes a few seconds, the display stands still meanwhile)
+    mqttUpdLastCheck = millis() | 1;
+    String errorMessage;
+    if (!readhttpfile(errorMessage)) Serial.println("MQTT: update check failed (" + errorMessage + ")");
+    bootStage(STAGE_RUN);
+  }
+#endif
   if (millis() - mqttLastState >= 500) {  // Changes from the configuration page, the REST functions or the night mode
     mqttLastState = millis();
     bool rediscover = mqttSig() != mqttDiscoverySig;  // Language, power supply, hostname or IP-address changed
@@ -2690,6 +2779,9 @@ void update_progress(int cur, int total) {  // Callback update download progress
   pixels.setBrightness(50);
   // Serial.printf("CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
   int percent = (cur * 100) / total;
+#ifdef MQTT_UPDATE_ENTITY
+  mqttUpdateProgress(percent);  // Home Assistant shows the progress
+#endif
   redVal = 0;
   greenVal = 255;
   blueVal = 0;
@@ -2978,6 +3070,11 @@ void handleApiState() {
   s["mqtt"] = mqttStatus();  // off, connecting, connected, error
   s["mqttRc"] = mqttLastRc;  // Result of the last connection attempt (PubSubClient state)
   s["mqttTopic"] = mqttBase;
+#ifdef MQTT_UPDATE_ENTITY
+  s["mqttUpdate"] = true;  // Firmware update entity in Home Assistant (ESP32 only)
+#else
+  s["mqttUpdate"] = false;
+#endif
   JsonObject pd = s["pinDefaults"].to<JsonObject>();
   pd["led"] = PIN;
   pd["sda"] = SDA_PIN;

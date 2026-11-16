@@ -486,6 +486,7 @@ a{color:var(--accent)}
             <p class="err" id="mqttErr" hidden></p>
             <dl class="kv" id="mqttState"></dl>
             <p class="hint" id="mqttHint"></p>
+            <p class="hint" id="mqttUpdHint" hidden></p>
           </div>
         </section>
 
@@ -576,7 +577,7 @@ const mock = {
   status: {
     version: "V6.4.1", chip: "ESP8266", ip: "192.168.178.50", mac: "A4:CF:12:3B:7E:01",
     ssid: "Heimnetz", rssi: -58, ntpOk: true, ntpAgoMin: 12, rtc: true, rtcOk: true, rtcStart: "ok", timeOk: true,
-    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, resetReason: "poweron", resetCode: 1, boots: 1, ledsOn: true, lamp: false, restPort: 55555, mqtt: "off", mqttRc: 0, mqttTopic: "wordclock/3b7e01", curColor: "#00ff00", rainbowSeed: 123456789,
+    uptime: 3*86400 + 5*3600 + 12*60, heap: 36120, resetReason: "poweron", resetCode: 1, boots: 1, ledsOn: true, lamp: false, restPort: 55555, mqtt: "off", mqttRc: 0, mqttTopic: "wordclock/3b7e01", mqttUpdate: false, curColor: "#00ff00", rainbowSeed: 123456789,
     pinDefaults: { led: 12, sda: 4, scl: 5 }
   }
 };
@@ -695,7 +696,8 @@ const T = {
     mq_off: "Aus", mq_connecting: "Verbindet …", mq_connected: "Verbunden", mq_rc_m4: "Keine Antwort vom Server", mq_rc_m3: "Verbindung verloren",
     mq_rc_m2: "Server nicht erreichbar", mq_rc_4: "Benutzer oder Passwort falsch", mq_rc_5: "Nicht berechtigt", mq_rc: "Fehler (Code {n})",
     mqttHint: "Server ist meist die IP-Adresse von Home Assistant mit dem Mosquitto-Add-on, Port 1883. Benutzer und Passwort: ein Home-Assistant-Benutzer oder ein Login aus dem Add-on. Die Uhr erscheint danach in Home Assistant unter Einstellungen › Geräte & Dienste › MQTT.",
-    mqttTopic: "Topics", 
+    mqttTopic: "Topics", mqttUpdNo: "Firmware-Updates über Home Assistant gibt es nur beim ESP32: Dem ESP8266 fehlt neben MQTT der Speicher für die Abfrage bei GitHub. Updates laufen hier weiter über System › Update.",
+    mqttUpdMode: "Home Assistant zeigt verfügbare Firmware-Updates an. Installieren lassen sie sich dort nur mit der Update-Art „Automatisch“ (System › Update).", 
     rOff: "LEDs aus", rOn: "LEDs an", rStat: "LED-Status", copy: "Kopieren", copiedUrl: "URL kopiert",
     gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Laufzeit", fHeap: "Freier Speicher", upFmt: "{d} T {h} Std {m} Min",
     fReset: "Letzter Neustart", rst_poweron: "Strom eingeschaltet", rst_external: "Reset-Taster", rst_software: "Neustart durch die Software",
@@ -798,7 +800,8 @@ const T = {
     mq_off: "Off", mq_connecting: "Connecting …", mq_connected: "Connected", mq_rc_m4: "No answer from the server", mq_rc_m3: "Connection lost",
     mq_rc_m2: "Server not reachable", mq_rc_4: "Wrong user or password", mq_rc_5: "Not authorized", mq_rc: "Error (code {n})",
     mqttHint: "The server is usually the IP address of Home Assistant with the Mosquitto add-on, port 1883. User and password: a Home Assistant user or a login of the add-on. The clock then appears in Home Assistant under Settings › Devices & services › MQTT.",
-    mqttTopic: "Topics", 
+    mqttTopic: "Topics", mqttUpdNo: "Firmware updates via Home Assistant are only available on the ESP32: next to MQTT the ESP8266 lacks the memory for the request to GitHub. Updates keep working via System › Update.",
+    mqttUpdMode: "Home Assistant shows available firmware updates. They can only be installed from there with the update mode “Automatic” (System › Update).", 
     rOff: "LEDs off", rOn: "LEDs on", rStat: "LED status", copy: "Copy", copiedUrl: "URL copied",
     gFw: "Firmware", fVer: "Version", fChip: "Chip", fUp: "Uptime", fHeap: "Free memory", upFmt: "{d} d {h} h {m} min",
     fReset: "Last restart", rst_poweron: "Power switched on", rst_external: "Reset button", rst_software: "Restart by the software",
@@ -1183,6 +1186,9 @@ function renderDeps() {
     $("#mqttFields").querySelectorAll("input").forEach(i => i.disabled = !cfg.mqtt.on);
     $("#mqttPass").placeholder = cfg.mqtt.passSet ? t("mqttPassKeep") : "";
     $("#mqttHint").textContent = t("mqttHint");
+    // Firmware update entity: ESP32 only; installing needs the update mode "Automatic"
+    const updHint = !st || st.mqttUpdate == null ? "" : !st.mqttUpdate ? t("mqttUpdNo") : cfg.update !== 2 ? t("mqttUpdMode") : "";
+    $("#mqttUpdHint").textContent = updHint; $("#mqttUpdHint").hidden = !updHint || !cfg.mqtt.on;
   }
   // System
   const u = $("#updDetail");
