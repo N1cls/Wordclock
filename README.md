@@ -110,6 +110,8 @@ Install these libraries in the Arduino IDE library manager (the ESP8266Ping libr
 - If the clock cannot connect to the saved WiFi at startup, it opens the setup hotspot "WordClock" for 240 seconds while it keeps showing the time. Afterwards it keeps trying the saved WiFi in the background. To enter new WiFi data, restart the clock and connect to the hotspot
 - You can configure the hostname of the device that will be tried to tranfer to your routers DNS configuration to reach the web portal via DNS name too
 - A restart request can be forced with the web portal as well
+- Lamp mode: a switch below the clock face lights all LEDs in the set color and brightness (night brightness during the night times), also switchable from Home Assistant
+- Diagnostics in the web interface: reason of the last restart (power on, crash, watchdog, power dip ...), starts since power on, and whether the RTC time was usable at startup (shows an empty RTC battery)
 - The timezone and NTP-Server configuration can be configured as well to fit to your demands
 - Optional you can set up to 3 IP-addresses (of f.e. your smart phones) connected on your network to be monitored via PING requests 2x per minute. After a set amount of failed PING attempts the WordClock LEDs will turn off to reduce power consumption when you are not at home
 - Automatic update without the need of a computer: the web interface checks the GitHub releases of this repository and installs a newer version with one click. The download and update progress is shown on the clock display.
